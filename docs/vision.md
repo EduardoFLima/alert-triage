@@ -1,0 +1,234 @@
+# Vision: Alert Triage
+
+## Problem
+
+Teams receive Datadog alerts and ignore them. Not because the alerts are
+wrong, but because responding requires time and troubleshooting knowledge
+most people don't have in the moment. The result: real signal gets lost in
+the noise of things nobody has time to investigate.
+
+## What this builds
+
+A recurring job that watches for recent Datadog alerts, does the first-pass
+investigation a knowledgeable human would do if they had the time, and sends
+a triage report to the team — so the decision left to a human is "act on
+this" rather than "figure out where to even start."
+
+It explicitly does **not** try to auto-remediate or decide for the human. It
+does the legwork and presents a hypothesis with its confidence, not a verdict.
+
+## Architecture
+
+Hexagonal (ports & adapters). The domain doesn't know which observability
+tool, which multi-agent framework, or which notification channel it's
+talking to — those are all adapters behind ports. This matters for two
+concrete reasons: the tool is meant to be shared publicly so others can
+plug in their own observability/notification tooling, and it needs to run
+in three different execution contexts (manual/local, container, GKE/Cloud
+Run) without the core changing.
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                          Core Domain                                │
+│                                                                     │
+│  Alert ──▶ Grouper ──▶ Investigator ──▶ Diagnostician ──▶ Report    │
+│              │              │                                │      │
+│              ▼              │                                ▼      │
+│        TriageLedger ◀───────┘                            Escalator  │
+│        (dedup/cooldown)                              (side-channel) │
+└───────────┬─────────────────┬───────────────────────────────┬──────┘
+            │                 │                                │
+    ┌───────▼──────┐  ┌───────▼────────┐               ┌──────▼──────┐
+    │ AlertSource  │  │ Investigator   │               │ Notifier    │
+    │ port         │  │ port           │               │ port        │
+    └───────┬──────┘  └───────┬────────┘               └──────┬──────┘
+    ┌───────▼──────┐  ┌───────▼────────┐               ┌──────▼──────┐
+    │ Datadog      │  │ ADK agent crew │               │ Email       │
+    │ MCP adapter  │  │ adapter        │               │ Teams       │
+    └──────────────┘  └────────────────┘               └─────────────┘
+```
+
+### Ports
+
+- **AlertSource** — fetch recent alerts (Datadog MCP adapter for v1)
+- **Investigator** — given a group of related alerts, produce findings +
+  hypothesis (ADK multi-agent adapter for v1)
+- **TriageLedger** — tracks which alert-groups have already been reported
+  and when, to dedup and enforce re-notify cooldown
+- **Notifier** — deliver the triage report (Email + Teams adapters for v1)
+- **Config** — optional YAML, provides critical-services registry,
+  circuit-breaker thresholds, and room to grow other settings later.
+  Absence of the file means sensible defaults apply everywhere.
+
+### Grouping
+
+Alerts are grouped as "the same incident" when they share a service tag and
+fall within the same time window. A group is investigated and reported
+once, not per-alert.
+
+### Investigation — multi-agent (Google ADK, Python)
+
+The Investigator is one adapter implementation: a crew of specialist
+agents, each scoped to one observability dimension, feeding a reasoning
+agent that forms the actual hypothesis:
+
+- **APM agent** — service-level golden signals (latency, error rate,
+  throughput), plus single-hop upstream/downstream evidence (e.g. "latency
+  degraded, correlates with a call-volume increase from upstream service
+  X"). Deliberately bounded to one hop — it does not recursively
+  investigate the neighboring services themselves. That's a roadmap item.
+- **Trace agent** — specific slow/failed trace waterfall analysis
+- **Logs agent** — error/warning patterns around the alert window
+- **Infrastructure agent** — CPU/memory/disk/network around the alert
+  window
+- **Diagnostician agent** — reasons across all the above, produces a
+  hypothesis with an explicit confidence level. Kept separate from Report
+  so that reasoning quality and message formatting can be tuned
+  independently.
+- **Report agent** — formats the Diagnostician's hypothesis + evidence into
+  the actual email/Teams message
+
+Deploy-version comparisons (item: "did this start after a deploy") use
+Datadog's own service-version tag — no separate version-control integration
+needed for v1. Comparing against actual GitHub history is a roadmap item.
+
+### Re-notification
+
+Configurable cooldown before re-reporting an alert-group that's still
+firing or has re-fired; defaults to 2 days.
+
+### Escalation
+
+A severity/threshold rule (e.g. latency above a defined threshold), with
+per-service overrides from the critical-services config, bypasses batching
+entirely and notifies immediately — a "needs a human now" path that doesn't
+wait on investigation or digest cadence.
+
+### Circuit breakers
+
+Multi-agent investigation can loop or run away in three distinct ways:
+within one agent's tool-calling loop, across agents handing off to each
+other, or just running long. Each is bounded independently, configurable in
+the same optional YAML, with defaults:
+
+| Breaker | Default |
+|---|---|
+| `max_tool_calls_per_agent` | 8 |
+| `max_agent_hops` | 2 |
+| `max_investigation_duration_seconds` | 120 |
+| `max_mcp_retries` | 3 |
+| `mcp_call_timeout_seconds` | 30 |
+
+A tripped breaker does not silently truncate: it produces a report marked
+"investigation incomplete" with whatever partial evidence was gathered, and
+routes through the escalation path — an incomplete automated triage is
+itself a signal a human should look sooner.
+
+## Config file
+
+A single YAML file (e.g. `config.yaml`) is the one place configuration is
+described. The file's existence is still optional — but the `scope` value
+it (or an environment variable) provides is not:
+
+- `scope` — **mandatory value, from either source.** For v1, just a
+  Datadog team: the job watches only alerts belonging to that team. It can
+  be set in `config.yaml`, or via an environment variable (see below), or
+  both — if both are set, the environment variable wins. It must resolve
+  from one of the two. No default, no "watch
+  everything" fallback: if neither `config.yaml` nor the environment
+  provides it, the application refuses to start. Widening scope beyond a
+  single team (multiple teams, tag-based scoping, etc.) is a future
+  extension, not v1.
+- `critical_services` — optional, service → criticality tier → custom
+  thresholds. Defaults apply if absent.
+- `circuit_breakers` — optional, the thresholds listed above. Defaults
+  apply if absent.
+- room to grow other behavior settings later without a schema rewrite
+
+So `config.yaml` as a file is never required to exist — a deployment could
+supply scope purely through environment variables and skip the file
+entirely — but the *value* of `scope` is always required at startup,
+regardless of which source supplies it.
+
+### Environment variable overrides
+
+Any value normally set in `config.yaml` can instead be set via an
+environment variable, following a predictable naming convention (e.g. a
+section/key path mapped to `SCREAMING_SNAKE_CASE`, such as
+`SCOPE_DATADOG_TEAM` for `scope.datadog_team`). When both are present, the
+environment variable always takes precedence over the YAML value — this
+holds for every config value, not just `scope`. This is how `scope` can be
+satisfied without a config file at all, and matters most for deploy
+targets beyond manual/local: containers and GKE/Cloud Run jobs configure
+per-environment values (or one-off overrides) through env vars rather than
+baking per-team YAML files into images.
+
+## Deployment
+
+v1 runs manually, from a developer's machine. Next step: containerize so
+the same image can run for different teams' configs. After that: deploy to
+GCP (Cloud Run job or GKE) — GCP is the target landscape.
+
+## Repo & engineering conventions
+
+- **AGENTS.md is canonical.** Other harness-specific filenames (e.g.
+  `CLAUDE.md`) are symlinks to it — no duplicated instructions across
+  harnesses.
+- **AGENTS.md holds practices, not product knowledge.** It should never
+  duplicate what's in the README; if a coding agent needs to understand
+  what the application does, it reads the README, not AGENTS.md.
+- **AGENTS.md mandates**: clean code, TDD (red/green/refactor), clean
+  (hexagonal) architecture — the same architecture described above, kept
+  intact as the codebase grows. Also: use context7 to look up current
+  library/framework docs rather than relying on training data (ADK, MCP,
+  and friends move fast); use a mermaid MCP tool for any diagrams added to
+  the README, rather than hand-rolled ASCII or static images.
+- **README** carries setup instructions, the architecture diagram (kept in
+  sync via mermaid), and a guide for adding a new observability or
+  notification adapter — since sharing this publicly for others to extend
+  is an explicit goal.
+- **Tests** are expected throughout, practiced as TDD rather than added
+  after the fact.
+
+## Explicitly deferred (roadmap, not v1 scope)
+
+- FinOps agent (cost-impact or cost-anomaly investigation)
+- Multi-hop dependency traversal (recursively investigating upstream/
+  downstream services, not just single-hop evidence)
+- GitHub deploy-history correlation (beyond the DD version tag)
+
+## Capability slices (dependency order)
+
+Each slice is a vertical cut: independently buildable and independently
+testable, building only on the slices before it.
+
+0. **Scaffolding & conventions** — AGENTS.md (+ symlinks), README skeleton,
+   hexagonal folder layout, test harness. Testable via repo structure/CI
+   skeleton.
+1. **Core domain & config** — Alert entity, grouping logic, Config port +
+   YAML loader with defaults for optional sections, mandatory `scope`
+   (v1: Datadog team) with no fallback if missing, and environment
+   variable overrides for any config value. Testable as pure unit tests.
+2. **Alert ingestion** — AlertSource port + Datadog MCP adapter. Testable
+   against mocked MCP responses.
+3. **TriageLedger** — dedup/cooldown persistence. Testable in isolation
+   with a fake clock.
+4. **Notification** — Notifier port + Email + Teams adapters, sending stub
+   content. Testable independently of investigation.
+5. **End-to-end skeleton** — wires ingestion → grouping → ledger → notifier
+   with a trivial pass-through report; first fully runnable manual job.
+   Testable end-to-end with fakes.
+6. **Investigator port + first specialist agent (Logs)** — proves the ADK +
+   MCP adapter pattern. Testable against mocked MCP tool responses.
+7. **Remaining specialist agents** (APM incl. single-hop dependency
+   evidence, Trace, Infrastructure) — same pattern as slice 6, addable
+   independently.
+8. **Diagnostician + Report agent** — cross-signal reasoning to hypothesis
+   + confidence, then formatting. Testable against canned findings.
+9. **Escalation path** — severity/threshold rule + critical-services
+   overrides, bypassing batching. Testable as rule-engine unit tests.
+10. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
+    trip → partial report + auto-escalate. Testable by forcing a trip
+    condition.
+11. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
+    Testable via container build + smoke test.

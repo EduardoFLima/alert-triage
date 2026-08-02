@@ -3,11 +3,13 @@ schema: spec-driven
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Full project vision, architecture, ports/adapters, agent design,
+  config/circuit-breaker defaults, repo conventions, and the
+  dependency-ordered capability slice breakdown live in docs/vision.md.
+  Read that file before proposing or designing any change — do not
+  duplicate its content here or in generated artifacts; reference it
+  instead.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
