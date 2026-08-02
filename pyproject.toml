@@ -1,0 +1,114 @@
+[project]
+name = "alert-triage"
+version = "0.1.0"
+description = "First-pass triage of Datadog alerts, delivered as a report a human can act on."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+# No runtime dependencies yet. Each capability slice adds the libraries it
+# needs (see docs/vision.md), so the dependency tree stays legible.
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/alert_triage"]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.3",
+    "mypy>=1.14",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+]
+
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "PTH",  # flake8-use-pathlib
+    "RUF",  # ruff-specific rules
+    "D",    # pydocstyle
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests document themselves through their names; module/class docstrings are noise.
+"tests/**" = ["D100", "D101", "D103", "D104"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src", "tests"]
+warn_unreachable = true
+# Every relaxation belongs here as a named per-module override, never as a
+# global loosening of the settings above.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=alert_triage",
+    "--cov-report=term-missing",
+]
+markers = [
+    "unit: no external dependency, no network (tests/unit)",
+    "integration: exercises an integration or real I/O (tests/integration)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["alert_triage"]
+
+[tool.importlinter]
+root_packages = ["alert_triage"]
+include_external_packages = true
+
+# Dependencies point inward only: app knows every layer, domain knows none.
+[[tool.importlinter.contracts]]
+name = "Hexagonal layers point inward"
+type = "layers"
+layers = [
+    "alert_triage.app",
+    "alert_triage.adapters",
+    "alert_triage.ports",
+    "alert_triage.domain",
+]
+
+# The layers contract cannot see vendor SDKs; this one keeps them out of the core.
+[[tool.importlinter.contracts]]
+name = "Domain and ports are free of vendor libraries"
+type = "forbidden"
+source_modules = [
+    "alert_triage.domain",
+    "alert_triage.ports",
+]
+forbidden_modules = [
+    "datadog",
+    "datadog_api_client",
+    "google",
+    "mcp",
+    "requests",
+    "httpx",
+    "smtplib",
+    "msal",
+]
