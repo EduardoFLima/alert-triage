@@ -63,27 +63,27 @@
 
 ## 6. README
 
-- [ ] 6.1 Write the setup section: prerequisites, clone, `uv sync`, and the
+- [x] 6.1 Write the setup section: prerequisites, clone, `uv sync`, and the
   verification command that runs the test suite
-- [ ] 6.2 Generate the architecture diagram with the mermaid MCP tool from the
+- [x] 6.2 Generate the architecture diagram with the mermaid MCP tool from the
   structure in `docs/vision.md` and embed it
-- [ ] 6.3 Write the "adding an adapter" guide: which port to implement, where the
+- [x] 6.3 Write the "adding an adapter" guide: which port to implement, where the
   implementation goes, and the tests it must carry
   (spec: "Contributors can set up and verify the project from the README")
-- [ ] 6.4 Walk the setup steps from a clean clone in a scratch directory and
+- [x] 6.4 Walk the setup steps from a clean clone in a scratch directory and
   confirm they reach a passing test run without undocumented steps
 
 ## 7. CI gate
 
-- [ ] 7.1 Add `.github/workflows/ci.yml` running on push and pull request:
+- [x] 7.1 Add `.github/workflows/ci.yml` running on push and pull request:
   checkout with symlinks preserved, install uv, `uv sync --frozen`, then
   `ruff check`, `ruff format --check`, `mypy`, and `pytest`
-- [ ] 7.2 Confirm the gate fails as expected by pushing a deliberate lint error, a
+- [x] 7.2 Confirm the gate fails as expected by pushing a deliberate lint error, a
   type error, and a boundary violation on a scratch branch, then reverting
   (spec: "Quality gate runs on every change")
 - [ ] 7.3 Confirm the gate passes green on the finished branch
 
 ## 8. Wrap-up
 
-- [ ] 8.1 Run the full local gate one final time and record the output
-- [ ] 8.2 Run `openspec validate --strict` on this change
+- [x] 8.1 Run the full local gate one final time and record the output
+- [x] 8.2 Run `openspec validate --strict` on this change

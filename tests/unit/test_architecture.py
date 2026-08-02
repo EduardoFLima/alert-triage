@@ -25,7 +25,7 @@ def test_hexagonal_import_contracts_hold() -> None:
     The contracts live in ``pyproject.toml``; running them from a test means
     a boundary violation fails the same command as any other regression.
     """
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [_lint_imports()],
         cwd=REPO_ROOT,
         capture_output=True,
