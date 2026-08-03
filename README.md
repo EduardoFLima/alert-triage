@@ -80,8 +80,14 @@ without the core changing.
 
 ```mermaid
 flowchart TB
-    App["app — composition root<br/>constructs adapters, injects them"]
-
+    subgraph InboundAdapters["adapters — inbound"]
+        direction TB
+        DatadogMCP["AlertSource Adapter<br/>Datadog MCP"]
+    end
+    subgraph InboundPorts["ports — inbound"]
+        direction TB
+        AlertSource["AlertSource"]
+    end
     subgraph Domain["domain — entities and logic"]
         direction LR
         Alert["Alert"] --> Grouper["Grouper"]
@@ -92,34 +98,34 @@ flowchart TB
         Report --> Escalation["Escalation<br/>(side channel)"]
     end
 
-    subgraph Ports["ports — interfaces the domain speaks"]
+    subgraph OutboundPorts["ports — outbound"]
         direction LR
-        AlertSource["AlertSource"]
-        Investigator["Investigator"]
-        TriageLedger["TriageLedger"]
-        Notifier["Notifier"]
-        Config["Config"]
+        Investigator["Investigator Agent"] ~~~ ObservabilityPlatform["Observability Platform"] ~~~ TriageLedger["Triage Ledger"] ~~~ Notifier["Report Notifier"] ~~~ Config["Config Reader"]
     end
 
-    subgraph Adapters["adapters — one subpackage per integration"]
+    subgraph OutboundAdapters["adapters — outbound"]
         direction LR
-        DatadogMCP["adapters/datadog<br/>Datadog MCP"]
-        ADKCrew["adapters/adk<br/>ADK agent crew"]
-        EmailAdapter["adapters/email"]
-        TeamsAdapter["adapters/teams"]
+        ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>Persistence tool [TBD]"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>Yaml parser [TBD]"]
     end
 
-    Domain --> Ports
     DatadogMCP -. implements .-> AlertSource
-    ADKCrew -. implements .-> Investigator
-    EmailAdapter -. implements .-> Notifier
-    TeamsAdapter -. implements .-> Notifier
-    App --> Adapters
-    App --> Domain
+    AlertSource --> Domain
+    Domain ---> OutboundPorts
+    OutboundPorts ---> OutboundAdapters
+
+    classDef domainClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef portsClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+    classDef adaptersClass fill:#eaf6ec,stroke:#3f9142,color:#123a17
+
+    class Domain domainClass
+    class InboundPorts,OutboundPorts portsClass
+    class InboundAdapters,OutboundAdapters adaptersClass
 ```
 
-Dependencies point inward only — `app` → `adapters` → `ports` → `domain` — and
-that direction is enforced by `tests/unit/test_architecture.py`, not by review.
+Dependencies point inward only — `adapters` → `ports` → `domain` — and that
+direction is enforced by `tests/unit/test_architecture.py`, not by review. The
+composition root (`app/`) wires adapters into ports at startup; it has no
+runtime dependency edge of its own.
 
 ```
 src/alert_triage/
@@ -148,6 +154,7 @@ operation. Say you want to notify Slack instead of Teams:
 |---|---|
 | `AlertSource` | where alerts come from (Datadog, Prometheus, …) |
 | `Investigator` | how an alert group gets investigated |
+| `ObservabilityPlatform` | where the investigator queries logs, traces, and metrics for context (Datadog, …) |
 | `TriageLedger` | where dedup and cooldown state is kept |
 | `Notifier` | where the triage report is delivered |
 | `Config` | where configuration is read from |

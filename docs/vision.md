@@ -53,6 +53,9 @@ Run) without the core changing.
 - **AlertSource** — fetch recent alerts (Datadog MCP adapter for v1)
 - **Investigator** — given a group of related alerts, produce findings +
   hypothesis (ADK multi-agent adapter for v1)
+- **ObservabilityPlatform** — queried by the investigator's specialist
+  agents for logs, traces, and metrics around the alert window (Datadog
+  MCP adapter for v1)
 - **TriageLedger** — tracks which alert-groups have already been reported
   and when, to dedup and enforce re-notify cooldown
 - **Notifier** — deliver the triage report (Email + Teams adapters for v1)
@@ -218,11 +221,13 @@ testable, building only on the slices before it.
 5. **End-to-end skeleton** — wires ingestion → grouping → ledger → notifier
    with a trivial pass-through report; first fully runnable manual job.
    Testable end-to-end with fakes.
-6. **Investigator port + first specialist agent (Logs)** — proves the ADK +
-   MCP adapter pattern. Testable against mocked MCP tool responses.
+6. **Investigator port + ObservabilityPlatform port + first specialist
+   agent (Logs)** — proves the ADK + MCP adapter pattern, with the Logs
+   agent querying observability data through the ObservabilityPlatform
+   port. Testable against mocked MCP tool responses.
 7. **Remaining specialist agents** (APM incl. single-hop dependency
-   evidence, Trace, Infrastructure) — same pattern as slice 6, addable
-   independently.
+   evidence, Trace, Infrastructure) — same pattern as slice 6, querying
+   through the same ObservabilityPlatform port, addable independently.
 8. **Diagnostician + Report agent** — cross-signal reasoning to hypothesis
    + confidence, then formatting. Testable against canned findings.
 9. **Escalation path** — severity/threshold rule + critical-services
