@@ -79,64 +79,43 @@ own tooling, and what lets it run locally, in a container, or on Cloud Run
 without the core changing.
 
 ```mermaid
-%%{init: {"flowchart": {"curve": "step", "nodeSpacing": 35, "rankSpacing": 55}}}%%
-flowchart LR
+flowchart TB
+    App["app — composition root<br/>constructs adapters, injects them"]
 
-    subgraph Wiring[" "]
-        direction TB
-
-        App["app — composition root<br/>constructs adapters, injects them"]
-
-        subgraph Adapters["adapters — one subpackage per integration"]
-            direction LR
-            DatadogMCP["adapters/datadog<br/>Datadog MCP"]
-            ADKCrew["adapters/adk<br/>ADK agent crew"]
-            EmailAdapter["adapters/email"]
-            TeamsAdapter["adapters/teams"]
-        end
-
-        App --> Adapters
+    subgraph Domain["domain — entities and logic"]
+        direction LR
+        Alert["Alert"] --> Grouper["Grouper"]
+        Grouper --> Ledger["dedup / cooldown"]
+        Grouper --> Investigation["Investigation"]
+        Investigation --> Diagnosis["Hypothesis + confidence"]
+        Diagnosis --> Report["Triage report"]
+        Report --> Escalation["Escalation<br/>(side channel)"]
     end
 
-    subgraph Inside[" "]
-        direction TB
-
-        subgraph Domain["domain — entities and logic"]
-            direction LR
-            Alert["Alert"] --> Grouper["Grouper"]
-            Grouper --> Ledger["dedup / cooldown"]
-            Grouper --> Investigation["Investigation"]
-            Investigation --> Diagnosis["Hypothesis + confidence"]
-            Diagnosis --> Report["Triage report"]
-            Report --> Escalation["Escalation<br/>(side channel)"]
-        end
-
-        subgraph Ports["ports — interfaces the domain speaks"]
-            direction LR
-            AlertSource["AlertSource"]
-            TriageLedger["TriageLedger"]
-            Investigator["Investigator"]
-            Config["Config"]
-            Notifier["Notifier"]
-        end
+    subgraph Ports["ports — interfaces the domain speaks"]
+        direction LR
+        AlertSource["AlertSource"]
+        Investigator["Investigator"]
+        TriageLedger["TriageLedger"]
+        Notifier["Notifier"]
+        Config["Config"]
     end
 
-    Alert --> AlertSource
-    Ledger --> TriageLedger
-    Investigation --> Investigator
-    Escalation --> Config
-    Report --> Notifier
-    Escalation --> Notifier
+    subgraph Adapters["adapters — one subpackage per integration"]
+        direction LR
+        DatadogMCP["adapters/datadog<br/>Datadog MCP"]
+        ADKCrew["adapters/adk<br/>ADK agent crew"]
+        EmailAdapter["adapters/email"]
+        TeamsAdapter["adapters/teams"]
+    end
 
+    Domain --> Ports
     DatadogMCP -. implements .-> AlertSource
     ADKCrew -. implements .-> Investigator
     EmailAdapter -. implements .-> Notifier
     TeamsAdapter -. implements .-> Notifier
-
+    App --> Adapters
     App --> Domain
-
-    style Wiring fill:none,stroke:none
-    style Inside fill:none,stroke:none
 ```
 
 Dependencies point inward only — `app` → `adapters` → `ports` → `domain` — and
