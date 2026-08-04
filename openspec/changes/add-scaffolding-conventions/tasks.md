@@ -78,10 +78,14 @@
 - [x] 7.1 Add `.github/workflows/ci.yml` running on push and pull request:
   checkout with symlinks preserved, install uv, `uv sync --frozen`, then
   `ruff check`, `ruff format --check`, `mypy`, and `pytest`
-- [x] 7.2 Confirm the gate fails as expected by pushing a deliberate lint error, a
+- [x] 7.2 Write the workflow's behavioral specification in
+  `docs/spec-process-cicd-ci.md`: triggers, requirements matrix, security and
+  performance constraints, failure handling, and the validation criteria the
+  gate is confirmed against
+- [ ] 7.3 Confirm the gate fails as expected by pushing a deliberate lint error, a
   type error, and a boundary violation on a scratch branch, then reverting
-  (spec: "Quality gate runs on every change")
-- [ ] 7.3 Confirm the gate passes green on the finished branch
+  (spec: "Quality gate runs on every change"; spec doc: VLD-002…VLD-004)
+- [ ] 7.4 Confirm the gate passes green on the finished branch (VLD-005)
 
 ## 8. Wrap-up
 
