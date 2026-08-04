@@ -235,5 +235,12 @@ testable, building only on the slices before it.
 10. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
     trip → partial report + auto-escalate. Testable by forcing a trip
     condition.
-11. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
+11. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
+    deliberate lint error, a type error, and a boundary violation on a scratch
+    branch and confirm each produces a red run naming the rule, the expression,
+    and the offending import, then delete the branch. Deferred out of slice 0
+    because it is the one check that cannot be proven locally — it needs real
+    runs on the remote. Criteria VLD-002…VLD-004 in
+    `docs/spec-process-cicd-ci.md`.
+12. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.

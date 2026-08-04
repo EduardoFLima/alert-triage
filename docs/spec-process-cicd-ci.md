@@ -213,7 +213,7 @@ visibly, in the same pull request.
 |----------|--------------|-------------------|
 | — | None today | — |
 
-Future container build and deploy workflows (capability slice 11, see
+Future container build and deploy workflows (capability slice 12, see
 `docs/vision.md`) are expected to depend on this gate's success rather than
 re-run its checks.
 
@@ -295,6 +295,7 @@ same pull request. A CI-only check violates REQ-005.
   — the "Quality gate runs on every change" requirement this workflow satisfies
 - [`openspec/changes/add-scaffolding-conventions/design.md`](../openspec/changes/add-scaffolding-conventions/design.md)
   — the decision that CI runs exactly the local commands
-- [`docs/vision.md`](vision.md) — capability slice order, including the slice 11
-  container/deployment work that will build on this gate
+- [`docs/vision.md`](vision.md) — capability slice order: slice 11 carries this
+  gate's outstanding failure-mode confirmation, slice 12 the container/deployment
+  work that will build on it
 - [`AGENTS.md`](../AGENTS.md) — the local command list the gate mirrors
