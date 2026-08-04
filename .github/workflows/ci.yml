@@ -1,0 +1,52 @@
+name: CI
+
+# The gate is the four commands from the README's Development section, in the
+# same order. Nothing CI-only lives here, so a green local run predicts green CI.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gate:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          # AGENTS.md/CLAUDE.md/GEMINI.md are symlinks and a test asserts it.
+          # Checkout restores them as links on Linux; keep this job off Windows.
+          persist-credentials: false
+
+      - name: Install uv
+        # Pinned to an exact tag: setup-uv publishes no moving v8/v9 major alias.
+        uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install dependencies from the lockfile
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Check formatting
+        run: uv run ruff format --check src tests
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Test
+        run: uv run pytest
