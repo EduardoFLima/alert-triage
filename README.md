@@ -47,6 +47,47 @@ uv run pytest
 A passing run means the environment is working, the package installed
 correctly, and the architecture boundary holds.
 
+## Configuration
+
+`config.yaml` in the working directory is optional — a deployment can supply
+everything through the environment and ship no file at all. What is *not*
+optional is `scope`: the job refuses to start until it resolves from the file,
+the environment, or both.
+
+```yaml
+scope:
+  datadog_team: platform      # required, from here or SCOPE_DATADOG_TEAM
+
+grouping:
+  window_seconds: 300         # alerts of one service this close are one incident
+
+circuit_breakers:             # each key defaults on its own; set only what you change
+  max_tool_calls_per_agent: 8
+  max_agent_hops: 2
+  max_investigation_duration_seconds: 120
+  max_mcp_retries: 3
+  mcp_call_timeout_seconds: 30
+
+critical_services:            # optional, and never defaulted — see below
+  checkout:
+    tier: gold
+```
+
+**Environment overrides.** Any value can be set in the environment instead,
+under the name its YAML path maps to: uppercase the path and join it with
+underscores. `scope.datadog_team` is `SCOPE_DATADOG_TEAM`,
+`circuit_breakers.max_agent_hops` is `CIRCUIT_BREAKERS_MAX_AGENT_HOPS`. There
+is no lookup table to keep in sync — a key added later gets its variable for
+free. When both sources set a value, **the environment wins**.
+
+**`critical_services` gets no defaults of any kind.** Omitting the section,
+a service, or a single key within a service means "no override" — the value
+stays unresolved rather than being filled in. Everything else falls back to
+the built-in defaults shown above.
+
+Configuration is resolved once, at startup: an unreadable file or a missing
+`scope` fails the run immediately rather than halfway through a triage.
+
 ## Development
 
 The four commands below are exactly what CI runs — nothing more, nothing
@@ -105,7 +146,7 @@ flowchart TB
 
     subgraph OutboundAdapters["adapters — outbound"]
         direction LR
-        ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>Persistence tool [TBD]"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>Yaml parser [TBD]"]
+        ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>Persistence tool [TBD]"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>YAML + environment"]
     end
 
     DatadogMCP -. implements .-> AlertSource
@@ -132,6 +173,7 @@ src/alert_triage/
 ├── domain/      entities and logic; standard library only
 ├── ports/       interfaces; imports domain only
 ├── adapters/    one subpackage per integration, each owning its vendor library
+│   ├── config/
 │   ├── datadog/
 │   ├── adk/
 │   ├── email/

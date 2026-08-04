@@ -5,9 +5,11 @@ description = "First-pass triage of Datadog alerts, delivered as a report a huma
 readme = "README.md"
 requires-python = ">=3.13"
 license = { file = "LICENSE" }
-# No runtime dependencies yet. Each capability slice adds the libraries it
-# needs (see docs/vision.md), so the dependency tree stays legible.
-dependencies = []
+# Each capability slice adds only the libraries it needs (see docs/vision.md),
+# so the dependency tree stays legible.
+dependencies = [
+    "pyyaml>=6.0.3",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -23,6 +25,7 @@ dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.9",
+    "types-pyyaml>=6.0.12.20260724",
 ]
 
 [tool.ruff]
@@ -111,4 +114,5 @@ forbidden_modules = [
     "httpx",
     "smtplib",
     "msal",
+    "yaml",
 ]
