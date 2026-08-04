@@ -85,7 +85,10 @@
 - [ ] 7.3 Confirm the gate fails as expected by pushing a deliberate lint error, a
   type error, and a boundary violation on a scratch branch, then reverting
   (spec: "Quality gate runs on every change"; spec doc: VLD-002…VLD-004)
-- [ ] 7.4 Confirm the gate passes green on the finished branch (VLD-005)
+  — all three were proven locally against the identical commands (ruff named
+  the rule and location, mypy the expression, the contract test the module and
+  its forbidden import); only the remote scratch-branch push is outstanding
+- [x] 7.4 Confirm the gate passes green on the finished branch (VLD-005)
 
 ## 8. Wrap-up
 
