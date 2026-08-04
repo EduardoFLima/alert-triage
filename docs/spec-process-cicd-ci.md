@@ -76,7 +76,7 @@ parallel jobs is a change to this specification, not an implementation detail.
 | SEC-001 | Least-privilege token | Workflow-level token grants read access to repository contents only |
 | SEC-002 | No credential persistence in the workspace | Checkout must not leave the token in `.git/config` for later steps to reuse |
 | SEC-003 | No secrets consumed | The gate must not read repository or environment secrets; a check that needs one belongs in a separate workflow |
-| SEC-004 | Third-party actions are version-referenced | Every external action is referenced by a released major version tag; upgrades are deliberate edits, not floating refs |
+| SEC-004 | Third-party actions are version-referenced | Every external action is referenced by a released tag — a major alias where the publisher maintains one, otherwise an exact version. Never a branch ref; upgrades are deliberate edits |
 | SEC-005 | Untrusted input is never interpolated into a shell step | Steps run fixed commands; no `${{ }}` expansion of PR-controlled text into `run:` |
 
 ### Performance Requirements

@@ -30,7 +30,8 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v9
+        # Pinned to an exact tag: setup-uv publishes no moving v8/v9 major alias.
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
