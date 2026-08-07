@@ -51,17 +51,13 @@ def test_alerts_at_exactly_the_window_boundary_group_together() -> None:
     assert len(groups) == 1
 
 
-def test_group_is_the_unit_downstream_sees_not_the_alert() -> None:
-    alerts = [
-        _alert("checkout"),
-        _alert("checkout", timedelta(minutes=1)),
-        _alert("checkout", timedelta(minutes=2)),
-    ]
+def test_a_sustained_burst_is_one_incident_however_long_it_runs() -> None:
+    burst = [_alert("checkout", WINDOW * step) for step in range(4)]
 
-    groups = group_alerts(alerts, window=WINDOW)
+    groups = group_alerts(burst, window=WINDOW)
 
     assert len(groups) == 1
-    assert len(groups[0].alerts) == 3
+    assert len(groups[0].alerts) == 4
 
 
 def test_alerts_arriving_out_of_order_still_group() -> None:
