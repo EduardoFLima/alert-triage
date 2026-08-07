@@ -5,8 +5,8 @@ re-read the file or the environment halfway through, and a missing mandatory
 value fails here rather than at first use.
 
 The environment variable for a value is derived from its path in the file --
-``scope.datadog_team`` is ``SCOPE_DATADOG_TEAM`` -- so a new setting needs no
-override wiring of its own. A per-service entry under ``critical_services``
+``scope.owner`` is ``SCOPE_OWNER`` -- so a new setting needs no override
+wiring of its own. A per-service entry under ``critical_services``
 follows the same rule (``CRITICAL_SERVICES_CHECKOUT_TIER``), but the set of
 critical services itself comes from the file: the environment can adjust a
 service the file declares, not declare one.
@@ -26,6 +26,7 @@ from alert_triage.ports.config import (
     ConfigError,
     CriticalService,
     Grouping,
+    Ingestion,
     Scope,
 )
 
@@ -38,6 +39,7 @@ class ResolvedConfig:
 
     scope: Scope
     grouping: Grouping
+    ingestion: Ingestion
     circuit_breakers: CircuitBreakers
     critical_services: Mapping[str, CriticalService]
 
@@ -63,6 +65,7 @@ def load_config(
     return ResolvedConfig(
         scope=_scope(_section_data(document, "scope"), environment),
         grouping=_section(Grouping, ("grouping",), document, environment),
+        ingestion=_section(Ingestion, ("ingestion",), document, environment),
         circuit_breakers=_section(
             CircuitBreakers, ("circuit_breakers",), document, environment
         ),
@@ -108,10 +111,10 @@ def _section[SectionT](
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
     """Resolve the one value that has no default and no fallback."""
     supplied = _supplied(Scope, ("scope",), data, env)
-    if "datadog_team" not in supplied:
+    if "owner" not in supplied:
         raise ConfigError(
-            "scope.datadog_team is required and has no default: set it in "
-            "config.yaml or as the SCOPE_DATADOG_TEAM environment variable"
+            "scope.owner is required and has no default: set it in "
+            "config.yaml or as the SCOPE_OWNER environment variable"
         )
     return Scope(**supplied)
 
