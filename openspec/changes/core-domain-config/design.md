@@ -23,8 +23,9 @@ rework.
 **Non-Goals:**
 - Choosing the Datadog MCP adapter's alert schema or field mapping (slice 2).
 - Defining `critical_services` tier/threshold schema in full (only that the
-  section is optional with no built-in defaults of any kind) — the full
-  shape arrives when escalation (slice 9) needs it.
+  section itself is optional, and that a declared service's unspecified
+  thresholds fall back to documented defaults) — the full shape arrives when
+  escalation (slice 9) needs it.
 - Circuit breaker key names/values beyond what's already fixed in
   `docs/vision.md`'s table (slice 10 wires them to actual breaker logic).
 

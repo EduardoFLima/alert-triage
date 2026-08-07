@@ -26,24 +26,31 @@ when it is absent from `config.yaml`.
 - **THEN** the system resolves circuit breaker thresholds to their documented
   defaults
 
-### Requirement: Optional critical_services with no defaults
-The system SHALL treat `critical_services` as entirely optional and SHALL NOT
-apply any built-in default value, tier, or threshold for it or for any
-service, tier, or threshold within it. Absence of the section, or of any
-key within it, means no override exists — it does not trigger substitution
-with a default.
+### Requirement: Optional critical_services section
+The system SHALL treat `critical_services` as entirely optional. Its absence
+means no service is treated as critical — the system SHALL NOT invent a
+default list of critical services or apply critical-service behavior to any
+service that isn't listed.
 
 #### Scenario: Config file omits critical_services
 - **WHEN** `config.yaml` is present but does not include a
   `critical_services` section
-- **THEN** the system proceeds with no per-service overrides, without
-  substituting any default tier or threshold values
+- **THEN** the system proceeds with no service treated as critical and no
+  per-service overrides in effect
+
+### Requirement: Threshold defaults within a declared critical service
+When a service is listed under `critical_services`, the system SHALL
+recognize it as critical and, for any threshold key not explicitly set for
+that service, SHALL apply the documented default threshold value — the
+partial entry does not lose default coverage for the keys it leaves
+unspecified.
 
 #### Scenario: Config file partially specifies a service entry
-- **WHEN** `config.yaml` sets `critical_services` for a service but omits
-  one of its threshold keys
-- **THEN** the system leaves that key unresolved for that service rather
-  than filling it in with a built-in default
+- **WHEN** `config.yaml` lists a service under `critical_services` with only
+  some of its threshold keys set
+- **THEN** the system treats the service as critical, keeps the explicitly
+  specified threshold values, and resolves the omitted threshold keys to
+  their documented defaults
 
 ### Requirement: Mandatory scope with no fallback
 The system SHALL require a `scope` value (v1: a single Datadog team) resolved

@@ -18,8 +18,10 @@ required yet.
   investigated/reported once rather than per-alert.
 - Add a `Config` port (interface) and a YAML-backed adapter that:
   - Loads an optional `config.yaml`; the file's absence is not an error.
-  - Applies defaults for `circuit_breakers` when omitted; `critical_services`
-    is optional too but gets no default value whatsoever when omitted.
+  - Applies defaults for `circuit_breakers` when omitted. `critical_services`
+    itself is optional with no synthetic default list, but a service that
+    *is* declared critical still gets documented default thresholds for any
+    key it doesn't explicitly set.
   - Resolves the mandatory `scope` (v1: Datadog team) from `config.yaml` and/or
     environment variable, environment variable winning if both are set, and
     refuses to start if neither source provides it.

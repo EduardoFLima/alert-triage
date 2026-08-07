@@ -27,10 +27,14 @@
       missing-file error (specs/config - Optional config file)
 - [ ] 4.2 Write failing tests: `circuit_breakers` resolves to documented
       defaults when omitted (specs/config - Defaults for optional sections)
-- [ ] 4.2a Write failing tests: `critical_services` gets no default value
-      when omitted entirely or partially specified — omitted keys stay
-      unresolved, not filled in (specs/config - Optional critical_services
-      with no defaults)
+- [ ] 4.2a Write failing tests: omitting `critical_services` entirely means
+      no service is treated as critical (specs/config - Optional
+      critical_services section)
+- [ ] 4.2b Write failing tests: a service listed under `critical_services`
+      with only some threshold keys set is still treated as critical, keeps
+      its explicit values, and gets documented defaults for the keys it
+      omitted (specs/config - Threshold defaults within a declared critical
+      service)
 - [ ] 4.3 Write failing tests: `scope` resolves from config-file-only,
       env-var-only, and fails to start when absent from both (specs/config -
       Mandatory scope with no fallback)
