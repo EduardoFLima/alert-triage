@@ -32,21 +32,21 @@ def test_circuit_breaker_defaults_match_the_documented_thresholds() -> None:
 
     assert breakers.max_tool_calls_per_agent == 8
     assert breakers.max_agent_hops == 2
-    assert breakers.max_investigation_duration_seconds == 120
+    assert breakers.max_investigation_duration_seconds == 300
     assert breakers.max_mcp_retries == 3
     assert breakers.mcp_call_timeout_seconds == 30
 
 
 def test_grouping_window_is_offered_to_the_domain_as_a_duration() -> None:
     assert Grouping(window_seconds=600).window == timedelta(minutes=10)
-    assert Grouping().window == timedelta(seconds=Grouping.DEFAULT_WINDOW_SECONDS)
+    assert Grouping().window == timedelta(minutes=30)
 
 
 def test_critical_service_thresholds_have_documented_defaults() -> None:
     service = CriticalService()
 
     assert service.tier == CriticalService.DEFAULT_TIER
-    assert service.latency_threshold_ms == CriticalService.DEFAULT_LATENCY_THRESHOLD_MS
+    assert service.latency_threshold_ms == 2000
 
 
 def test_no_service_is_critical_unless_the_config_says_so() -> None:

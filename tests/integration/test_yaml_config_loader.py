@@ -159,7 +159,7 @@ def test_the_environment_is_read_from_the_process_by_default(
 def test_grouping_window_defaults_and_is_configurable(tmp_path: Path) -> None:
     default = load_config(_write(tmp_path, SCOPED), env={})
 
-    assert default.grouping.window == timedelta(minutes=5)
+    assert default.grouping.window == timedelta(minutes=30)
 
     from_file = load_config(
         _write(tmp_path, SCOPED + "\ngrouping:\n  window_seconds: 900\n"), env={}

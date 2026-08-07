@@ -41,7 +41,7 @@ class Grouping:
         window_seconds: The grouping time window, in seconds.
     """
 
-    DEFAULT_WINDOW_SECONDS: ClassVar[int] = 300
+    DEFAULT_WINDOW_SECONDS: ClassVar[int] = 1800
 
     window_seconds: int = DEFAULT_WINDOW_SECONDS
 
@@ -65,7 +65,7 @@ class CircuitBreakers:
 
     max_tool_calls_per_agent: int = 8
     max_agent_hops: int = 2
-    max_investigation_duration_seconds: int = 120
+    max_investigation_duration_seconds: int = 300
     max_mcp_retries: int = 3
     mcp_call_timeout_seconds: int = 30
 
@@ -83,7 +83,7 @@ class CriticalService:
     """
 
     DEFAULT_TIER: ClassVar[str] = "critical"
-    DEFAULT_LATENCY_THRESHOLD_MS: ClassVar[int] = 1000
+    DEFAULT_LATENCY_THRESHOLD_MS: ClassVar[int] = 2000
 
     tier: str = DEFAULT_TIER
     latency_threshold_ms: int = DEFAULT_LATENCY_THRESHOLD_MS
