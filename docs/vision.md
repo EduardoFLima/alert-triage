@@ -118,7 +118,7 @@ the same optional YAML, with defaults:
 |---|---|
 | `max_tool_calls_per_agent` | 8 |
 | `max_agent_hops` | 2 |
-| `max_investigation_duration_seconds` | 120 |
+| `max_investigation_duration_seconds` | 300 |
 | `max_mcp_retries` | 3 |
 | `mcp_call_timeout_seconds` | 30 |
 
