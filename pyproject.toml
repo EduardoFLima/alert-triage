@@ -8,6 +8,7 @@ license = { file = "LICENSE" }
 # Each capability slice adds the libraries it needs (see docs/vision.md), so
 # the dependency tree stays legible.
 dependencies = [
+    "datadog-api-client>=2.30",
     "pyyaml>=6.0",
 ]
 
@@ -64,6 +65,15 @@ files = ["src", "tests"]
 warn_unreachable = true
 # Every relaxation belongs here as a named per-module override, never as a
 # global loosening of the settings above.
+
+#
+# `datadog-api-client` ships a `py.typed` marker but leaves its constructors
+# and exceptions unannotated, so calling them trips `disallow_untyped_calls`.
+# This names that one library rather than relaxing the check: every other
+# untyped call is still an error, and only the Datadog adapter imports this.
+# mypy rejects `untyped_calls_exclude` in a per-module section, which is why
+# it sits here rather than beside the adapter's module path.
+untyped_calls_exclude = ["datadog_api_client"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

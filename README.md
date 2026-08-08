@@ -47,6 +47,47 @@ uv run pytest
 A passing run means the environment is working, the package installed
 correctly, and the architecture boundary holds.
 
+**Configure**
+
+Two kinds of setting, and which kind a value is decides where it goes.
+
+*Behavior* — what the system watches and how it triages — lives in an optional
+`config.yaml`, and every key there can also be set as an environment variable
+by mapping its `section.key` path to `SECTION_KEY`. When both are set, the
+environment wins.
+
+```yaml
+scope:
+  owner: sre              # mandatory: whose alerts are triaged. No default.
+grouping:
+  window_seconds: 1800    # alerts of one service this close are one incident
+ingestion:
+  lookback_seconds: 3600  # how far back a run looks for alerts
+```
+
+Set `scope.owner` to the team that owns the alerts you want triaged; the
+Datadog adapter spends it as a `team:` term in its event query. Keep
+`ingestion.lookback_seconds` comfortably wider than the interval the job runs
+on, so a delayed run does not step over alerts.
+
+*Connection* — where the platform is and how to authenticate — is read from
+the environment only, never from `config.yaml`, under Datadog's own variable
+names:
+
+```bash
+export DD_API_KEY=...      # required
+export DD_APP_KEY=...      # required; the Events API needs both
+export DD_SITE=datadoghq.eu  # optional, defaults to datadoghq.com
+```
+
+Writing a site or a credential into `config.yaml` has no effect — it is not
+used to reach the platform, and resolution proceeds as if the key were absent.
+That is the rule for any new setting too: if it changes when the same triage
+behavior is pointed at a different account or region, it is a connection
+setting and belongs in the environment. Otherwise it is behavior and belongs
+in the file. It keeps a config file portable across deployments, and keeps
+anything credential-shaped out of a file that gets committed.
+
 ## Development
 
 The four commands below are exactly what CI runs — nothing more, nothing
@@ -82,7 +123,7 @@ without the core changing.
 flowchart TB
     subgraph InboundAdapters["adapters — inbound"]
         direction TB
-        DatadogMCP["AlertSource Adapter<br/>Datadog MCP"]
+        DatadogREST["AlertSource Adapter<br/>Datadog REST"]
     end
     subgraph InboundPorts["ports — inbound"]
         direction TB
@@ -108,7 +149,7 @@ flowchart TB
         ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>Persistence tool [TBD]"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>Yaml parser [TBD]"]
     end
 
-    DatadogMCP -. implements .-> AlertSource
+    DatadogREST -. implements .-> AlertSource
     AlertSource --> Domain
     Domain ---> OutboundPorts
     OutboundPorts ---> OutboundAdapters

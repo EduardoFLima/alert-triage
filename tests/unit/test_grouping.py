@@ -72,3 +72,25 @@ def test_alerts_arriving_out_of_order_still_group() -> None:
 
 def test_no_alerts_yields_no_groups() -> None:
     assert group_alerts([], window=WINDOW) == []
+
+
+def test_grouping_ignores_identity_and_provenance() -> None:
+    first = Alert(
+        service="checkout",
+        fired_at=NOON,
+        source_id="evt-1",
+        title="Latency above threshold",
+        link="https://app.datadoghq.com/event/event?id=evt-1",
+    )
+    second = Alert(
+        service="checkout",
+        fired_at=NOON + timedelta(minutes=1),
+        source_id="evt-2",
+        title="Error rate above threshold",
+        link="https://app.datadoghq.com/event/event?id=evt-2",
+    )
+
+    groups = group_alerts([first, second], window=WINDOW)
+
+    assert len(groups) == 1
+    assert groups[0].alerts == (first, second)

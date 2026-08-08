@@ -3,12 +3,13 @@ from pathlib import Path
 
 import pytest
 
+from alert_triage.adapters.datadog.connection import resolve_connection
 from alert_triage.adapters.yaml_config import load_config
 from alert_triage.ports.config import Config, ConfigError, CriticalService
 
 SCOPED = """
 scope:
-  datadog_team: sre
+  owner: sre
 """
 
 
@@ -19,9 +20,9 @@ def _write(tmp_path: Path, body: str) -> Path:
 
 
 def test_missing_config_file_is_not_an_error(tmp_path: Path) -> None:
-    config = load_config(tmp_path / "absent.yaml", env={"SCOPE_DATADOG_TEAM": "sre"})
+    config = load_config(tmp_path / "absent.yaml", env={"SCOPE_OWNER": "sre"})
 
-    assert config.scope.datadog_team == "sre"
+    assert config.scope.owner == "sre"
 
 
 def test_loaded_config_satisfies_the_port(tmp_path: Path) -> None:
@@ -86,30 +87,28 @@ critical_services:
 def test_scope_resolves_from_the_config_file_alone(tmp_path: Path) -> None:
     config = load_config(_write(tmp_path, SCOPED), env={})
 
-    assert config.scope.datadog_team == "sre"
+    assert config.scope.owner == "sre"
 
 
 def test_scope_resolves_from_the_environment_alone(tmp_path: Path) -> None:
     path = _write(tmp_path, "circuit_breakers:\n  max_agent_hops: 4\n")
 
-    config = load_config(path, env={"SCOPE_DATADOG_TEAM": "platform"})
+    config = load_config(path, env={"SCOPE_OWNER": "platform"})
 
-    assert config.scope.datadog_team == "platform"
+    assert config.scope.owner == "platform"
 
 
 def test_scope_missing_from_both_sources_refuses_to_start(tmp_path: Path) -> None:
     path = _write(tmp_path, "circuit_breakers:\n  max_agent_hops: 4\n")
 
-    with pytest.raises(ConfigError, match=r"scope\.datadog_team"):
+    with pytest.raises(ConfigError, match=r"scope\.owner"):
         load_config(path, env={})
 
 
 def test_environment_wins_over_the_file_for_scope(tmp_path: Path) -> None:
-    config = load_config(
-        _write(tmp_path, SCOPED), env={"SCOPE_DATADOG_TEAM": "platform"}
-    )
+    config = load_config(_write(tmp_path, SCOPED), env={"SCOPE_OWNER": "platform"})
 
-    assert config.scope.datadog_team == "platform"
+    assert config.scope.owner == "platform"
 
 
 def test_environment_wins_over_the_file_for_any_other_value(tmp_path: Path) -> None:
@@ -149,11 +148,11 @@ critical_services:
 def test_the_environment_is_read_from_the_process_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("SCOPE_DATADOG_TEAM", "from-process")
+    monkeypatch.setenv("SCOPE_OWNER", "from-process")
 
     config = load_config(tmp_path / "absent.yaml")
 
-    assert config.scope.datadog_team == "from-process"
+    assert config.scope.owner == "from-process"
 
 
 def test_grouping_window_defaults_and_is_configurable(tmp_path: Path) -> None:
@@ -175,6 +174,108 @@ def test_grouping_window_defaults_and_is_configurable(tmp_path: Path) -> None:
     assert from_env.grouping.window == timedelta(minutes=1)
 
 
+def test_ingestion_lookback_defaults_and_is_configurable(tmp_path: Path) -> None:
+    default = load_config(_write(tmp_path, SCOPED), env={})
+
+    assert default.ingestion.lookback == timedelta(hours=1)
+
+    from_file = load_config(
+        _write(tmp_path, SCOPED + "\ningestion:\n  lookback_seconds: 900\n"), env={}
+    )
+
+    assert from_file.ingestion.lookback == timedelta(minutes=15)
+
+    from_env = load_config(
+        _write(tmp_path, SCOPED + "\ningestion:\n  lookback_seconds: 900\n"),
+        env={"INGESTION_LOOKBACK_SECONDS": "60"},
+    )
+
+    assert from_env.ingestion.lookback == timedelta(minutes=1)
+
+
+def test_ingestion_request_bounds_fall_back_to_documented_defaults(
+    tmp_path: Path,
+) -> None:
+    config = load_config(_write(tmp_path, SCOPED), env={})
+
+    assert config.ingestion.request_timeout_seconds == 30
+    assert config.ingestion.max_retries == 3
+
+
+def test_changing_an_investigation_breaker_leaves_ingestion_unchanged(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        SCOPED
+        + """
+circuit_breakers:
+  mcp_call_timeout_seconds: 90
+  max_mcp_retries: 9
+""",
+    )
+
+    config = load_config(path, env={})
+
+    assert config.ingestion.request_timeout_seconds == 30
+    assert config.ingestion.max_retries == 3
+
+
+def test_changing_an_ingestion_bound_leaves_the_breakers_unchanged(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        SCOPED
+        + """
+ingestion:
+  request_timeout_seconds: 90
+  max_retries: 9
+""",
+    )
+
+    config = load_config(path, env={"INGESTION_MAX_RETRIES": "5"})
+
+    assert config.ingestion.request_timeout_seconds == 90
+    assert config.ingestion.max_retries == 5
+    assert config.circuit_breakers.mcp_call_timeout_seconds == 30
+    assert config.circuit_breakers.max_mcp_retries == 3
+
+
+CONNECTION_KEYS_IN_FILE = """
+datadog:
+  site: datadoghq.eu
+  api_key: from-the-file
+  app_key: from-the-file
+"""
+
+
+def test_connection_keys_in_the_file_are_not_used_to_reach_the_platform(
+    tmp_path: Path,
+) -> None:
+    """`config.yaml` is behavior only; a site or credential written there is inert."""
+    path = _write(tmp_path, SCOPED + CONNECTION_KEYS_IN_FILE)
+
+    config = load_config(path, env={})
+
+    assert config.scope.owner == "sre"
+    assert not hasattr(config, "datadog")
+
+    with pytest.raises(ConfigError, match="DD_API_KEY"):
+        resolve_connection(env={})
+
+
+def test_behavior_keys_beside_connection_keys_still_resolve(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        SCOPED + CONNECTION_KEYS_IN_FILE + "\ningestion:\n  lookback_seconds: 120\n",
+    )
+
+    config = load_config(path, env={"INGESTION_LOOKBACK_SECONDS": "60"})
+
+    assert config.ingestion.lookback == timedelta(minutes=1)
+
+
 def test_an_unknown_config_key_is_reported_rather_than_ignored(
     tmp_path: Path,
 ) -> None:
@@ -185,7 +286,7 @@ def test_an_unknown_config_key_is_reported_rather_than_ignored(
 
 
 def test_an_empty_config_file_is_treated_as_no_settings(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, ""), env={"SCOPE_DATADOG_TEAM": "sre"})
+    config = load_config(_write(tmp_path, ""), env={"SCOPE_OWNER": "sre"})
 
     assert config.circuit_breakers.max_agent_hops == 2
 
