@@ -26,11 +26,15 @@ class ConfigError(Exception):
 class Scope:
     """What the job watches. Mandatory: there is no "watch everything" default.
 
+    The owner is a plain identifier in this project's vocabulary. Spending it
+    as a query term an observability platform understands is the alert source
+    adapter's job, so this stays free of any one platform's naming.
+
     Attributes:
-        datadog_team: The single Datadog team whose alerts are in scope.
+        owner: The single owner (v1: a team) whose alerts are in scope.
     """
 
-    datadog_team: str
+    owner: str
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,35 @@ class Grouping:
     def window(self) -> timedelta:
         """The window as a duration, which is what the grouping logic takes."""
         return timedelta(seconds=self.window_seconds)
+
+
+@dataclass(frozen=True)
+class Ingestion:
+    """How a run fetches alerts: how far back it looks, and under what bounds.
+
+    The request bounds are ingestion's own, deliberately not the ``mcp_*``
+    circuit breakers: those bound an agent's tool calls during investigation,
+    and the two will be tuned against different evidence. Equal starting
+    defaults are not a shared concept.
+
+    Attributes:
+        lookback_seconds: How far back from the start of a run alerts are
+            considered. Set comfortably wider than the interval the job runs
+            on, so a delayed run does not step over alerts.
+        request_timeout_seconds: Bound on a single request to the platform.
+        max_retries: Retries of a failed request before the fetch gives up.
+    """
+
+    DEFAULT_LOOKBACK_SECONDS: ClassVar[int] = 3600
+
+    lookback_seconds: int = DEFAULT_LOOKBACK_SECONDS
+    request_timeout_seconds: int = 30
+    max_retries: int = 3
+
+    @property
+    def lookback(self) -> timedelta:
+        """The lookback as a duration, which is what a run subtracts from now."""
+        return timedelta(seconds=self.lookback_seconds)
 
 
 @dataclass(frozen=True)
@@ -100,6 +133,10 @@ class Config(Protocol):
     @property
     def grouping(self) -> Grouping:
         """Settings the grouping logic is driven by."""
+
+    @property
+    def ingestion(self) -> Ingestion:
+        """Settings alert fetching is driven by."""
 
     @property
     def circuit_breakers(self) -> CircuitBreakers:

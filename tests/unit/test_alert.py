@@ -14,6 +14,20 @@ def test_alert_exposes_the_fields_grouping_reads() -> None:
     assert alert.fired_at == fired_at
 
 
+def test_alert_carries_identity_and_provenance() -> None:
+    alert = Alert(
+        service="checkout",
+        fired_at=datetime(2026, 8, 7, 12, 0, tzinfo=UTC),
+        source_id="evt-1",
+        title="Checkout latency above threshold",
+        link="https://app.datadoghq.com/event/event?id=evt-1",
+    )
+
+    assert alert.source_id == "evt-1"
+    assert alert.title == "Checkout latency above threshold"
+    assert alert.link == "https://app.datadoghq.com/event/event?id=evt-1"
+
+
 def test_alert_is_immutable() -> None:
     alert = Alert(service="checkout", fired_at=datetime(2026, 8, 7, 12, 0, tzinfo=UTC))
 

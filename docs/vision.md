@@ -44,13 +44,18 @@ Run) without the core changing.
     └───────┬──────┘  └───────┬────────┘               └──────┬──────┘
     ┌───────▼──────┐  ┌───────▼────────┐               ┌──────▼──────┐
     │ Datadog      │  │ ADK agent crew │               │ Email       │
-    │ MCP adapter  │  │ adapter        │               │ Teams       │
+    │ REST adapter │  │ adapter        │               │ Teams       │
     └──────────────┘  └────────────────┘               └─────────────┘
 ```
 
 ### Ports
 
-- **AlertSource** — fetch recent alerts (Datadog MCP adapter for v1)
+- **AlertSource** — fetch recent alerts (Datadog REST adapter for v1, against
+  the Events API). Ingestion asks one fixed question on a schedule and wants a
+  typed answer with real pagination and errors that tell "no alerts" apart
+  from "auth rejected"; MCP earns its keep where a model discovers and
+  chooses tools at runtime, which is the `ObservabilityPlatform` port below,
+  not this one.
 - **Investigator** — given a group of related alerts, produce findings +
   hypothesis (ADK multi-agent adapter for v1)
 - **ObservabilityPlatform** — queried by the investigator's specialist
@@ -133,19 +138,28 @@ A single YAML file (e.g. `config.yaml`) is the one place configuration is
 described. The file's existence is still optional — but the `scope` value
 it (or an environment variable) provides is not:
 
-- `scope` — **mandatory value, from either source.** For v1, just a
-  Datadog team: the job watches only alerts belonging to that team. It can
+- `scope.owner` — **mandatory value, from either source.** For v1, a single
+  team: the job watches only alerts belonging to that owner. It can
   be set in `config.yaml`, or via an environment variable (see below), or
   both — if both are set, the environment variable wins. It must resolve
   from one of the two. No default, no "watch
   everything" fallback: if neither `config.yaml` nor the environment
-  provides it, the application refuses to start. Widening scope beyond a
+  provides it, the application refuses to start. The name is deliberately
+  platform-neutral: turning the owner into a `team:` term in a Datadog query
+  is the alert source adapter's job, so a second platform reads the same key
+  without it lying about where the value came from. Widening scope beyond a
   single team (multiple teams, tag-based scoping, etc.) is a future
   extension, not v1.
 - `critical_services` — optional, service → criticality tier → custom
   thresholds. Defaults apply if absent.
 - `circuit_breakers` — optional, the thresholds listed above. Defaults
   apply if absent.
+- `ingestion` — optional. How far back a run looks for alerts
+  (`lookback_seconds`, default one hour) and the bounds a fetch runs under
+  (`request_timeout_seconds`, `max_retries`). These are ingestion's own
+  settings, resolved independently of the `circuit_breakers` above: those
+  bound an agent's tool calls during investigation, and the two will be
+  tuned against different evidence.
 - room to grow other behavior settings later without a schema rewrite
 
 So `config.yaml` as a file is never required to exist — a deployment could
@@ -158,13 +172,38 @@ regardless of which source supplies it.
 Any value normally set in `config.yaml` can instead be set via an
 environment variable, following a predictable naming convention (e.g. a
 section/key path mapped to `SCREAMING_SNAKE_CASE`, such as
-`SCOPE_DATADOG_TEAM` for `scope.datadog_team`). When both are present, the
+`SCOPE_OWNER` for `scope.owner`). When both are present, the
 environment variable always takes precedence over the YAML value — this
 holds for every config value, not just `scope`. This is how `scope` can be
 satisfied without a config file at all, and matters most for deploy
 targets beyond manual/local: containers and GKE/Cloud Run jobs configure
 per-environment values (or one-off overrides) through env vars rather than
 baking per-team YAML files into images.
+
+The override runs one way only. Every *behavior* value has an environment
+equivalent, but some settings live in the environment exclusively and have no
+`config.yaml` key at all — see below.
+
+### Behavior belongs in the file; connections belong in the environment
+
+`config.yaml` answers "how should the system triage": what it watches, how it
+groups, how far back it looks, when it escalates. It does not answer "where is
+the platform and how do I authenticate". Sites, regions, endpoints, hostnames,
+and credentials are deployment facts — they change when the same behavior is
+pointed at a different account — and they are read from the environment only,
+under the platform's own conventional variable names rather than the
+`section.key` mapping above:
+
+- `DD_API_KEY`, `DD_APP_KEY` — Datadog credentials. No default; the
+  application refuses to start without them.
+- `DD_SITE` — Datadog region, defaulting to `datadoghq.com`.
+
+Written into `config.yaml`, such a key is inert: it is not used to reach the
+platform, and resolution proceeds as if it were absent. This keeps a config
+file portable across deployments and means there is never a key shaped like a
+credential for someone to fill in and commit. The same test decides where a
+new setting goes — the notifier's SMTP host and Teams webhook land on the
+environment side by it.
 
 ## Deployment
 
@@ -212,8 +251,8 @@ testable, building only on the slices before it.
    YAML loader with defaults for optional sections, mandatory `scope`
    (v1: Datadog team) with no fallback if missing, and environment
    variable overrides for any config value. Testable as pure unit tests.
-2. **Alert ingestion** — AlertSource port + Datadog MCP adapter. Testable
-   against mocked MCP responses.
+2. **Alert ingestion** — AlertSource port + Datadog REST adapter over the
+   Events API. Testable against canned event payloads, with no network.
 3. **TriageLedger** — dedup/cooldown persistence. Testable in isolation
    with a fake clock.
 4. **Notification** — Notifier port + Email + Teams adapters, sending stub
