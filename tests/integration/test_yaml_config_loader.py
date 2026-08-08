@@ -4,6 +4,10 @@ from pathlib import Path
 import pytest
 
 from alert_triage.adapters.datadog.connection import resolve_connection
+from alert_triage.adapters.sqlite_ledger import (
+    DEFAULT_LEDGER_PATH,
+    resolve_ledger_path,
+)
 from alert_triage.adapters.yaml_config import load_config
 from alert_triage.ports.config import Config, ConfigError, CriticalService
 
@@ -336,3 +340,77 @@ def test_a_non_numeric_override_names_the_offending_variable(tmp_path: Path) -> 
 
     with pytest.raises(ConfigError, match="CIRCUIT_BREAKERS_MAX_AGENT_HOPS"):
         load_config(path, env={"CIRCUIT_BREAKERS_MAX_AGENT_HOPS": "many"})
+
+
+def test_the_cooldown_falls_back_to_the_documented_default(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, SCOPED), env={})
+
+    assert config.re_notify.cooldown == timedelta(days=2)
+
+
+def test_the_cooldown_is_taken_from_the_file_when_only_the_file_sets_it(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 3600\n")
+
+    config = load_config(path, env={})
+
+    assert config.re_notify.cooldown == timedelta(hours=1)
+
+
+def test_the_environment_wins_over_the_file_for_the_cooldown(tmp_path: Path) -> None:
+    path = _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 3600\n")
+
+    config = load_config(path, env={"RE_NOTIFY_COOLDOWN_SECONDS": "60"})
+
+    assert config.re_notify.cooldown == timedelta(minutes=1)
+
+
+def test_retention_falls_back_to_the_documented_thirty_days(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, SCOPED), env={})
+
+    assert config.ledger.retention == timedelta(days=30)
+
+
+def test_retention_is_taken_from_the_operator(tmp_path: Path) -> None:
+    path = _write(tmp_path, SCOPED + "\nledger:\n  retention_seconds: 86400\n")
+
+    config = load_config(path, env={"LEDGER_RETENTION_SECONDS": "3600"})
+
+    assert config.ledger.retention == timedelta(hours=1)
+
+
+def test_setting_the_cooldown_leaves_the_resolved_retention_alone(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 60\n")
+
+    config = load_config(path, env={})
+
+    assert config.ledger.retention == timedelta(days=30)
+
+
+def test_setting_retention_leaves_the_resolved_cooldown_alone(tmp_path: Path) -> None:
+    path = _write(tmp_path, SCOPED + "\nledger:\n  retention_seconds: 60\n")
+
+    config = load_config(path, env={})
+
+    assert config.re_notify.cooldown == timedelta(days=2)
+
+
+LEDGER_LOCATION_IN_FILE = """
+ledger_storage:
+  path: /from/the/file.db
+"""
+
+
+def test_a_ledger_location_in_the_file_is_not_where_records_are_kept(
+    tmp_path: Path,
+) -> None:
+    """Where a database lives is a deployment fact; `config.yaml` is behavior."""
+    path = _write(tmp_path, SCOPED + LEDGER_LOCATION_IN_FILE)
+
+    config = load_config(path, env={})
+
+    assert not hasattr(config, "ledger_storage")
+    assert resolve_ledger_path(env={}) == DEFAULT_LEDGER_PATH

@@ -85,6 +85,50 @@ class Ingestion:
 
 
 @dataclass(frozen=True)
+class ReNotify:
+    """How long a report suppresses the next one for the same incident.
+
+    Attributes:
+        cooldown_seconds: How long after reporting an incident the system
+            waits before reporting it again, in seconds.
+    """
+
+    DEFAULT_COOLDOWN_SECONDS: ClassVar[int] = 172_800
+
+    cooldown_seconds: int = DEFAULT_COOLDOWN_SECONDS
+
+    @property
+    def cooldown(self) -> timedelta:
+        """The cooldown as a duration, which is what the triage decision takes."""
+        return timedelta(seconds=self.cooldown_seconds)
+
+
+@dataclass(frozen=True)
+class Ledger:
+    """How much triage history is kept after an incident has closed.
+
+    Deliberately its own section rather than a key under ``re_notify``: how
+    long history is kept and how often a report repeats answer different
+    questions, and neither is derived from the other. Where the ledger keeps
+    its records is not here — a storage location is a deployment fact, read
+    from the environment.
+
+    Attributes:
+        retention_seconds: How long a closed incident is kept for a human to
+            consult before it is deleted, in seconds.
+    """
+
+    DEFAULT_RETENTION_SECONDS: ClassVar[int] = 2_592_000
+
+    retention_seconds: int = DEFAULT_RETENTION_SECONDS
+
+    @property
+    def retention(self) -> timedelta:
+        """The retention period as a duration, measured from when an incident closed."""
+        return timedelta(seconds=self.retention_seconds)
+
+
+@dataclass(frozen=True)
 class CircuitBreakers:
     """Bounds on a multi-agent investigation, one per way it can run away.
 
@@ -137,6 +181,14 @@ class Config(Protocol):
     @property
     def ingestion(self) -> Ingestion:
         """Settings alert fetching is driven by."""
+
+    @property
+    def re_notify(self) -> ReNotify:
+        """How long a report suppresses the next one."""
+
+    @property
+    def ledger(self) -> Ledger:
+        """How much triage history is kept once an incident has closed."""
 
     @property
     def circuit_breakers(self) -> CircuitBreakers:

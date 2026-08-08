@@ -63,12 +63,24 @@ grouping:
   window_seconds: 1800    # alerts of one service this close are one incident
 ingestion:
   lookback_seconds: 3600  # how far back a run looks for alerts
+re_notify:
+  cooldown_seconds: 172800  # how long a report suppresses the next one (2 days)
+ledger:
+  retention_seconds: 2592000  # how long closed incidents are kept (30 days)
 ```
 
 Set `scope.owner` to the team that owns the alerts you want triaged; the
 Datadog adapter spends it as a `team:` term in its event query. Keep
 `ingestion.lookback_seconds` comfortably wider than the interval the job runs
-on, so a delayed run does not step over alerts.
+on, so a delayed run does not step over alerts — re-delivered alerts are
+recognised and absorbed rather than reported twice.
+
+`re_notify.cooldown_seconds` and `ledger.retention_seconds` are tuned
+separately and neither is derived from the other: the first is how often a
+still-firing incident is re-reported, the second is how far back you can look
+at what was reported. Setting retention shorter than the cooldown cannot
+resurrect duplicate reports — retention is counted from the moment an incident
+*closes*, and closing already requires the cooldown to have elapsed.
 
 *Connection* — where the platform is and how to authenticate — is read from
 the environment only, never from `config.yaml`, under Datadog's own variable
@@ -78,6 +90,32 @@ names:
 export DD_API_KEY=...      # required
 export DD_APP_KEY=...      # required; the Events API needs both
 export DD_SITE=datadoghq.eu  # optional, defaults to datadoghq.com
+```
+
+Where the triage ledger keeps its records is a deployment fact too, and reads
+from the environment on the same rule — with a default, since a path is not a
+credential:
+
+```bash
+export ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/ledger.db
+# optional; defaults to alert_triage.db in the working directory
+```
+
+The ledger is a SQLite database, created with its schema on first use. A first
+run against an empty one has nothing on record, so every alert group it finds
+opens a new incident and is reported — there is no migration step and an empty
+ledger is not an error. Because the default path is relative, a run started
+from another directory starts from an empty ledger and re-reports everything;
+set the variable explicitly for anything but a quick local run.
+
+Incidents that have gone quiet past both the grouping window and the cooldown
+are closed and kept for the retention period. To read that history — what was
+reported, when, and for which alerts — open the database file with any SQLite
+client:
+
+```bash
+sqlite3 alert_triage.db \
+  "SELECT id, service, last_reported_at, closed_at FROM incidents;"
 ```
 
 Writing a site or a credential into `config.yaml` has no effect — it is not
@@ -146,7 +184,7 @@ flowchart TB
 
     subgraph OutboundAdapters["adapters — outbound"]
         direction LR
-        ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>Persistence tool [TBD]"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>Yaml parser [TBD]"]
+        ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>SQLite"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>Yaml parser [TBD]"]
     end
 
     DatadogREST -. implements .-> AlertSource
@@ -174,6 +212,7 @@ src/alert_triage/
 ├── ports/       interfaces; imports domain only
 ├── adapters/    one subpackage per integration, each owning its vendor library
 │   ├── datadog/
+│   ├── sqlite_ledger/
 │   ├── adk/
 │   ├── email/
 │   └── teams/

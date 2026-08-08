@@ -103,7 +103,31 @@ needed for v1. Comparing against actual GitHub history is a roadmap item.
 ### Re-notification
 
 Configurable cooldown before re-reporting an alert-group that's still
-firing or has re-fired; defaults to 2 days.
+firing or has re-fired; defaults to 2 days. The key is
+`re_notify.cooldown_seconds` in `config.yaml`, or `RE_NOTIFY_COOLDOWN_SECONDS`
+in the environment.
+
+The cooldown is counted per incident from its most recent report, not per
+service and not from the first one: a second, unrelated incident on a service
+inside another's cooldown is still reported.
+
+### Triage history
+
+An incident **closes** once it can no longer affect a decision — its latest
+alert is older than the grouping window *and* its last report is older than
+the cooldown. Closing needs no setting of its own, since both bounds already
+exist, and the moment it happens is stamped rather than recomputed, so
+retuning either bound later cannot move a closure that already happened.
+
+A closed record is kept for `ledger.retention_seconds`
+(`LEDGER_RETENTION_SECONDS`), defaulting to 30 days, so a human can go back
+and see what was reported, when, and for which alerts; after that it is
+deleted, which is what bounds the ledger's growth. Retention is deliberately
+its own setting rather than a bound derived from the cooldown: how long
+history is kept and how often a report repeats answer different questions.
+The two compose rather than compete no matter how they are set, because
+retention is measured from the moment an incident closes and closing already
+requires the cooldown to have elapsed.
 
 ### Escalation
 
@@ -160,6 +184,13 @@ it (or an environment variable) provides is not:
   settings, resolved independently of the `circuit_breakers` above: those
   bound an agent's tool calls during investigation, and the two will be
   tuned against different evidence.
+- `re_notify` — optional. How long a report suppresses the next one for the
+  same incident (`cooldown_seconds`, default 2 days).
+- `ledger` — optional. How long a closed incident is kept for a human to
+  consult before it is deleted (`retention_seconds`, default 30 days).
+  Resolved independently of `re_notify`: neither value is derived from the
+  other. Where the ledger keeps its records is *not* here — a storage
+  location is a deployment fact, read from the environment.
 - room to grow other behavior settings later without a schema rewrite
 
 So `config.yaml` as a file is never required to exist — a deployment could
@@ -197,6 +228,10 @@ under the platform's own conventional variable names rather than the
 - `DD_API_KEY`, `DD_APP_KEY` — Datadog credentials. No default; the
   application refuses to start without them.
 - `DD_SITE` — Datadog region, defaulting to `datadoghq.com`.
+- `ALERT_TRIAGE_LEDGER_PATH` — where the triage ledger keeps its records,
+  defaulting to `alert_triage.db` in the working directory. Unlike a
+  credential it has a default, because a path is not a secret and a manual run
+  should need no configuration beyond `scope`.
 
 Written into `config.yaml`, such a key is inert: it is not used to reach the
 platform, and resolution proceeds as if it were absent. This keeps a config
@@ -253,8 +288,12 @@ testable, building only on the slices before it.
    variable overrides for any config value. Testable as pure unit tests.
 2. **Alert ingestion** — AlertSource port + Datadog REST adapter over the
    Events API. Testable against canned event payloads, with no network.
-3. **TriageLedger** — dedup/cooldown persistence. Testable in isolation
-   with a fake clock.
+3. **TriageLedger** — dedup/cooldown persistence, kept in SQLite over the
+   standard library's `sqlite3`: durable across processes, transactional, and
+   one file to move or delete, which adds no dependency and keeps the core
+   free of one. The decision itself — continuation, and report versus
+   suppress — stays in the domain; the port only stores. Testable in
+   isolation with a fake clock.
 4. **Notification** — Notifier port + Email + Teams adapters, sending stub
    content. Testable independently of investigation.
 5. **End-to-end skeleton** — wires ingestion → grouping → ledger → notifier
