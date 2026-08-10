@@ -111,6 +111,14 @@ The cooldown is counted per incident from its most recent report, not per
 service and not from the first one: a second, unrelated incident on a service
 inside another's cooldown is still reported.
 
+The cooldown is currently the *only* thing standing between a still-firing
+incident and another report. The system knows what it has told the team and
+when; it does not know whether anyone read it, or is already working on it. A
+team that reacted to the first report gets told again every cooldown for as
+long as the alerts keep firing — which is the alert fatigue this project
+exists to reduce, reintroduced one layer up. Acknowledgement is the missing
+control; see the roadmap entry below.
+
 ### Triage history
 
 An incident **closes** once it can no longer affect a decision — its latest
@@ -273,6 +281,58 @@ GCP (Cloud Run job or GKE) — GCP is the target landscape.
 - Multi-hop dependency traversal (recursively investigating upstream/
   downstream services, not just single-hop evidence)
 - GitHub deploy-history correlation (beyond the DD version tag)
+
+### Acknowledgement — the missing input
+
+v1 models one half of the conversation. The ledger records what was reported
+and when, so triage can ask "have we said this recently?" — but never "did
+anyone act on it?". Those are different questions, and answering only the
+first means a team that already picked up an incident is told about it again
+every cooldown until the alerts stop.
+
+Today's states are effectively *reported* and *quiet*. Three are needed:
+
+- **reported, unseen** — the current re-notify behavior is right here.
+- **acknowledged** — a human has it. Reporting pauses; tracking does not. The
+  incident stays open, keeps absorbing alerts, and keeps its record, because
+  an acknowledged incident is still an incident.
+- **resolved** — the problem is over. Distinct from the *inferred* closure
+  this slice implements, which reads silence as resolution. Silence is
+  evidence, not proof: a monitor that recovers says so explicitly, and a
+  report worth sending is one that can say "this is fixed" rather than
+  leaving a human to notice nothing arrived.
+
+The incident identity added in slice 3 is what makes this tractable — an
+acknowledgement needs something stable to attach to, and a generated id that
+survives new alerts joining is exactly that. Storage is a column beside
+`last_reported_at`, not a redesign.
+
+The hard part is where the signal comes from, and it is an architectural
+question rather than a feature:
+
+- **From the observability platform.** Datadog monitors already carry ack and
+  mute state, and a team that acts usually acts there first. This needs no new
+  inbound channel — it is another read through the ports that already
+  exist — and it respects where people already work. Probably the first
+  thing to try.
+- **From the notification channel.** A reaction or reply on the Teams message,
+  a reply to the email. Closest to where the report is actually read, but the
+  `Notifier` port is one-way by design, and acknowledgement is inbound.
+  Polling for reactions keeps the scheduled-job shape; a webhook does not —
+  it turns a job that runs and exits into a service that must be reachable,
+  which is a deployment change (slice 12), not just a port.
+
+Two failure modes worth designing against from the start:
+
+- **An acknowledgement that never expires is a mute button.** "I'm on it" said
+  on Monday should not silence Thursday's report about the same service. An
+  ack wants a bounded life — a snooze with a duration, or one that lapses
+  when the incident closes — so that going quiet is always a decision
+  someone made recently.
+- **A worsening incident must break through.** Acknowledgement suppresses the
+  routine repeat, not the escalation path (slice 9). If severity crosses a
+  threshold or the blast radius grows, that is new information and the ack
+  should not hold it back.
 
 ## Capability slices (dependency order)
 
