@@ -1,12 +1,12 @@
 """A ``TriageLedger`` backed by SQLite, over the standard library's ``sqlite3``.
 
-Everything storage-shaped stops here: the two tables, the ISO-8601 text the
+Everything storage-shaped stops here: the queries, the ISO-8601 text the
 timestamps are kept as, and the driver's own exceptions. What leaves is
-``Incident`` values, or a ``TriageLedgerError``.
+``Incident`` values, or a ``TriageLedgerError``. The tables those queries run
+against are in ``schema``.
 
-SQLite has no datetime type, so instants are stored as ISO-8601 text —
-inspectable with any client, correctly sortable, and normalised to UTC on the
-way in so that no naive datetime ever escapes into cooldown arithmetic.
+Instants are normalised to UTC on the way in and returned timezone-aware, so
+no naive datetime ever escapes into cooldown arithmetic.
 """
 
 import sqlite3
@@ -14,29 +14,11 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
+from alert_triage.adapters.sqlite_ledger.schema import SCHEMA
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.triage import is_closed
 from alert_triage.ports.triage_ledger import TriageLedgerError
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS incidents (
-    id               TEXT PRIMARY KEY,
-    service          TEXT NOT NULL,
-    last_reported_at TEXT,
-    closed_at        TEXT
-);
-CREATE TABLE IF NOT EXISTS incident_alerts (
-    incident_id TEXT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
-    source_id   TEXT NOT NULL,
-    service     TEXT NOT NULL,
-    fired_at    TEXT NOT NULL,
-    title       TEXT NOT NULL,
-    link        TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS incidents_by_service ON incidents(service);
-CREATE INDEX IF NOT EXISTS alerts_by_incident ON incident_alerts(incident_id);
-"""
 
 
 class SqliteTriageLedger:
