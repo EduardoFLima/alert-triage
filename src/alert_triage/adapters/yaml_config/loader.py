@@ -27,6 +27,8 @@ from alert_triage.ports.config import (
     CriticalService,
     Grouping,
     Ingestion,
+    Ledger,
+    ReNotify,
     Scope,
 )
 
@@ -40,6 +42,8 @@ class ResolvedConfig:
     scope: Scope
     grouping: Grouping
     ingestion: Ingestion
+    re_notify: ReNotify
+    ledger: Ledger
     circuit_breakers: CircuitBreakers
     critical_services: Mapping[str, CriticalService]
 
@@ -66,6 +70,8 @@ def load_config(
         scope=_scope(_section_data(document, "scope"), environment),
         grouping=_section(Grouping, ("grouping",), document, environment),
         ingestion=_section(Ingestion, ("ingestion",), document, environment),
+        re_notify=_section(ReNotify, ("re_notify",), document, environment),
+        ledger=_section(Ledger, ("ledger",), document, environment),
         circuit_breakers=_section(
             CircuitBreakers, ("circuit_breakers",), document, environment
         ),

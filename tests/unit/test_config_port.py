@@ -7,6 +7,8 @@ from alert_triage.ports.config import (
     CriticalService,
     Grouping,
     Ingestion,
+    Ledger,
+    ReNotify,
     Scope,
 )
 
@@ -19,6 +21,8 @@ class InMemoryConfig:
     grouping: Grouping = field(default_factory=Grouping)
     ingestion: Ingestion = field(default_factory=Ingestion)
     circuit_breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
+    re_notify: ReNotify = field(default_factory=ReNotify)
+    ledger: Ledger = field(default_factory=Ledger)
     critical_services: dict[str, CriticalService] = field(default_factory=dict)
 
 
@@ -90,3 +94,37 @@ def test_no_service_is_critical_unless_the_config_says_so() -> None:
     config: Config = InMemoryConfig(scope=Scope(owner="sre"))
 
     assert config.critical_services == {}
+
+
+def test_the_re_notify_cooldown_defaults_to_the_documented_two_days() -> None:
+    assert ReNotify().cooldown_seconds == ReNotify.DEFAULT_COOLDOWN_SECONDS
+    assert ReNotify().cooldown == timedelta(days=2)
+
+
+def test_the_cooldown_is_offered_to_the_domain_as_a_duration() -> None:
+    assert ReNotify(cooldown_seconds=3600).cooldown == timedelta(hours=1)
+
+
+def test_the_ledger_retains_closed_incidents_for_a_documented_thirty_days() -> None:
+    assert Ledger().retention_seconds == Ledger.DEFAULT_RETENTION_SECONDS
+    assert Ledger().retention == timedelta(days=30)
+
+
+def test_retention_is_offered_as_a_duration() -> None:
+    assert Ledger(retention_seconds=86400).retention == timedelta(days=1)
+
+
+def test_retuning_the_cooldown_leaves_how_long_history_is_kept_alone() -> None:
+    config: Config = InMemoryConfig(
+        scope=Scope(owner="sre"), re_notify=ReNotify(cooldown_seconds=60)
+    )
+
+    assert config.ledger.retention == timedelta(days=30)
+
+
+def test_retuning_retention_leaves_how_often_a_report_repeats_alone() -> None:
+    config: Config = InMemoryConfig(
+        scope=Scope(owner="sre"), ledger=Ledger(retention_seconds=60)
+    )
+
+    assert config.re_notify.cooldown == timedelta(days=2)
