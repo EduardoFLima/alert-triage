@@ -6,6 +6,7 @@ from alert_triage.adapters.teams.notifier import (
     CARD_VERSION,
     TIMEOUT_SECONDS,
     TeamsNotifier,
+    post_over_urllib,
     render,
 )
 from alert_triage.adapters.teams.settings import (
@@ -20,6 +21,7 @@ __all__ = [
     "TEAMS_WEBHOOK_URL_VARIABLE",
     "TIMEOUT_SECONDS",
     "TeamsNotifier",
+    "post_over_urllib",
     "render",
     "resolve_teams_webhook_url",
 ]

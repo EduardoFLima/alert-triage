@@ -5,7 +5,6 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.message import Message
-from types import TracebackType
 from typing import Any
 
 import pytest
@@ -15,6 +14,7 @@ from alert_triage.adapters.teams import (
     CARD_VERSION,
     TIMEOUT_SECONDS,
     TeamsNotifier,
+    post_over_urllib,
     render,
 )
 from alert_triage.domain.alert import Alert
@@ -84,154 +84,152 @@ def test_the_body_is_carried_verbatim_however_a_richer_medium_would_escape_it() 
 
 
 @dataclass
-class FakeResponse:
-    """What an opener hands back: a status and a body, and no socket."""
+class FakePost:
+    """A POST that never leaves the process, recording what it was asked to send."""
 
     status: int = 202
-    body: bytes = b""
-
-    def __enter__(self) -> "FakeResponse":
-        """Hand back the response the notifier reads its status from."""
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """Release the response, as a real one is released."""
-        return None
-
-    def read(self) -> bytes:
-        """Answer the body the destination sent back."""
-        return self.body
-
-
-@dataclass
-class FakeOpener:
-    """An opener that records the request it was given, and never leaves the process."""
-
-    response: FakeResponse = field(default_factory=FakeResponse)
+    answer: bytes = b""
     failure: Exception | None = None
-    requests: list[urllib.request.Request] = field(default_factory=list)
-    timeouts: list[float | None] = field(default_factory=list)
+    calls: list[tuple[str, bytes]] = field(default_factory=list)
 
-    def open(
-        self, request: urllib.request.Request, timeout: float | None = None
-    ) -> FakeResponse:
-        """Record the request, then answer or fail as configured."""
-        self.requests.append(request)
-        self.timeouts.append(timeout)
+    def __call__(self, url: str, body: bytes) -> tuple[int, bytes]:
+        """Record the call, then answer or fail as configured."""
+        self.calls.append((url, body))
         if self.failure is not None:
             raise self.failure
-        return self.response
+        return self.status, self.answer
 
 
-def _posted(opener: FakeOpener) -> dict[str, Any]:
-    payload = opener.requests[0].data
-    assert isinstance(payload, bytes)
-    envelope: dict[str, Any] = json.loads(payload.decode("utf-8"))
+def _sent(post: FakePost) -> dict[str, Any]:
+    envelope: dict[str, Any] = json.loads(post.calls[0][1].decode("utf-8"))
     return envelope
 
 
 def test_the_teams_channel_satisfies_the_notifier_port() -> None:
-    notifier: Notifier = TeamsNotifier(WEBHOOK_URL, opener=FakeOpener())
+    notifier: Notifier = TeamsNotifier(WEBHOOK_URL, post=FakePost())
 
     assert isinstance(notifier, Notifier)
 
 
 def test_delivering_posts_the_rendered_card_to_the_configured_webhook() -> None:
-    opener = FakeOpener()
+    post = FakePost()
 
-    TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
+    TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
-    assert opener.requests[0].full_url == WEBHOOK_URL
-    assert opener.requests[0].get_method() == "POST"
-    assert _posted(opener) == render(_report())
-
-
-def test_the_post_announces_itself_as_json() -> None:
-    opener = FakeOpener()
-
-    TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
-
-    assert opener.requests[0].get_header("Content-type") == "application/json"
-
-
-def test_the_post_is_bounded_so_a_hung_destination_cannot_hold_the_run_open() -> None:
-    opener = FakeOpener()
-
-    TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
-
-    assert opener.timeouts == [TIMEOUT_SECONDS]
+    assert post.calls[0][0] == WEBHOOK_URL
+    assert _sent(post) == render(_report())
 
 
 @pytest.mark.parametrize("status", [200, 202, 204])
 def test_any_success_status_is_taken_as_delivered(status: int) -> None:
-    opener = FakeOpener(response=FakeResponse(status=status))
-
-    TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
+    TeamsNotifier(WEBHOOK_URL, post=FakePost(status=status)).deliver(_report())
 
 
 def test_a_rejected_post_is_a_delivery_failure_carrying_status_and_body() -> None:
     """Workflows reports a malformed card as a 4xx with a body worth reading."""
-    opener = FakeOpener(
-        failure=urllib.error.HTTPError(
-            url=WEBHOOK_URL,
-            code=400,
-            msg="Bad Request",
-            hdrs=Message(),
-            fp=io.BytesIO(b"Invalid card payload"),
-        )
-    )
+    post = FakePost(status=400, answer=b"Invalid card payload")
 
     with pytest.raises(NotifierError) as raised:
-        TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
+        TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
     assert "400" in str(raised.value)
     assert "Invalid card payload" in str(raised.value)
 
 
-def test_a_non_success_status_answered_without_raising_is_still_a_failure() -> None:
-    opener = FakeOpener(response=FakeResponse(status=500, body=b"flow is down"))
+def test_a_body_the_destination_encoded_oddly_still_reaches_the_operator() -> None:
+    post = FakePost(status=500, answer=b"\xff\xfeflow is down")
 
-    with pytest.raises(NotifierError) as raised:
-        TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
-
-    assert "500" in str(raised.value)
-    assert "flow is down" in str(raised.value)
+    with pytest.raises(NotifierError, match="flow is down"):
+        TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
 
 def test_an_unreachable_destination_is_a_delivery_failure_not_a_quiet_return() -> None:
-    opener = FakeOpener(failure=urllib.error.URLError("name resolution failed"))
+    post = FakePost(failure=urllib.error.URLError("name resolution failed"))
 
     with pytest.raises(NotifierError, match="name resolution failed"):
-        TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
+        TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
 
 def test_a_delivery_failure_names_the_incident_it_concerns() -> None:
-    opener = FakeOpener(failure=urllib.error.URLError("down"))
+    post = FakePost(failure=urllib.error.URLError("down"))
 
     with pytest.raises(NotifierError, match="incident-1"):
-        TeamsNotifier(WEBHOOK_URL, opener=opener).deliver(_report())
+        TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
 
-def test_a_rejection_whose_body_cannot_be_read_still_reports_why_it_failed() -> None:
-    """A closed body stream must not turn a rejection into an unhandled error."""
+@dataclass
+class FakeUrlopen:
+    """Stands in for urllib's own opener, so the request itself can be inspected."""
+
+    rejection: urllib.error.HTTPError | None = None
+    requests: list[urllib.request.Request] = field(default_factory=list)
+    timeouts: list[float | None] = field(default_factory=list)
+
+    def __call__(
+        self, request: urllib.request.Request, timeout: float | None = None
+    ) -> "FakeHttpResponse":
+        """Record the request and its bound, then answer or reject."""
+        self.requests.append(request)
+        self.timeouts.append(timeout)
+        if self.rejection is not None:
+            raise self.rejection
+        return FakeHttpResponse()
+
+
+class FakeHttpResponse:
+    """The little urllib answers back: a status and a body, and no socket."""
+
+    status = 202
+
+    def __enter__(self) -> "FakeHttpResponse":
+        """Hand back the response, as urllib's own context manager does."""
+        return self
+
+    def __exit__(self, *exception: object) -> None:
+        """Release the response."""
+
+    def read(self) -> bytes:
+        """Answer an accepted post's empty body."""
+        return b""
+
+
+def test_the_default_post_announces_itself_as_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    urlopen = FakeUrlopen()
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+    post_over_urllib(WEBHOOK_URL, b'{"type": "message"}')
+
+    request = urlopen.requests[0]
+    assert request.full_url == WEBHOOK_URL
+    assert request.get_method() == "POST"
+    assert request.get_header("Content-type") == "application/json"
+    assert request.data == b'{"type": "message"}'
+
+
+def test_the_default_post_is_bounded_so_a_hung_destination_cannot_hold_a_run_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    urlopen = FakeUrlopen()
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+    post_over_urllib(WEBHOOK_URL, b"{}")
+
+    assert urlopen.timeouts == [TIMEOUT_SECONDS]
+
+
+def test_the_default_post_reads_a_rejection_rather_than_raising_it_onward(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The status and the explanation arrive together, and no stream is left open."""
     rejection = urllib.error.HTTPError(
         url=WEBHOOK_URL,
-        code=502,
-        msg="Bad Gateway",
+        code=400,
+        msg="Bad Request",
         hdrs=Message(),
-        fp=io.BytesIO(b"unreadable"),
+        fp=io.BytesIO(b"Invalid card payload"),
     )
-    rejection.close()
+    monkeypatch.setattr(urllib.request, "urlopen", FakeUrlopen(rejection=rejection))
 
-    with pytest.raises(NotifierError) as raised:
-        TeamsNotifier(WEBHOOK_URL, opener=FakeOpener(failure=rejection)).deliver(
-            _report()
-        )
-
-    assert "502" in str(raised.value)
-    assert "Bad Gateway" in str(raised.value)
+    assert post_over_urllib(WEBHOOK_URL, b"{}") == (400, b"Invalid card payload")

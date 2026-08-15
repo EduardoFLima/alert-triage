@@ -13,8 +13,8 @@ environment, no app registration and no token flow.
 import json
 import urllib.error
 import urllib.request
-from contextlib import AbstractContextManager
-from typing import Any, Protocol
+from collections.abc import Callable
+from typing import Any
 
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.notifier import NotifierError
@@ -32,31 +32,14 @@ CARD_VERSION = "1.2"
 TIMEOUT_SECONDS = 30
 
 
-class HttpResponse(Protocol):
-    """What this adapter reads off an answer: whether it was taken, and why not."""
+type Post = Callable[[str, bytes], tuple[int, bytes]]
+"""Send a JSON body to a URL, answering the status and the response body.
 
-    @property
-    def status(self) -> int:
-        """The response status code."""
-
-    def read(self) -> bytes:
-        """The response body, which is where Workflows says what was wrong."""
-        ...
-
-
-class Opener(Protocol):
-    """The one call this adapter makes, named so a test can stand in for it.
-
-    Narrower than ``urllib.request.OpenerDirector``, on the same rule as the
-    Datadog adapter's ``EventSearch``: a fake is a small class rather than a
-    subclass of a stdlib one.
-    """
-
-    def open(
-        self, request: urllib.request.Request, timeout: float
-    ) -> AbstractContextManager[HttpResponse]:
-        """Perform the request, bounded by the timeout."""
-        ...
+The whole seam this adapter needs, as one function rather than a client
+object: every `urllib` type stays behind it, a test stands in with a two-line
+function, and the answer is already read — so there is no stream left for
+anything downstream to find consumed.
+"""
 
 
 def render(report: TriageReport) -> dict[str, Any]:
@@ -104,20 +87,20 @@ def render(report: TriageReport) -> dict[str, Any]:
 class TeamsNotifier:
     """A ``Notifier`` that posts each report to a Teams Workflows webhook.
 
-    The opener is injected rather than built here, on the same rule as the
-    Datadog client and the SMTP factory: it is what lets these tests exercise
-    the request, the timeout, and every failure path with no network at all.
+    How the POST is performed is injected, on the same rule as the Datadog
+    client and the SMTP factory: it is what lets these tests exercise the
+    envelope and every failure path with no network at all.
     """
 
-    def __init__(self, webhook_url: str, opener: Opener | None = None) -> None:
-        """Bind the channel to its webhook and the opener it posts through.
+    def __init__(self, webhook_url: str, post: Post | None = None) -> None:
+        """Bind the channel to its webhook and the way it posts.
 
         Args:
             webhook_url: The Workflows webhook the report is posted to.
-            opener: Performs the request. Defaults to urllib's own.
+            post: Performs the POST. Defaults to urllib's.
         """
         self._webhook_url = webhook_url
-        self._opener = opener if opener is not None else urllib.request.build_opener()
+        self._post = post if post is not None else post_over_urllib
 
     def deliver(self, report: TriageReport) -> None:
         """Post the report as an Adaptive Card to the configured webhook.
@@ -126,20 +109,11 @@ class TeamsNotifier:
         never learns HTTP was involved.
         """
         try:
-            self._post(render(report), report)
-        except urllib.error.HTTPError as error:
-            raise self._failure(report, f"{error.code} {_read(error)}") from error
-        except (urllib.error.URLError, OSError) as error:
+            status, answer = self._post(self._webhook_url, _encoded(render(report)))
+        except OSError as error:
             raise self._failure(report, str(error)) from error
-
-    def _post(self, envelope: dict[str, Any], report: TriageReport) -> None:
-        """Send the envelope and insist the destination said it took it."""
-        with self._opener.open(
-            _request(self._webhook_url, envelope), timeout=TIMEOUT_SECONDS
-        ) as response:
-            status = response.status
-            if not 200 <= status < 300:
-                raise self._failure(report, f"{status} {_decoded(response.read())}")
+        if not 200 <= status < 300:
+            raise self._failure(report, f"{status} {_decoded(answer)}")
 
     def _failure(self, report: TriageReport, said: str) -> NotifierError:
         """Name the incident, the destination, and what the destination said."""
@@ -149,28 +123,32 @@ class TeamsNotifier:
         )
 
 
-def _request(webhook_url: str, envelope: dict[str, Any]) -> urllib.request.Request:
-    """Build the POST that carries one envelope."""
-    return urllib.request.Request(
-        webhook_url,
-        data=json.dumps(envelope).encode("utf-8"),
+def post_over_urllib(url: str, body: bytes) -> tuple[int, bytes]:
+    """POST a JSON body over the standard library, bounded by the fixed timeout.
+
+    A rejection is read here rather than raised onward: ``urllib`` reports a
+    non-2xx as an ``HTTPError`` that is both the failure and the response, and
+    its body is readable exactly once. Reading it in the same breath as
+    catching it is what makes the status and the explanation available
+    together, and what leaves no half-consumed stream behind.
+    """
+    request = urllib.request.Request(
+        url,
+        data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-
-
-def _read(error: urllib.error.HTTPError) -> str:
-    """Read the body of a rejection, which is where Workflows says what was wrong.
-
-    A body that has already been consumed or closed answers ``ValueError``
-    rather than ``OSError``, so both are caught: the status and the reason are
-    still worth reporting, and a failure to read the explanation must not
-    replace the failure being explained.
-    """
     try:
-        return _decoded(error.read())
-    except (OSError, ValueError):
-        return error.reason if isinstance(error.reason, str) else str(error.reason)
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as rejection:
+        with rejection:
+            return rejection.code, rejection.read()
+
+
+def _encoded(envelope: dict[str, Any]) -> bytes:
+    """Encode one envelope as the JSON body that carries it."""
+    return json.dumps(envelope).encode("utf-8")
 
 
 def _decoded(body: bytes) -> str:
