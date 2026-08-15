@@ -21,6 +21,9 @@ packages = ["src/alert_triage"]
 
 [dependency-groups]
 dev = [
+    # Python 3.12 removed the stdlib's ``smtpd``; this is its successor, and is
+    # what lets an integration test submit over a real socket to a real server.
+    "aiosmtpd>=1.4",
     "import-linter>=2.3",
     "mypy>=1.14",
     "pytest>=8.3",
@@ -123,6 +126,10 @@ forbidden_modules = [
     "requests",
     "httpx",
     "smtplib",
+    # The whole package rather than ``urllib.request`` alone: import-linter
+    # rejects a subpackage of an external package, and the core has no
+    # business anywhere in urllib.
+    "urllib",
     "msal",
     "yaml",
 ]

@@ -120,10 +120,18 @@ are:
 | `ALERT_TRIAGE_EMAIL_TO` | yes, when the host is set | — |
 
 The host is what activates the channel; the rest being absent alongside it is a
-half-configured channel and a `ConfigError`, per the config delta. STARTTLS is
-attempted by default on the submission port; a password without a username (or
-the reverse) is likewise a configuration error rather than a silent fallback to
-an unauthenticated send.
+half-configured channel and a `ConfigError`, per the config delta. A password
+without a username (or the reverse) is likewise a configuration error rather
+than a silent fallback to an unauthenticated send.
+
+STARTTLS is *attempted* on every submission and used whenever the relay offers
+it. A relay that does not offer it still receives the report — settled during
+implementation, because the table above already treats a username as optional
+"(unauthenticated relays exist)", and refusing such a relay outright would rule
+out the plain in-cluster relay that option exists for. What is not negotiable
+is a password over an unencrypted connection: credentials configured against a
+relay without STARTTLS are a `NotifierError`, not a downgraded send. Secrecy is
+required exactly where there is a secret.
 
 Note the hazard: the package is `alert_triage.adapters.email`, and the standard
 library module it uses is `email`. Absolute imports mean
@@ -146,19 +154,24 @@ own budget, and this adapter's rendering survives it.
 
 Transport is `urllib.request` rather than `requests` or `httpx`: one POST of a
 JSON body, and adding an HTTP dependency for it would be paying a supply-chain
-cost for convenience. `urllib.request` joins `forbidden_modules` for symmetry
-with `smtplib`.
+cost for convenience. It joins `forbidden_modules` for symmetry with
+`smtplib` — as `urllib` rather than `urllib.request`, because import-linter
+rejects a subpackage of an external package as a contract entry. The broader
+entry is the stricter one, and the core has no business anywhere in `urllib`.
 
 `ALERT_TRIAGE_TEAMS_WEBHOOK_URL` activates the channel and is its only setting.
 Any non-2xx response, or a transport error, is a `NotifierError` carrying the
 status and the response body — Workflows reports a malformed card as a 4xx with
 a body worth reading.
 
-The exact envelope and Adaptive Card schema version are to be confirmed against
-current Microsoft documentation during implementation, per `AGENTS.md` — the
-shape is `{"type": "message", "attachments": [{"contentType":
-"application/vnd.microsoft.card.adaptive", "content": {…card…}}]}`, and the
-card body is a title block plus the report body as text.
+The envelope was confirmed against Microsoft's own incoming-webhook
+documentation during implementation and is as anticipated: `{"type":
+"message", "attachments": [{"contentType":
+"application/vnd.microsoft.card.adaptive", "contentUrl": null, "content":
+{…card…}}]}`. The card declares schema version `1.2`, which is what
+Microsoft's example declares; nothing in a title block plus a text block needs
+a later one, and asking for a version a client cannot render would cost the
+report its formatting for nothing.
 
 ### Rendering lives with the channel; both adapters take a pure render function
 

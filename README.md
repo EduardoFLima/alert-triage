@@ -118,6 +118,49 @@ sqlite3 alert_triage.db \
   "SELECT id, service, last_reported_at, closed_at FROM incidents;"
 ```
 
+Where triage reports are *sent* is a deployment fact on the same rule, and
+reads from the environment only. Which channels are active follows from which
+of them you configured — configure at least one, or the run refuses to start,
+the same way it refuses a missing `scope.owner`:
+
+```bash
+# Email. The host activates the channel; the sender and recipients are then
+# required, and a half-configured channel is an error rather than a silent
+# skip.
+export ALERT_TRIAGE_SMTP_HOST=smtp.example.com
+export ALERT_TRIAGE_EMAIL_FROM=triage@example.com
+export ALERT_TRIAGE_EMAIL_TO=sre@example.com,oncall@example.com  # comma-separated
+export ALERT_TRIAGE_SMTP_PORT=587        # optional, defaults to 587
+export ALERT_TRIAGE_SMTP_USERNAME=triage # optional, but paired with the password
+export ALERT_TRIAGE_SMTP_PASSWORD=...    # optional, but paired with the username
+
+# Microsoft Teams. One variable, and it both names the destination and
+# authorises posting to it.
+export ALERT_TRIAGE_TEAMS_WEBHOOK_URL=https://prod-1.westeurope.logic.azure.com/...
+```
+
+Configure one channel, the other, or both. STARTTLS is attempted on every
+submission and used when the relay offers it; a relay that does not offer it
+still receives the report, but a *password* is never sent over a connection
+that stayed in the clear — configure such a relay without credentials, or use
+one that offers STARTTLS.
+
+The Teams URL is a [Power Automate Workflows][workflows] webhook — create a
+flow from the "Post to a channel when a webhook request is received" template
+and paste the URL it gives you. This replaces the retired Office 365 connector
+webhooks, whose `outlook.office.com/webhook/…` URLs no longer work.
+
+[workflows]: https://support.microsoft.com/en-us/office/creating-a-workflow-from-a-channel-in-teams-242eb8f2-f328-45be-b81f-9817b51a5f0e
+
+A report goes to every configured channel. One channel failing does not stop
+another from being tried, and delivery counts as successful as soon as one
+channel accepted the report — a report that reached Teams is worth more than
+one that reached nobody because the relay was down. The channels that failed
+are logged at warning level. Only when *every* channel fails is the report
+undelivered, and then the incident is not recorded as reported, so the next
+run produces it again: the ledger is the retry mechanism, and there is no
+retry loop inside a run.
+
 Writing a site or a credential into `config.yaml` has no effect — it is not
 used to reach the platform, and resolution proceeds as if the key were absent.
 That is the rule for any new setting too: if it changes when the same triage
@@ -215,7 +258,8 @@ src/alert_triage/
 │   ├── sqlite_ledger/
 │   ├── adk/
 │   ├── email/
-│   └── teams/
+│   ├── teams/
+│   └── fan_out/ one Notifier standing for every configured channel
 └── app/         composition root: the only layer that names concrete adapters
 
 tests/
@@ -261,6 +305,26 @@ is missing, not that the rule is inconvenient.
 
 **5. Wire it up in `app/`.** The composition root is the only place that names
 your adapter. Nothing else in the codebase learns it exists.
+
+**A notification channel** has three extra conventions the two existing ones
+follow, and Slack would too:
+
+- *Split rendering from sending.* A pure function turns a `TriageReport` into
+  your channel's payload; a separate object sends it, taking its client
+  injected — a factory for `smtplib.SMTP`, an opener for `urllib.request`.
+  That split is what keeps `tests/unit/` free of a network and a mail server.
+- *Resolve settings from the environment, beside the adapter.* A
+  `resolve_slack_settings(env)` returning `None` leaves the channel inactive;
+  supplying some of its settings and not the rest raises `ConfigError`. There
+  is no `config.yaml` key for a destination or a token, by design.
+- *Register it in `resolve_notifier`.* `adapters/fan_out/resolution.py` is the
+  one place that decides which channels a deployment has. Add your channel
+  there and the fan-out, the partial-failure rule, and the refusal to start
+  with no channel all apply to it unchanged.
+
+Raise `NotifierError` for anything that means "not delivered", and never
+return quietly on a failure: the caller reads a return as "the team was told"
+and starts the re-notify cooldown on it.
 
 **6. Run the gate.** `uv run ruff check src tests && uv run mypy && uv run
 pytest`. Green means your adapter is in without having bent the architecture.
