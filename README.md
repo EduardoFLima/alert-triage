@@ -10,8 +10,9 @@ It does the legwork and presents a hypothesis with its confidence. It does not
 auto-remediate and does not decide for you: the question left to a human is
 "act on this?" rather than "where do I even start?"
 
-The full product vision, capability roadmap, and configuration model live in
-[`docs/vision.md`](docs/vision.md).
+The full product vision and capability roadmap live in
+[`docs/vision.md`](docs/vision.md); the settings reference is in
+[`docs/configuration.md`](docs/configuration.md).
 
 > **Status:** scaffolding. The structure, the architecture boundary, and the
 > quality gate are in place; the capability slices that ingest alerts and
@@ -49,82 +50,26 @@ correctly, and the architecture boundary holds.
 
 **Configure**
 
-Two kinds of setting, and which kind a value is decides where it goes.
-
-*Behavior* — what the system watches and how it triages — lives in an optional
-`config.yaml`, and every key there can also be set as an environment variable
-by mapping its `section.key` path to `SECTION_KEY`. When both are set, the
-environment wins.
-
-```yaml
-scope:
-  owner: sre              # mandatory: whose alerts are triaged. No default.
-grouping:
-  window_seconds: 1800    # alerts of one service this close are one incident
-ingestion:
-  lookback_seconds: 3600  # how far back a run looks for alerts
-re_notify:
-  cooldown_seconds: 172800  # how long a report suppresses the next one (2 days)
-ledger:
-  retention_seconds: 2592000  # how long closed incidents are kept (30 days)
-```
-
-Set `scope.owner` to the team that owns the alerts you want triaged; the
-Datadog adapter spends it as a `team:` term in its event query. Keep
-`ingestion.lookback_seconds` comfortably wider than the interval the job runs
-on, so a delayed run does not step over alerts — re-delivered alerts are
-recognised and absorbed rather than reported twice.
-
-`re_notify.cooldown_seconds` and `ledger.retention_seconds` are tuned
-separately and neither is derived from the other: the first is how often a
-still-firing incident is re-reported, the second is how far back you can look
-at what was reported. Setting retention shorter than the cooldown cannot
-resurrect duplicate reports — retention is counted from the moment an incident
-*closes*, and closing already requires the cooldown to have elapsed.
-
-*Connection* — where the platform is and how to authenticate — is read from
-the environment only, never from `config.yaml`, under Datadog's own variable
-names:
+`scope.owner` is the only mandatory behavior setting, and at least one
+notification channel must be configured or the run refuses to start:
 
 ```bash
-export DD_API_KEY=...      # required
-export DD_APP_KEY=...      # required; the Events API needs both
-export DD_SITE=datadoghq.eu  # optional, defaults to datadoghq.com
+export SCOPE_OWNER=sre                                     # whose alerts are triaged
+export ALERT_TRIAGE_TEAMS_WEBHOOK_URL=https://prod-1...    # where reports go
+export DD_API_KEY=...                                      # and DD_APP_KEY
 ```
 
-Where the triage ledger keeps its records is a deployment fact too, and reads
-from the environment on the same rule — with a default, since a path is not a
-credential:
+That is enough for a first run. Everything else has a documented default.
 
-```bash
-export ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/ledger.db
-# optional; defaults to alert_triage.db in the working directory
-```
+Which kind a setting is decides where it goes: *behavior* — what the system
+watches and how it triages — lives in an optional `config.yaml`, while
+*connection* — credentials, the ledger's location, where reports are sent — is
+read from the environment only, so a config file stays portable and never grows
+a key shaped like a credential.
 
-The ledger is a SQLite database, created with its schema on first use. A first
-run against an empty one has nothing on record, so every alert group it finds
-opens a new incident and is reported — there is no migration step and an empty
-ledger is not an error. Because the default path is relative, a run started
-from another directory starts from an empty ledger and re-reports everything;
-set the variable explicitly for anything but a quick local run.
-
-Incidents that have gone quiet past both the grouping window and the cooldown
-are closed and kept for the retention period. To read that history — what was
-reported, when, and for which alerts — open the database file with any SQLite
-client:
-
-```bash
-sqlite3 alert_triage.db \
-  "SELECT id, service, last_reported_at, closed_at FROM incidents;"
-```
-
-Writing a site or a credential into `config.yaml` has no effect — it is not
-used to reach the platform, and resolution proceeds as if the key were absent.
-That is the rule for any new setting too: if it changes when the same triage
-behavior is pointed at a different account or region, it is a connection
-setting and belongs in the environment. Otherwise it is behavior and belongs
-in the file. It keeps a config file portable across deployments, and keeps
-anything credential-shaped out of a file that gets committed.
+The full reference — every key, every variable, the defaults, and how delivery
+behaves when one channel fails — is in
+[`docs/configuration.md`](docs/configuration.md).
 
 ## Development
 
@@ -215,7 +160,8 @@ src/alert_triage/
 │   ├── sqlite_ledger/
 │   ├── adk/
 │   ├── email/
-│   └── teams/
+│   ├── teams/
+│   └── fan_out/ one Notifier standing for every configured channel
 └── app/         composition root: the only layer that names concrete adapters
 
 tests/
@@ -226,44 +172,10 @@ tests/
 ## Adding an adapter
 
 Plugging in your own observability or notification tooling is a first-class
-operation. Say you want to notify Slack instead of Teams:
-
-**1. Pick the port you are implementing.** Each port is one seam:
-
-| Port | Implement it to change… |
-|---|---|
-| `AlertSource` | where alerts come from (Datadog, Prometheus, …) |
-| `Investigator` | how an alert group gets investigated |
-| `ObservabilityPlatform` | where the investigator queries logs, traces, and metrics for context (Datadog, …) |
-| `TriageLedger` | where dedup and cooldown state is kept |
-| `Notifier` | where the triage report is delivered |
-| `Config` | where configuration is read from |
-
-**2. Create the subpackage.** One directory per integration, named for the
-vendor: `src/alert_triage/adapters/slack/`. Your vendor library is a
-dependency of that package and of nowhere else — add it to `[project]
-dependencies` in `pyproject.toml`, and add it to the `forbidden_modules` list
-of the vendor contract in the same file so it can never leak into the core.
-
-**3. Implement the port.** Translate at the boundary: the adapter converts
-between the vendor's payloads and the project's own domain types. If you find
-yourself wanting to import your SDK from `ports/` or `domain/`, the
-architecture test will stop you — that pull is the signal that a domain type
-is missing, not that the rule is inconvenient.
-
-**4. Write the tests it must carry.**
-
-- A unit test per translation and per error path, against a fake or stubbed
-  client — no network. These are the tests that must exist.
-- An integration test in `tests/integration/` if the adapter has wiring worth
-  exercising against a running fake.
-- No new architecture test: the contracts already cover your subpackage.
-
-**5. Wire it up in `app/`.** The composition root is the only place that names
-your adapter. Nothing else in the codebase learns it exists.
-
-**6. Run the gate.** `uv run ruff check src tests && uv run mypy && uv run
-pytest`. Green means your adapter is in without having bent the architecture.
+operation: pick the port you are implementing, create a subpackage owning your
+vendor library, translate at the boundary, and wire it up in `app/`. The
+step-by-step guide — including the extra conventions a notification channel
+follows — is in [`docs/adapters.md`](docs/adapters.md).
 
 ## License
 

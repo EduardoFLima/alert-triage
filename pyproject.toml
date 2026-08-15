@@ -21,6 +21,9 @@ packages = ["src/alert_triage"]
 
 [dependency-groups]
 dev = [
+    # Python 3.12 removed the stdlib's ``smtpd``; this is its successor, and is
+    # what lets an integration test submit over a real socket to a real server.
+    "aiosmtpd>=1.4",
     "import-linter>=2.3",
     "mypy>=1.14",
     "pytest>=8.3",
@@ -63,6 +66,11 @@ python_version = "3.13"
 strict = true
 files = ["src", "tests"]
 warn_unreachable = true
+# Each test directory carries its own conftest, so their basenames collide
+# unless mypy resolves modules from a package base. This maps paths to module
+# names; it relaxes no check.
+mypy_path = "src"
+explicit_package_bases = true
 # Every relaxation belongs here as a named per-module override, never as a
 # global loosening of the settings above.
 
@@ -123,6 +131,7 @@ forbidden_modules = [
     "requests",
     "httpx",
     "smtplib",
+    "urllib",
     "msal",
     "yaml",
 ]
