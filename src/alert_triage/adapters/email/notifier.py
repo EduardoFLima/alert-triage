@@ -1,7 +1,8 @@
-"""Delivering a triage report as mail, over the standard library's ``smtplib``.
+"""Delivering a triage report as mail.
 
-Everything mail-shaped stops here: the MIME message, STARTTLS, the login, and
-``smtplib``'s own exceptions. What leaves is nothing, or a ``NotifierError``.
+What a report looks like as an email, and what it means for one to have been
+submitted. The SMTP client itself, and every ``smtplib`` type behind it, lives
+in ``smtp``.
 
 Note the hazard this module lives with: its own package is
 ``alert_triage.adapters.email``, and the standard library module it needs is
@@ -12,45 +13,17 @@ would notice.
 """
 
 import smtplib
-from collections.abc import Callable
-from contextlib import AbstractContextManager
 from email.message import EmailMessage
-from typing import Protocol
 
 from alert_triage.adapters.email.settings import EmailSettings
+from alert_triage.adapters.email.smtp import (
+    SmtpClient,
+    SmtpFactory,
+    attempt_starttls,
+    open_smtp,
+)
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.notifier import NotifierError
-
-# A hung relay must not hold a run open. Fixed rather than configurable: there
-# is no evidence yet of what an operator would tune it against, and a run that
-# delivered nothing is retried by the next one anyway.
-TIMEOUT_SECONDS = 30
-
-
-class SmtpClient(Protocol):
-    """The three calls this adapter makes, named so a test can stand in for them.
-
-    Narrower than ``smtplib.SMTP`` on purpose, exactly as the Datadog adapter
-    names the one endpoint it uses. Each call is declared as answering
-    ``object`` because the adapter reads none of the answers — ``smtplib``
-    signals failure by raising, and a fake should not have to invent a reply
-    code to be substitutable.
-    """
-
-    def starttls(self) -> object:
-        """Secure the connection, or raise if the server does not offer it."""
-        ...
-
-    def login(self, username: str, password: str) -> object:
-        """Authenticate to the server."""
-        ...
-
-    def send_message(self, message: EmailMessage) -> object:
-        """Hand the message over for delivery."""
-        ...
-
-
-type SmtpFactory = Callable[[], AbstractContextManager[SmtpClient]]
 
 
 def render(report: TriageReport, settings: EmailSettings) -> EmailMessage:
@@ -77,9 +50,8 @@ class EmailNotifier:
     """A ``Notifier`` that submits each report to an SMTP server.
 
     The client is injected as a factory rather than opened here, on the same
-    rule as the Datadog adapter's client and the ledger's connection: a
-    connection per delivery is what ``smtplib`` is shaped for, and taking the
-    factory is what lets these tests run with no mail server at all.
+    rule as the Datadog adapter's client and the ledger's connection: it is
+    what lets these tests run with no mail server at all.
     """
 
     def __init__(
@@ -93,7 +65,7 @@ class EmailNotifier:
                 ``smtplib.SMTP`` against the configured host and port.
         """
         self._settings = settings
-        self._smtp = smtp if smtp is not None else _default_smtp(settings)
+        self._smtp = smtp if smtp is not None else open_smtp(settings)
 
     def deliver(self, report: TriageReport) -> None:
         """Submit the report as mail to every configured recipient.
@@ -113,41 +85,32 @@ class EmailNotifier:
             ) from error
 
     def _submit(self, server: SmtpClient, message: EmailMessage) -> None:
-        """Secure the connection, authenticate if asked to, and hand over the mail."""
-        secured = _secured(server)
-        credentials = self._settings.credentials
-        if credentials is not None:
-            if not secured:
-                raise NotifierError(
-                    f"{self._settings.host} does not offer STARTTLS, and "
-                    f"{self._settings.username!r}'s password will not be sent in "
-                    f"the clear. Use a relay that offers STARTTLS, or configure "
-                    f"the channel without credentials."
-                )
-            server.login(*credentials)
+        """Establish who we are to the relay, then hand the message over."""
+        self._authenticate(server)
         server.send_message(message)
 
+    def _authenticate(self, server: SmtpClient) -> None:
+        """Secure the connection, and log in only if it actually got secured.
 
-def _default_smtp(settings: EmailSettings) -> SmtpFactory:
-    """Open a connection to the configured relay, bounded by the fixed timeout."""
+        The two belong in one place: secrecy is required exactly when there is
+        a secret to keep. A relay offering no STARTTLS still takes the report,
+        because an unauthenticated relay is a deployment this project supports
+        — but a configured password is never spent on a connection in the
+        clear.
+        """
+        secured = attempt_starttls(server)
+        credentials = self._settings.credentials
+        if credentials is None:
+            return
+        if not secured:
+            raise self._cleartext_refusal()
+        server.login(*credentials)
 
-    def open_connection() -> smtplib.SMTP:
-        return smtplib.SMTP(settings.host, settings.port, timeout=TIMEOUT_SECONDS)
-
-    return open_connection
-
-
-def _secured(server: SmtpClient) -> bool:
-    """Attempt STARTTLS, answering whether the connection ended up encrypted.
-
-    Attempted rather than required: a plain relay on a container's own network
-    is a deployment this project anticipates — it is why the credentials are
-    optional — and refusing it outright would rule that deployment out. What is
-    never negotiable is a *password* over an unencrypted connection, which is
-    the caller's business and is refused there.
-    """
-    try:
-        server.starttls()
-    except smtplib.SMTPNotSupportedError:
-        return False
-    return True
+    def _cleartext_refusal(self) -> NotifierError:
+        """Say why a configured password was not spent on this connection."""
+        return NotifierError(
+            f"{self._settings.host} does not offer STARTTLS, and "
+            f"{self._settings.username!r}'s password will not be sent in the "
+            f"clear. Use a relay that offers STARTTLS, or configure the channel "
+            f"without credentials."
+        )

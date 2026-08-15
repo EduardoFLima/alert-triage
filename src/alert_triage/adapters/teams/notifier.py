@@ -1,8 +1,8 @@
 """Posting a triage report to Microsoft Teams as an Adaptive Card.
 
-Everything Teams-shaped stops here: the message envelope, the card schema, the
-HTTP request, and what a non-2xx answer means. What leaves is nothing, or a
-``NotifierError``.
+Everything Teams-shaped stops here: the message envelope, the card schema,
+and what a non-2xx answer means. What leaves is nothing, or a
+``NotifierError``. How the POST is actually performed lives in ``http``.
 
 The destination is a Power Automate Workflows webhook — the supported
 successor to the Office 365 connector webhooks Microsoft retired, and the one
@@ -11,11 +11,9 @@ environment, no app registration and no token flow.
 """
 
 import json
-import urllib.error
-import urllib.request
-from collections.abc import Callable
 from typing import Any
 
+from alert_triage.adapters.teams.http import Post, post_over_urllib
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.notifier import NotifierError
 
@@ -26,20 +24,6 @@ CARD_SCHEMA = "http://adaptivecards.io/schemas/adaptive-card.json"
 # this card needs a later one, and asking for one a client cannot render costs
 # a report its formatting for nothing.
 CARD_VERSION = "1.2"
-
-# A hung destination must not hold a run open. Fixed rather than configurable,
-# for the same reason as the mail channel's.
-TIMEOUT_SECONDS = 30
-
-
-type Post = Callable[[str, bytes], tuple[int, bytes]]
-"""Send a JSON body to a URL, answering the status and the response body.
-
-The whole seam this adapter needs, as one function rather than a client
-object: every `urllib` type stays behind it, a test stands in with a two-line
-function, and the answer is already read — so there is no stream left for
-anything downstream to find consumed.
-"""
 
 
 def render(report: TriageReport) -> dict[str, Any]:
@@ -121,29 +105,6 @@ class TeamsNotifier:
             f"Could not post the report for incident {report.incident_id!r} to the "
             f"Teams webhook: {said}"
         )
-
-
-def post_over_urllib(url: str, body: bytes) -> tuple[int, bytes]:
-    """POST a JSON body over the standard library, bounded by the fixed timeout.
-
-    A rejection is read here rather than raised onward: ``urllib`` reports a
-    non-2xx as an ``HTTPError`` that is both the failure and the response, and
-    its body is readable exactly once. Reading it in the same breath as
-    catching it is what makes the status and the explanation available
-    together, and what leaves no half-consumed stream behind.
-    """
-    request = urllib.request.Request(
-        url,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-            return response.status, response.read()
-    except urllib.error.HTTPError as rejection:
-        with rejection:
-            return rejection.code, rejection.read()
 
 
 def _encoded(envelope: dict[str, Any]) -> bytes:

@@ -66,6 +66,11 @@ python_version = "3.13"
 strict = true
 files = ["src", "tests"]
 warn_unreachable = true
+# Each test directory carries its own conftest, so their basenames collide
+# unless mypy resolves modules from a package base. This maps paths to module
+# names; it relaxes no check.
+mypy_path = "src"
+explicit_package_bases = true
 # Every relaxation belongs here as a named per-module override, never as a
 # global loosening of the settings above.
 
@@ -126,9 +131,6 @@ forbidden_modules = [
     "requests",
     "httpx",
     "smtplib",
-    # The whole package rather than ``urllib.request`` alone: import-linter
-    # rejects a subpackage of an external package, and the core has no
-    # business anywhere in urllib.
     "urllib",
     "msal",
     "yaml",
