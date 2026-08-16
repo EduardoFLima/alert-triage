@@ -76,37 +76,37 @@
 
 ## 5. Composition root
 
-- [ ] 5.1 Write a failing test that the composition root resolves
+- [x] 5.1 Write a failing test that the composition root resolves
       configuration, builds the three adapters, and calls the run — asserted
       through substitution at the factory boundary, with no network, no mail
       server, and no database file (specs/triage-run - Adapters are named in
       one place only)
-- [ ] 5.2 Write failing tests that a missing scope and a deployment with no
+- [x] 5.2 Write failing tests that a missing scope and a deployment with no
       notification channel each refuse to start, name what is missing, and
       fetch nothing (specs/triage-run - Unusable configuration prevents the
       run)
-- [ ] 5.3 Implement `app/composition.py`, opening the ledger's SQLite
+- [x] 5.3 Implement `app/composition.py`, opening the ledger's SQLite
       connection from `resolve_ledger_path` and closing it when the run
       finishes, passing the pass-through builder and a UUID-backed `new_id`
-- [ ] 5.4 Add a test asserting `app/run.py` imports nothing from
+- [x] 5.4 Add a test asserting `app/run.py` imports nothing from
       `alert_triage.adapters`, so the pipeline stays adapter-free as slices
       are added
 
 ## 6. Entrypoint
 
-- [ ] 6.1 Write a failing test that the entrypoint returns a zero status for a
+- [x] 6.1 Write a failing test that the entrypoint returns a zero status for a
       run with no failures and a non-zero status otherwise (specs/triage-run -
       A scheduler reads the outcome, A successful run)
-- [ ] 6.2 Write a failing test that a configuration failure at startup is
+- [x] 6.2 Write a failing test that a configuration failure at startup is
       reported and produces a non-zero status rather than a traceback
-- [ ] 6.3 Implement `app/main.py`: take the run's instant once, configure
+- [x] 6.3 Implement `app/main.py`: take the run's instant once, configure
       logging in this module alone, call the composition root, and translate
       the outcome into an exit code
-- [ ] 6.4 Add `src/alert_triage/__main__.py` so `python -m alert_triage` runs
+- [x] 6.4 Add `src/alert_triage/__main__.py` so `python -m alert_triage` runs
       the same entrypoint
-- [ ] 6.5 Add the `alert-triage` console script to `[project.scripts]` in
+- [x] 6.5 Add the `alert-triage` console script to `[project.scripts]` in
       `pyproject.toml`
-- [ ] 6.6 Extend `tests/integration/test_installed_distribution.py` with a
+- [x] 6.6 Extend `tests/integration/test_installed_distribution.py` with a
       failing test that the console script is installed and reachable from the
       installation (specs/triage-run - The command is part of the installed
       package)
