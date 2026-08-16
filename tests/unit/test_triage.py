@@ -140,7 +140,8 @@ def test_a_newly_opened_incident_is_reported() -> None:
     incident, should_report = _decide(_group(opening), [], at=NOON)
 
     assert should_report
-    assert incident.last_reported_at == NOON, "the cooldown starts at the report"
+    assert incident.alerts == (opening,)
+    assert incident.last_reported_at is None, "the stamp follows the delivery"
 
 
 def test_a_continuation_within_the_cooldown_is_suppressed() -> None:
@@ -166,14 +167,27 @@ def test_a_continuation_after_the_cooldown_is_reported_again() -> None:
     resulting, should_report = _decide(_group(seen, fresh), [incident], at=at)
 
     assert should_report
-    assert resulting.last_reported_at == at
+    assert resulting.alerts == (seen, fresh)
+
+
+def test_an_incident_due_again_keeps_the_stamp_of_its_last_report() -> None:
+    """Nothing is lost by not stamping: a delivery that fails leaves this stamp."""
+    incident = _on_record(_alert("a"))
+
+    resulting, should_report = _decide(
+        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON + COOLDOWN
+    )
+
+    assert should_report
+    assert resulting.last_reported_at == NOON, "the previous report is still the last"
 
 
 def test_the_cooldown_is_measured_from_the_most_recent_report() -> None:
     incident = _on_record(_alert("a"))
     second_report_at = NOON + COOLDOWN
 
-    reported, _ = _decide(_group(_alert("a")), [incident], at=second_report_at)
+    due, _ = _decide(_group(_alert("a")), [incident], at=second_report_at)
+    reported = due.reported(second_report_at)
     _, should_report = _decide(
         _group(_alert("b", timedelta(minutes=5))),
         [reported],
