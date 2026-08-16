@@ -70,7 +70,10 @@ The system SHALL report an incident when it is first opened, and SHALL suppress
 any further report of that incident until the configured re-notify cooldown has
 elapsed since it was last reported. Once the cooldown has elapsed and the
 incident is still producing alerts, the system SHALL report it again and count
-the cooldown afresh from that report.
+the cooldown afresh from that report. An incident SHALL count as reported only
+once a report about it has actually been delivered: a report that was due and
+could not be delivered SHALL leave the incident's last-reported instant
+unchanged, so the cooldown never runs from a report nobody received.
 
 #### Scenario: A newly opened incident
 - **WHEN** an incident is opened
@@ -97,6 +100,16 @@ the cooldown afresh from that report.
 - **WHEN** one incident on a service is inside its cooldown and a separate
   incident opens on the same service
 - **THEN** the system reports the new incident
+
+#### Scenario: A due report that could not be delivered
+- **WHEN** an incident is due to be reported and the report is not delivered
+- **THEN** the incident's last-reported instant is left as it was, and the
+  incident is due to be reported again at the next opportunity
+
+#### Scenario: The decision and the stamp are separate
+- **WHEN** the system decides an incident is due to be reported
+- **THEN** the decision alone does not mark the incident as reported; the mark
+  follows the delivery
 
 ### Requirement: The cooldown is configurable with a documented default
 The re-notify cooldown SHALL be an operator-configurable behavior setting,
