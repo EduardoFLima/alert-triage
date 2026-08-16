@@ -113,26 +113,26 @@
 
 ## 7. End to end
 
-- [ ] 7.1 Write a failing integration test driving a complete run against
+- [x] 7.1 Write a failing integration test driving a complete run against
       fakes for all three ports across two runs: the first opens and reports
       an incident, the second continues it inside the cooldown and reports
       nothing (specs/triage-run - A run takes alerts end to end in one pass)
-- [ ] 7.2 Write a failing integration test that an alert appearing in two
+- [x] 7.2 Write a failing integration test that an alert appearing in two
       overlapping lookbacks does not open a second incident (specs/triage-run
       - Alerts seen twice by overlapping runs)
-- [ ] 7.3 Write a failing integration test over a real on-disk ledger that a
+- [x] 7.3 Write a failing integration test over a real on-disk ledger that a
       run whose delivery failed reports the incident on the next run, in a new
       connection (specs/triage-ledger - A due report that could not be
       delivered)
 
 ## 8. Documentation and the quality gate
 
-- [ ] 8.1 Add a "Running it" section to the README: the command, what a run
+- [x] 8.1 Add a "Running it" section to the README: the command, what a run
       needs in its environment, and what its exit status means
       (specs/triage-run - A first manual run)
-- [ ] 8.2 Update the README's architecture diagram via the mermaid tool if
+- [x] 8.2 Update the README's architecture diagram via the mermaid tool if
       the composition root changes what it shows
-- [ ] 8.3 Run `uv run ruff check src tests`, `uv run ruff format --check src
+- [x] 8.3 Run `uv run ruff check src tests`, `uv run ruff format --check src
       tests`, `uv run mypy`, and `uv run pytest`, and fix anything they report
-- [ ] 8.4 Run `openspec validate end-to-end-skeleton --strict` and resolve
+- [x] 8.4 Run `openspec validate end-to-end-skeleton --strict` and resolve
       anything it reports

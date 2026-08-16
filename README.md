@@ -14,9 +14,10 @@ The full product vision and capability roadmap live in
 [`docs/vision.md`](docs/vision.md); the settings reference is in
 [`docs/configuration.md`](docs/configuration.md).
 
-> **Status:** scaffolding. The structure, the architecture boundary, and the
-> quality gate are in place; the capability slices that ingest alerts and
-> investigate them land on top of it.
+> **Status:** end to end, before investigation. A run fetches alerts, groups
+> them, keeps a ledger so a team is told once per incident, and delivers a
+> report — but the report is a pass-through of the alerts, and says so. The
+> investigation that fills it in is the next capability slice.
 
 ## Setup
 
@@ -70,6 +71,42 @@ a key shaped like a credential.
 The full reference — every key, every variable, the defaults, and how delivery
 behaves when one channel fails — is in
 [`docs/configuration.md`](docs/configuration.md).
+
+## Running it
+
+A run is one pass — fetch the recent alerts, group them, decide what each
+group belongs to, report what is due, record what it handled — and then the
+process exits. There is no daemon and no loop: something else decides how
+often a run happens.
+
+```bash
+uv run alert-triage      # from a checkout
+alert-triage             # wherever the package is installed
+python -m alert_triage   # the same job, without the console script
+```
+
+A run reads everything it needs from its environment:
+
+- `SCOPE_OWNER` — whose alerts are in scope. Mandatory, and the one setting
+  that may instead live in `config.yaml`.
+- `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
+  authenticates with. `DD_SITE` if the account is not on `datadoghq.com`.
+- At least one notification channel, or the run refuses to start rather than
+  fetching alerts it could tell nobody about.
+- `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.
+  Defaults to `alert_triage.db` in the working directory, which is why a
+  deployment should set it explicitly.
+
+The run's account of itself goes to stderr; what it did goes in its exit
+status, which is what a scheduler acts on:
+
+- `0` — every group the run fetched was decided, reported if it was due, and
+  recorded. A run that had nothing to report succeeds having delivered
+  nothing.
+- `1` — the deployment is unusable, the fetch failed, or at least one group
+  could not be reported or recorded. The log names the stage that failed and
+  the service it was handling; the groups that succeeded still got their
+  reports.
 
 ## Development
 
