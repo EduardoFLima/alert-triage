@@ -7,6 +7,11 @@ already on record or opens a new one. The predicate is deliberately the one
 apart than the grouping window — so a burst that straddles a run boundary
 produces the incident it would have produced had it arrived all at once.
 
+A decision says *whether* an incident is due to be reported, never that it has
+been: ``Incident.reported`` is applied by the caller once a channel has
+accepted the report, so a delivery that fails leaves the cooldown running from
+the last report somebody actually received.
+
 Nothing here reads a clock or generates an identifier of its own: both are
 arguments, which is what makes every rule below decidable in a test at any
 instant.
@@ -26,8 +31,8 @@ class TriageDecision:
 
     Attributes:
         incident: The incident the group belongs to, with its new alerts
-            absorbed and — when it is due to be reported — its cooldown
-            restarted. This is the value to record.
+            absorbed and its last-reported instant as it was. This is the
+            value to record — stamped by the caller if a report is delivered.
         should_report: Whether this incident is due to be reported now.
     """
 
@@ -51,6 +56,9 @@ def triage(
     suppresses the alerts: they are absorbed either way, so the incident's
     record stays complete for the report that eventually goes out.
 
+    The returned incident is never stamped as reported. That stamp belongs to
+    the delivery, which has not happened yet when this returns.
+
     Args:
         group: The alerts one run grouped, oldest first.
         known: The open incidents on record for the group's service.
@@ -64,9 +72,9 @@ def triage(
         The resulting incident and whether it is due to be reported.
     """
     incident = continue_or_open(group, known, window=window, new_id=new_id)
-    if _is_due(incident, now, cooldown):
-        return TriageDecision(incident=incident.reported(now), should_report=True)
-    return TriageDecision(incident=incident, should_report=False)
+    return TriageDecision(
+        incident=incident, should_report=_is_due(incident, now, cooldown)
+    )
 
 
 def _is_due(incident: Incident, now: datetime, cooldown: timedelta) -> bool:

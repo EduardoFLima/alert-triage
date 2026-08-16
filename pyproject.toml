@@ -12,6 +12,9 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
+[project.scripts]
+alert-triage = "alert_triage.app.main:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -114,6 +117,14 @@ layers = [
     "alert_triage.ports",
     "alert_triage.domain",
 ]
+
+# The layers contract lets all of `app` reach `adapters`; only the composition
+# root should. This keeps the pipeline itself injectable as slices are added.
+[[tool.importlinter.contracts]]
+name = "The run takes adapters, it does not name them"
+type = "forbidden"
+source_modules = ["alert_triage.app.run"]
+forbidden_modules = ["alert_triage.adapters"]
 
 # The layers contract cannot see vendor SDKs; this one keeps them out of the core.
 [[tool.importlinter.contracts]]
