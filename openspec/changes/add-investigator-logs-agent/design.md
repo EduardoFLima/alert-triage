@@ -168,14 +168,100 @@ and skip the group.* Rejected: it would make the system worse than before this
 change for exactly the incidents most likely to matter, since a platform
 having a bad day is correlated with there being something to report.
 
+### Retry across runs is one integer on the incident
+
+A failed investigation is retried on the next run, up to three attempts in
+total. The whole state this needs is one counter on `Incident`:
+
+```
+investigation_attempts: int = 0    # attempts spent without findings reaching the team
+```
+
+Its value carries two facts at once, which is why nothing else is needed:
+
+- **`0`** — no degraded report is outstanding. Either the incident has never
+  been investigated, or its last investigation's findings reached the team.
+- **`0 < n < max_attempts`** — a degraded report is outstanding and a retry is
+  owed.
+- **`n >= max_attempts`** — the attempts are spent; stop, and let the cooldown
+  govern.
+
+Two transitions, and the asymmetry between them is the important part:
+
+- An investigation that **fails** increments it.
+- An investigation that **succeeds** clears it to `0` *only once the report
+  carrying its findings has been delivered.*
+
+That second condition is the existing "the stamp follows the delivery" rule
+from `domain/triage.py`, applied to a second counter. If a successful retry's
+report fails to deliver, clearing the counter would strand the findings: the
+cooldown has not elapsed, so no report would be due, and with the counter at
+zero no retry would be owed either — the incident would go quiet holding
+findings nobody received. Leaving the counter alone makes the next run owe the
+retry again. A successful investigation therefore never spends an attempt,
+which is also the honest reading of "three attempts".
+
+The counter resets to `0` when a normally-due report starts a fresh cycle, so
+an incident that exhausted its attempts, went quiet, and re-fired after the
+cooldown gets a full three again rather than staying permanently spent.
+
+### The decision splits into "investigate?" and "report?"
+
+`triage()` currently answers one question. It now answers two, because they
+have different triggers:
+
+```
+should_investigate = should_report or retry_owed
+should_deliver     = should_report or (retry_owed and the investigation produced findings)
+```
+
+`should_report` is today's cooldown rule, unchanged. `retry_owed` is
+`0 < investigation_attempts < max_attempts`. The second line cannot be decided
+before the investigation runs, so `TriageDecision` carries `should_report` and
+`retry_owed` and the run combines them with the outcome it just got — the
+domain still holds the rule, and the run still holds no arithmetic.
+
+Note that "produced findings" means the investigation completed, not that it
+found something. An investigation that ran and found nothing notable is a
+changed outcome: the earlier report said nobody had looked, and now somebody
+has. The spec says so explicitly because it is the case most likely to be
+implemented backwards.
+
+*Alternative — a `last_investigation_failed` boolean beside a counter.*
+Rejected: two fields that must agree, where one integer already says both
+things, and the boolean is derivable from `attempts > 0`.
+
+*Alternative — persist the findings so a retry is not needed after a delivery
+failure.* Rejected for this slice: it means storing and versioning findings in
+the ledger to save one re-investigation in a rare case, and re-investigating is
+both cheap and more current.
+
+### The follow-up report says it is a follow-up
+
+A report delivered because a retry succeeded arrives inside the cooldown,
+which is the one thing the system has promised not to do. Left unexplained, it
+reads as the duplicate the cooldown exists to prevent. The investigated report
+builder therefore takes whether it follows a degraded report, and says so in
+its body. This is a report-content concern, so it lives in `domain/report.py`
+with the builders and needs no port or adapter to know about it.
+
 ### `Investigation` config section; the model credential is environmental
 
 `Config` gains `investigation: Investigation` with a `model` field and a
-documented default, resolved by the YAML loader like every other section and
-overridable by `INVESTIGATION_MODEL`. What the model *costs* to reach — the
-provider credential — is environment-only, validated in the composition root
-so a misconfigured deployment refuses to start rather than failing on the
-first due incident.
+`max_attempts` field defaulting to 3, resolved by the YAML loader like every
+other section and overridable by `INVESTIGATION_MODEL` and
+`INVESTIGATION_MAX_ATTEMPTS`. What the model *costs* to reach — the provider
+credential — is environment-only, validated in the composition root so a
+misconfigured deployment refuses to start rather than failing on the first due
+incident.
+
+`max_attempts` counts total attempts, not retries after the first, so `1`
+disables retrying and `0` is rejected as configuration that would leave an
+incident uninvestigable. It is deliberately not `circuit_breakers.max_mcp_retries`
+under another name: that bounds one call inside one investigation, this bounds
+how many investigations an incident is given across runs, and the two will be
+tuned against different evidence — the same argument `Ingestion` already makes
+for its own request bounds.
 
 The circuit-breaker fields stay where they are and stay unread. `mcp_*`
 breakers are not repurposed as this adapter's timeouts, for the reason
@@ -239,6 +325,34 @@ without one.
   sequential where they could be concurrent. → Concurrency belongs inside the
   adapter and can be added there without touching the port; this only becomes
   a real cost once there are several specialists to overlap.
+- **Retries multiply the cost of a broken platform.** A sustained outage means
+  every open incident spends three investigations instead of one, at the worst
+  possible moment. → The bound is three and it is per incident, so the extra
+  cost is bounded and proportional; an operator who wants none sets
+  `max_attempts` to 1.
+- **A second report inside the cooldown reintroduces the fatigue this project
+  exists to reduce**, in miniature. → It happens at most once per incident per
+  cycle, only when the message genuinely changed from "nobody looked" to "here
+  is what we found", and the body says it is a follow-up. This is the same
+  trade-off `docs/vision.md` records under Acknowledgement, and the same answer:
+  a report worth sending is one that can say something new.
+- **The retry rule is easy to get subtly wrong** — spending an attempt on a
+  successful investigation, or clearing the counter before delivery — and both
+  mistakes are invisible until an incident goes quiet holding findings. → The
+  transitions are specified as scenarios in their own right, and the tasks
+  drive each from its own failing test.
+
+## Migration Plan
+
+The ledger's schema gains one column, `investigation_attempts`, defaulting to
+`0`. Existing rows therefore read back as "no attempts outstanding", which is
+the correct reading of an incident recorded before the counter existed: it was
+reported with the pass-through body under the old behavior, and there is no
+outstanding degraded report to improve on. No backfill, no rewrite of existing
+records, and a ledger file from before this change opens and works.
+
+Rollback is the reverse and equally cheap: an older build ignores the column.
+Nothing else in the run depends on it.
 
 ## Open Questions
 

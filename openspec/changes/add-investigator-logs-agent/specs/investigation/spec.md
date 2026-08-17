@@ -128,6 +128,59 @@ prevent the incident from being recorded.
 - **THEN** the outcome is distinguishable from an investigation that
   succeeded and found nothing notable
 
+### Requirement: A failed investigation is retried on later runs, within a bounded number of attempts
+When an incident has been reported without findings because its investigation
+did not complete, the system SHALL investigate it again on the next run, and
+SHALL keep doing so until either an investigation produces findings that reach
+the team or the incident has spent its configured number of attempts. The
+number of attempts SHALL be an operator-configurable behavior setting with a
+documented default of three, counted as the total number of investigations of
+that incident — the first one included — so that setting it to one disables
+retrying.
+
+Attempts SHALL be counted per incident and SHALL survive between runs.
+An attempt SHALL be counted only when an investigation fails; an investigation
+that succeeds SHALL clear the count once its findings have been delivered, so
+that a delivery failure leaves the retry owed rather than spending it. Once the
+attempts are spent, the system SHALL stop retrying and SHALL leave the incident
+governed by the re-notify cooldown alone.
+
+This bound is unrelated to the retries a single platform call makes internally:
+one bounds how many times the system tries to investigate an incident at all,
+across runs, and the other bounds one call within one investigation.
+
+#### Scenario: A retry on the next run
+- **WHEN** an incident was reported without findings and a later run continues
+  it
+- **THEN** the system investigates it again, even though no report is due
+
+#### Scenario: Attempts are spent
+- **WHEN** an incident's third investigation fails
+- **THEN** the system does not investigate it again for that cycle, and the
+  incident is governed by the cooldown alone
+
+#### Scenario: A successful retry ends the retrying
+- **WHEN** a retry produces findings and they are delivered
+- **THEN** the incident has no attempts outstanding, and a later run does not
+  retry it
+
+#### Scenario: A delivery failure does not spend an attempt
+- **WHEN** a retry produces findings and the report carrying them is not
+  delivered
+- **THEN** the retry is still owed at the next run, and no attempt was spent
+  on the successful investigation
+
+#### Scenario: Retrying is disabled
+- **WHEN** the operator configures a single attempt
+- **THEN** an investigation that fails is not retried, and the incident is
+  governed by the cooldown alone
+
+#### Scenario: Attempts survive the process
+- **WHEN** an incident's investigation fails, the process ends, and a later
+  run continues that incident from a fresh process
+- **THEN** the attempt already spent is remembered, so the incident gets the
+  remaining attempts and no more
+
 ### Requirement: Investigation credentials and endpoints come from the environment
 The observability platform's location and credentials SHALL be read from the
 environment, using the platform's own conventional variable names, and SHALL

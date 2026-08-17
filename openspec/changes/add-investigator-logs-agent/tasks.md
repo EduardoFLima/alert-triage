@@ -14,6 +14,10 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
       finding cannot claim something it cites nothing for
 - [ ] 1.4 `Findings` holding a tuple of findings — test that empty findings
       are a valid, successful "nothing notable", distinct from any failure
+- [ ] 1.5 `Incident.investigation_attempts`, defaulting to 0, with
+      `investigation_failed()` incrementing it and `findings_reported()`
+      clearing it — test both transitions and that neither touches the
+      incident's identity, alerts, or report stamp
 
 ## 2. Ports
 
@@ -38,83 +42,131 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 - [ ] 3.3 Reword the pass-through report from "before investigation exists" to
       "investigation was attempted and did not complete" — test the body says
       so and no longer claims the alerts were never looked at
+- [ ] 3.4 The follow-up form of the investigated report — test that a report
+      built after an earlier degraded one says so in its body, and that a
+      first-time investigated report does not
 
-## 4. The run's investigation stage
+## 4. The retry decision
 
-- [ ] 4.1 Widen `ReportBuilder` to `Callable[[Incident, Findings | None],
-      TriageReport]` and thread the investigator into `run` — test that a due
-      incident is investigated and its report built from the findings
-- [ ] 4.2 Test a suppressed report costs no investigation: the fake
-      investigator is never called for an incident inside its cooldown
-- [ ] 4.3 Add `Stage.INVESTIGATE` and catch `InvestigatorError` — test that a
-      failed investigation still delivers the fallback report, still records
-      the incident as reported, and yields a `RunFailure` naming the stage and
-      the service
-- [ ] 4.4 Test one group's investigation failure leaves the other groups their
+- [ ] 4.1 `retry_owed` in `domain/triage.py`: true when attempts are between
+      one and the configured bound — test zero attempts, one attempt, and
+      attempts at and beyond the bound
+- [ ] 4.2 `TriageDecision` carries `should_report` and `retry_owed`, and
+      `should_investigate` is their disjunction — test a due incident with no
+      attempts, a suppressed incident with a retry owed, and a suppressed
+      incident with none
+- [ ] 4.3 Test a bound of one disables retrying, and a bound below one is
+      rejected as unusable configuration
+- [ ] 4.4 Test a normally-due report starts a fresh cycle: an incident that
+      exhausted its attempts and is reported again after the cooldown gets its
+      full allowance back
+
+## 5. Ledger persistence
+
+- [ ] 5.1 Add `investigation_attempts` to the SQLite schema, defaulting to 0 —
+      test the column is created and that a ledger file written before this
+      change still opens
+- [ ] 5.2 Record and retrieve the counter — test a round trip through a real
+      file, and that a row written without the column reads back as zero
+      attempts rather than failing
+- [ ] 5.3 Test the counter survives a fresh process: an incident whose
+      investigation failed is retrieved by a later run with the attempt spent
+
+## 6. The run's investigation and retry stages
+
+- [ ] 6.1 Widen `ReportBuilder` to take the incident, the findings or `None`,
+      and whether this follows a degraded report; thread the investigator into
+      `run` — test that a due incident is investigated and its report built
+      from the findings
+- [ ] 6.2 Test an incident that is neither due nor owed a retry is never
+      investigated: the fake investigator is not called
+- [ ] 6.3 Add `Stage.INVESTIGATE` and catch `InvestigatorError` — test that a
+      failed investigation of a *due* incident still delivers the fallback
+      report, records the incident as reported, spends one attempt, and yields
+      a `RunFailure` naming the stage and the service
+- [ ] 6.4 Test a retry that fails again delivers nothing, spends an attempt,
+      records the incident, and still finishes the run unsuccessfully
+- [ ] 6.5 Test a retry that succeeds delivers a follow-up report inside the
+      cooldown, stamps the incident as reported, and clears the counter
+- [ ] 6.6 Test a retry that succeeds but whose delivery fails leaves the
+      counter untouched, so the next run still owes the retry
+- [ ] 6.7 Test a retry that completes and finds nothing notable is still
+      delivered, because the outcome changed from "nobody looked"
+- [ ] 6.8 Test an incident with attempts spent is neither investigated nor
+      reported, while still absorbing new alerts and being recorded
+- [ ] 6.9 Test one group's investigation failure leaves the other groups their
       investigated reports, and the run finishes unsuccessfully
 
-## 5. Config
+## 7. Config
 
-- [ ] 5.1 `Investigation` section on the `Config` port with a `model` field
-      and a documented default — test the default applies when the section is
-      absent
-- [ ] 5.2 YAML loader resolves `investigation.model`, with
-      `INVESTIGATION_MODEL` overriding the file — test file-only,
+- [ ] 7.1 `Investigation` section on the `Config` port with `model` and
+      `max_attempts` fields and documented defaults — test both defaults apply
+      when the section is absent
+- [ ] 7.2 YAML loader resolves both keys, with `INVESTIGATION_MODEL` and
+      `INVESTIGATION_MAX_ATTEMPTS` overriding the file — test file-only,
       environment-only, and both-set
-- [ ] 5.3 Test a credential-shaped key under `investigation` is inert:
+- [ ] 7.3 Test a credential-shaped key under `investigation` is inert:
       resolution proceeds as if it were absent
+- [ ] 7.4 Test `max_attempts` is resolved independently of the circuit
+      breakers, and that changing one leaves the other alone
 
-## 6. Datadog MCP adapter
+## 8. Datadog MCP adapter
 
-- [ ] 6.1 Add `google-adk` to `dependencies` in `pyproject.toml`, confirm
+- [ ] 8.1 Add `google-adk` to `dependencies` in `pyproject.toml`, confirm
       `google`, `mcp`, and `pydantic` are in the import contract's
       `forbidden_modules`, and run the architecture test
-- [ ] 6.2 Derive the MCP endpoint from `DD_SITE` and build the auth headers
+- [ ] 8.2 Derive the MCP endpoint from `DD_SITE` and build the auth headers
       from the existing `Connection` — test the URL for the default site and a
       non-default one, and that the header names are the ones the server
       expects
-- [ ] 6.3 `search_logs` translating a canned MCP tool response into
+- [ ] 8.3 `search_logs` translating a canned MCP tool response into
       `LogRecord`s — test the mapping, an empty result, and a malformed
       payload raising `ObservabilityPlatformError`
-- [ ] 6.4 Test a failed or refused MCP call raises
+- [ ] 8.4 Test a failed or refused MCP call raises
       `ObservabilityPlatformError` rather than returning an empty result
 
-## 7. The Logs agent
+## 9. The Logs agent
 
-- [ ] 7.1 The agent instruction as a module constant — test it asks for the
+- [ ] 9.1 The agent instruction as a module constant — test it asks for the
       incident's window, requires evidence for every observation, and forbids
       naming a root cause
-- [ ] 7.2 The pydantic output schema and its translation into `Findings` —
+- [ ] 9.2 The pydantic output schema and its translation into `Findings` —
       test a canned model payload maps to findings with `Signal.LOGS`, and
       that a payload with an evidence-free observation is rejected
-- [ ] 7.3 Wrap the `ObservabilityPlatform` port's methods as ADK
+- [ ] 9.3 Wrap the `ObservabilityPlatform` port's methods as ADK
       `FunctionTool`s — test the agent is given those tools and no
       platform-specific ones
-- [ ] 7.4 The `Investigator` implementation: run the agent for one incident,
+- [ ] 9.4 The `Investigator` implementation: run the agent for one incident,
       `asyncio.run` at the adapter boundary, translate the result — test
       against a stubbed model, and test that a model or tool failure becomes
       `InvestigatorError`
 
-## 8. Composition and the run end to end
+## 10. Composition and the run end to end
 
-- [ ] 8.1 Build the MCP platform and the ADK investigator in
+- [ ] 10.1 Build the MCP platform and the ADK investigator in
       `app/composition.py` and inject them — test the run receives an
       investigator and that no adapter is named outside this module
-- [ ] 8.2 Refuse to start when the model credential is absent, naming it —
+- [ ] 10.2 Refuse to start when the model credential is absent, naming it —
       test nothing is fetched and the run finishes unsuccessfully
-- [ ] 8.3 Extend `tests/integration/test_end_to_end.py` with a fake
+- [ ] 10.3 Extend `tests/integration/test_end_to_end.py` with a fake
       investigator: a complete run producing an investigated report, and one
       producing the degraded report after an investigation failure
-- [ ] 8.4 Credential-gated live integration test against the real Datadog MCP
+- [ ] 10.4 Integration test of the whole retry arc across three runs against a
+      real ledger file — fail, fail, succeed — asserting one degraded report,
+      then silence, then a follow-up report carrying findings
+- [ ] 10.5 Credential-gated live integration test against the real Datadog MCP
       server, following the pattern in `test_datadog_alert_source_live.py`
 
-## 9. Documentation and close-out
+## 11. Documentation and close-out
 
-- [ ] 9.1 README: the `investigation` config section, the model credential in
-      the environment table, and a plain statement that a run now incurs model
-      cost
-- [ ] 9.2 README: update the architecture diagram via the mermaid MCP tool to
+- [ ] 11.1 README: the `investigation` config section including
+      `max_attempts`, the model credential in the environment table, and a
+      plain statement that a run now incurs model cost
+- [ ] 11.2 README: explain that a follow-up report can arrive inside the
+      cooldown when a retry finally produces findings, so the behavior is
+      documented rather than surprising
+- [ ] 11.3 README: update the architecture diagram via the mermaid MCP tool to
       show the Investigator and ObservabilityPlatform ports
-- [ ] 9.3 Run all four CI commands clean, then answer the design's open
+- [ ] 11.4 Run all four CI commands clean, then answer the design's open
       questions from a real investigation: the default model, and whether
       evidence is structured records or prose

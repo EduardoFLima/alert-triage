@@ -42,9 +42,17 @@ single agent, is cheaper to get wrong than proving it against four.
   The team is never worse off than it is before this change. Marking a report
   "investigation incomplete" and routing it through escalation is slice 10's
   work, and needs the escalation path from slice 9 to route to.
+- **A failed investigation is retried on the next run, and only a changed
+  outcome is reported.** An incident whose report went out without findings is
+  investigated again next run, up to three attempts in total. A retry that
+  fails again tells nobody anything new, so nothing is delivered. A retry that
+  succeeds delivers the findings the first report could not carry, even though
+  the cooldown has not elapsed — because that *is* new information. Once the
+  attempts are spent, the incident goes back to being governed by the cooldown
+  alone.
 - **New optional `investigation` config section** carrying the model the agent
-  crew runs on. Credentials and endpoints stay environment-only, as
-  `docs/vision.md` requires.
+  crew runs on and how many attempts an investigation gets. Credentials and
+  endpoints stay environment-only, as `docs/vision.md` requires.
 - The circuit breakers already declared in config stay unenforced. Slice 10
   owns enforcing them; this slice must not quietly half-implement them.
 
@@ -62,14 +70,23 @@ single agent, is cheaper to get wrong than proving it against four.
   as what a run sends "before investigation exists" is replaced by one
   covering both the investigated report and the degraded fallback.
 - `config`: An optional `investigation` section is added, resolved from the
-  file or the environment like every other behavior setting, with a default
-  that lets a run work with no configuration for it.
+  file or the environment like every other behavior setting, with defaults
+  that let a run work with no configuration for it.
+- `triage-ledger`: An incident now also carries how many investigation
+  attempts it has spent without producing findings, so a retry survives
+  between runs. The "one report per incident until the cooldown elapses" rule
+  gains its first exception: a retry that finally produces findings is
+  reported inside the cooldown.
 
 ## Impact
 
 - **New ports**: `ports/investigator.py`, `ports/observability_platform.py`.
 - **New domain**: `domain/findings.py`; `domain/report.py` gains a builder
-  that renders findings, keeping the pass-through builder as the fallback.
+  that renders findings, keeping the pass-through builder as the fallback;
+  `domain/incident.py` gains the attempt counter and `domain/triage.py` the
+  rule that reads it.
+- **Changed storage**: the ledger's schema gains a column for the attempt
+  counter, and its adapter reads and writes it.
 - **New adapters**: `adapters/adk/` (the Logs agent and the `Investigator`
   implementation), `adapters/datadog/` gains the MCP-backed
   `ObservabilityPlatform`.
