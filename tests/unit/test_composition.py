@@ -111,7 +111,7 @@ def test_the_composition_root_reports_through_the_pass_through_builder(
     composition.execute(now=NOON, env=ENVIRONMENT, config_path=no_config_file)
 
     (report,) = notifier.delivered
-    assert "not been investigated" in report.body
+    assert "could not complete" in report.body
 
 
 @pytest.mark.usefixtures("substituted_adapters")

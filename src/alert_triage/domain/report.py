@@ -13,11 +13,16 @@ attaches an acknowledgement to.
 from dataclasses import dataclass
 
 from alert_triage.domain.alert import Alert
+from alert_triage.domain.findings import Finding, Findings, LogRecord
 from alert_triage.domain.incident import Incident
 
 NOT_INVESTIGATED = (
-    "These alerts have not been investigated. This report lists what fired and "
-    "nothing more."
+    "Investigation was attempted for these alerts and could not complete. This "
+    "report lists what fired and nothing more."
+)
+
+NOTHING_NOTABLE = (
+    "The logs around these alerts were searched and nothing notable was found."
 )
 
 NO_TITLE = "(no title reported)"
@@ -83,6 +88,107 @@ def build_pass_through_report(incident: Incident) -> TriageReport:
         subject=_subject(incident),
         body=_body(incident),
     )
+
+
+def build_report(incident: Incident, findings: Findings | None) -> TriageReport:
+    """Build the report an incident has earned, given what was learned about it.
+
+    The presence of findings is the whole decision. ``None`` means no
+    investigation of this incident ever completed, which is the only case the
+    pass-through report is for; empty findings mean one completed and found
+    nothing, which is a result and reads as one. Why an investigation failed,
+    and how many attempts it took to give up, are the run's business and never
+    change what a report says.
+
+    Args:
+        incident: The incident to report.
+        findings: What the investigation came back with, or ``None`` when none
+            completed.
+
+    Returns:
+        The report to deliver.
+    """
+    if findings is None:
+        return build_pass_through_report(incident)
+    return build_investigated_report(incident, findings)
+
+
+def build_investigated_report(incident: Incident, findings: Findings) -> TriageReport:
+    """Build the report for an incident an investigation actually looked at.
+
+    States what was found and the records behind it, and still lists the alerts
+    — a reader wants both the evidence and the thing that woke them up. Empty
+    findings are reported as the result they are: the logs were searched and
+    were clean, which is news rather than an empty section.
+
+    Offers no hypothesis, root cause, or confidence level. Nothing in this
+    slice produces one, and a report that implied otherwise would be the
+    verdict this project deliberately does not give.
+
+    Args:
+        incident: The incident to report, with the alerts absorbed so far.
+        findings: What the investigation came back with.
+
+    Returns:
+        A report naming the service, stating the findings with their evidence,
+        and listing every alert on record.
+    """
+    return TriageReport(
+        incident=incident,
+        subject=_investigated_subject(incident, findings),
+        body=_investigated_body(incident, findings),
+    )
+
+
+def _investigated_subject(incident: Incident, findings: Findings) -> str:
+    """Announce the incident and whether looking at it turned anything up."""
+    found = (
+        f"{len(findings.findings)} finding"
+        + ("" if len(findings.findings) == 1 else "s")
+        if findings.anything_notable
+        else "nothing notable"
+    )
+    return f"[alert-triage] {_one_line(incident.service)}: {found}"
+
+
+def _investigated_body(incident: Incident, findings: Findings) -> str:
+    """Lead with what was found, then the alerts that prompted looking."""
+    lines = [
+        f"{_alert_count(len(incident.alerts))} fired for service "
+        f"{incident.service} since {incident.started_at.isoformat()}.",
+        "",
+        *_findings_lines(findings),
+        "",
+        "Alerts:",
+        *(_alert_line(alert) for alert in incident.alerts),
+    ]
+    return "\n".join(lines)
+
+
+def _findings_lines(findings: Findings) -> list[str]:
+    """Every finding with its count and the records that show it."""
+    if not findings.anything_notable:
+        return [NOTHING_NOTABLE]
+    lines = ["What the investigation found:"]
+    for finding in findings.findings:
+        lines.extend(("", *_finding_lines(finding)))
+    return lines
+
+
+def _finding_lines(finding: Finding) -> list[str]:
+    """One finding: what was observed, how often, and the evidence for it."""
+    occurrences = f"seen {finding.occurrences} time" + (
+        "" if finding.occurrences == 1 else "s"
+    )
+    return [
+        f"- [{finding.signal}] {finding.observation} ({occurrences})",
+        *(f"    {_record_line(record)}" for record in finding.examples),
+    ]
+
+
+def _record_line(record: LogRecord) -> str:
+    """One log line, reproduced as the platform reported it."""
+    return f"{record.timestamp.isoformat()} {record.level} {record.message}"
 
 
 def _subject(incident: Incident) -> str:

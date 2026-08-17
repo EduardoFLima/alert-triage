@@ -36,16 +36,16 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 
 ## 3. Reporting findings
 
-- [ ] 3.1 `build_investigated_report(incident, findings)` — test its subject
+- [x] 3.1 `build_investigated_report(incident, findings)` — test its subject
       names the service and its body carries every finding with its occurrence
       count and its example records, and every alert with its time and link
-- [ ] 3.2 Test the investigated report offers no hypothesis, root cause, or
+- [x] 3.2 Test the investigated report offers no hypothesis, root cause, or
       confidence level, and that findings with nothing notable read as such
       rather than as an empty section
-- [ ] 3.3 Reword the pass-through report from "before investigation exists" to
+- [x] 3.3 Reword the pass-through report from "before investigation exists" to
       "investigation was attempted and did not complete" — test the body says
       so and no longer claims the alerts were never looked at
-- [ ] 3.4 Test the two builders are chosen by the presence of findings alone,
+- [x] 3.4 Test the two builders are chosen by the presence of findings alone,
       so report content stays independent of why the investigation failed
 
 ## 4. The retry decision
