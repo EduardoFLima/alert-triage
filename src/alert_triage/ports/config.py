@@ -129,6 +129,38 @@ class Ledger:
 
 
 @dataclass(frozen=True)
+class Investigation:
+    """How an investigation reasons, and how many times it is given the chance.
+
+    Behavior, not connection: which model reasons is a decision about how the
+    system triages, while the credential that model needs is a deployment fact
+    and lives in the environment.
+
+    ``max_attempts`` is deliberately not ``circuit_breakers.max_mcp_retries``
+    under another name. That bounds one call inside a single investigation;
+    this bounds how many investigations an incident is given at all, across
+    runs, and the two will be tuned against different evidence.
+
+    Attributes:
+        model: The model an investigation's agents run on.
+        max_attempts: How many investigations one incident may be given in
+            total, the first included, before the system stops trying and
+            reports what fired without findings. One disables retrying.
+    """
+
+    DEFAULT_MODEL: ClassVar[str] = "gemini-2.5-flash"
+    DEFAULT_MAX_ATTEMPTS: ClassVar[int] = 3
+
+    model: str = DEFAULT_MODEL
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS
+
+    def __post_init__(self) -> None:
+        """Reject a bound that would leave every incident uninvestigable."""
+        if self.max_attempts < 1:
+            raise ValueError("max_attempts must allow at least one investigation")
+
+
+@dataclass(frozen=True)
 class CircuitBreakers:
     """Bounds on a multi-agent investigation, one per way it can run away.
 
@@ -189,6 +221,10 @@ class Config(Protocol):
     @property
     def ledger(self) -> Ledger:
         """How much triage history is kept once an incident has closed."""
+
+    @property
+    def investigation(self) -> Investigation:
+        """How an investigation reasons, and how often it is attempted."""
 
     @property
     def circuit_breakers(self) -> CircuitBreakers:

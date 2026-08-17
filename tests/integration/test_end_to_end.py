@@ -11,8 +11,10 @@ from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.yaml_config.loader import ResolvedConfig, load_config
 from alert_triage.app.run import RunOutcome, run
 from alert_triage.domain.alert import Alert
+from alert_triage.domain.findings import Finding, Findings, LogRecord, Signal
 from alert_triage.domain.incident import Incident
-from alert_triage.domain.report import TriageReport, build_pass_through_report
+from alert_triage.domain.report import TriageReport, build_report
+from alert_triage.ports.investigator import InvestigatorError
 from alert_triage.ports.notifier import NotifierError
 from alert_triage.ports.triage_ledger import TriageLedger
 
@@ -99,15 +101,53 @@ def _run(
     config: ResolvedConfig,
     new_id: Callable[[], str],
     at: datetime,
+    investigator: "FakeInvestigator | None" = None,
 ) -> RunOutcome:
     return run(
         source=source,
         ledger=ledger,
         notifier=notifier,
-        build_report=build_pass_through_report,
+        investigator=investigator or FakeInvestigator(),
+        build_report=build_report,
         config=config,
         now=at,
         new_id=new_id,
+    )
+
+
+@dataclass
+class FakeInvestigator:
+    """The agent crew, standing in so no model or MCP server is involved."""
+
+    outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
+    asked: list[Incident] = field(default_factory=list)
+
+    def investigate(self, incident: Incident) -> Findings:
+        """Answer with the next outcome, so a test spells out a run-by-run arc."""
+        self.asked.append(incident)
+        outcome = self.outcomes.pop(0) if self.outcomes else Findings()
+        if isinstance(outcome, InvestigatorError):
+            raise outcome
+        return outcome
+
+
+def _findings(observation: str = "checkout is timing out") -> Findings:
+    return Findings(
+        findings=(
+            Finding(
+                signal=Signal.LOGS,
+                observation=observation,
+                occurrences=3,
+                examples=(
+                    LogRecord(
+                        timestamp=NOON,
+                        level="ERROR",
+                        message=observation,
+                        service="checkout",
+                    ),
+                ),
+            ),
+        )
     )
 
 

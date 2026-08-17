@@ -14,7 +14,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
-from alert_triage.adapters.sqlite_ledger.schema import SCHEMA
+from alert_triage.adapters.sqlite_ledger.schema import ADDED_COLUMNS, SCHEMA
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.triage import is_closed
@@ -59,7 +59,17 @@ class SqliteTriageLedger:
         self._retention = retention
         with _translated("prepare the ledger's schema"):
             self._connection.executescript(SCHEMA)
+            self._add_missing_columns()
             self._connection.commit()
+
+    def _add_missing_columns(self) -> None:
+        """Bring a table created by an earlier version up to the current shape."""
+        for statement in ADDED_COLUMNS:
+            try:
+                self._connection.execute(statement)
+            except sqlite3.OperationalError as error:
+                if "duplicate column name" not in str(error):
+                    raise
 
     def open_incidents(self, service: str, now: datetime) -> Sequence[Incident]:
         """Retrieve the still-open incidents on record for a service.
@@ -71,7 +81,8 @@ class SqliteTriageLedger:
         """
         with _translated(f"read the incidents on record for {service!r}"):
             rows = self._connection.execute(
-                "SELECT id, service, last_reported_at, closed_at FROM incidents "
+                "SELECT id, service, last_reported_at, closed_at, "
+                "investigation_attempts FROM incidents "
                 "WHERE service = ? AND closed_at IS NULL ORDER BY id",
                 (service,),
             ).fetchall()
@@ -128,16 +139,19 @@ class SqliteTriageLedger:
     def _write(self, incident: Incident) -> None:
         """Write an incident and its alerts, replacing what was held before."""
         self._connection.execute(
-            "INSERT INTO incidents (id, service, last_reported_at, closed_at) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+            "INSERT INTO incidents "
+            "(id, service, last_reported_at, closed_at, investigation_attempts) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
             "service = excluded.service, "
             "last_reported_at = excluded.last_reported_at, "
-            "closed_at = excluded.closed_at",
+            "closed_at = excluded.closed_at, "
+            "investigation_attempts = excluded.investigation_attempts",
             (
                 incident.id,
                 incident.service,
                 _as_text(incident.last_reported_at),
                 _as_text(incident.closed_at),
+                incident.investigation_attempts,
             ),
         )
         self._connection.execute(
@@ -160,15 +174,16 @@ class SqliteTriageLedger:
             ],
         )
 
-    def _incident(self, row: tuple[str, str, str | None, str | None]) -> Incident:
+    def _incident(self, row: tuple[str, str, str | None, str | None, int]) -> Incident:
         """Rebuild one incident from its row and the alerts absorbed into it."""
-        incident_id, service, last_reported_at, closed_at = row
+        incident_id, service, last_reported_at, closed_at, attempts = row
         return Incident(
             id=incident_id,
             service=service,
             alerts=self._alerts(incident_id),
             last_reported_at=_as_instant(last_reported_at),
             closed_at=_as_instant(closed_at),
+            investigation_attempts=attempts,
         )
 
     def _alerts(self, incident_id: str) -> tuple[Alert, ...]:

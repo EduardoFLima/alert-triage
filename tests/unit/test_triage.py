@@ -1,13 +1,22 @@
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.domain.incident import Incident
-from alert_triage.domain.triage import continue_or_open, is_closed, triage
+from alert_triage.domain.triage import (
+    TriageDecision,
+    continue_or_open,
+    is_closed,
+    triage,
+)
 
 WINDOW = timedelta(minutes=30)
 COOLDOWN = timedelta(days=2)
+MAX_ATTEMPTS = 3
 NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
 
@@ -129,7 +138,13 @@ def _decide(
     cooldown: timedelta = COOLDOWN,
 ) -> tuple[Incident, bool]:
     decision = triage(
-        group, known, now=at, window=WINDOW, cooldown=cooldown, new_id=_ids()
+        group,
+        known,
+        now=at,
+        window=WINDOW,
+        cooldown=cooldown,
+        max_attempts=MAX_ATTEMPTS,
+        new_id=_ids(),
     )
     return decision.incident, decision.should_report
 
@@ -286,3 +301,136 @@ def test_a_closed_incident_does_not_suppress_a_later_report() -> None:
     )
 
     assert should_report, "its last report was well inside the cooldown"
+
+
+def _investigate(
+    group: AlertGroup,
+    known: list[Incident],
+    at: datetime,
+    max_attempts: int = MAX_ATTEMPTS,
+) -> TriageDecision:
+    return triage(
+        group,
+        known,
+        now=at,
+        window=WINDOW,
+        cooldown=COOLDOWN,
+        max_attempts=max_attempts,
+        new_id=_ids(),
+    )
+
+
+def test_a_newly_opened_incident_is_investigated() -> None:
+    decision = _investigate(_group(_alert("a")), [], at=NOON)
+
+    assert decision.should_investigate
+
+
+def test_an_incident_inside_its_cooldown_is_not_investigated() -> None:
+    """A suppressed report costs no model spend."""
+    incident = _on_record(_alert("a"))
+
+    decision = _investigate(
+        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON
+    )
+
+    assert not decision.should_investigate
+
+
+def test_an_incident_whose_investigation_failed_is_investigated_again() -> None:
+    incident = replace(
+        _on_record(_alert("a")), last_reported_at=None, investigation_attempts=1
+    )
+
+    decision = _investigate(
+        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON
+    )
+
+    assert decision.should_investigate
+
+
+def test_an_incident_that_has_spent_its_attempts_is_not_investigated() -> None:
+    """The bound is on the incident, not on retries: an unreachable platform ends."""
+    incident = replace(
+        _on_record(_alert("a")),
+        last_reported_at=None,
+        investigation_attempts=MAX_ATTEMPTS,
+    )
+
+    decision = _investigate(
+        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON
+    )
+
+    assert decision.should_report
+    assert not decision.should_investigate
+
+
+def test_an_overdue_incident_with_attempts_spent_stays_uninvestigated() -> None:
+    """However many runs handle it: the cost of a broken platform stays bounded."""
+    incident = replace(
+        _on_record(_alert("a")),
+        last_reported_at=None,
+        investigation_attempts=MAX_ATTEMPTS,
+    )
+
+    for run in range(5):
+        decision = _investigate(
+            _group(_alert("b", timedelta(minutes=5))),
+            [incident],
+            at=NOON + timedelta(hours=run),
+        )
+        assert not decision.should_investigate
+
+
+def test_a_single_attempt_disables_retrying() -> None:
+    incident = replace(
+        _on_record(_alert("a")), last_reported_at=None, investigation_attempts=1
+    )
+
+    decision = _investigate(
+        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON, max_attempts=1
+    )
+
+    assert not decision.should_investigate
+
+
+def test_an_attempt_bound_below_one_leaves_an_incident_uninvestigable() -> None:
+    with pytest.raises(ValueError, match="max_attempts"):
+        _investigate(_group(_alert("a")), [], at=NOON, max_attempts=0)
+
+
+def test_an_incident_never_reported_stays_open_however_quiet_it_goes() -> None:
+    """It still owes a report, and a decision it owes is a decision it affects.
+
+    Before investigation could be silent, an incident was reported on the run
+    that opened it, so ``last_reported_at`` was always set by the time its
+    alerts aged past the window. A failed investigation delivers nothing, so
+    now it can go quiet still owing its report — and closing it there would
+    discard the attempts it had spent and open a fresh incident next run,
+    which is the unbounded spend the attempt bound exists to prevent.
+    """
+    never_reported = Incident(
+        id="incident-0",
+        service="checkout",
+        alerts=(_alert("a"),),
+        last_reported_at=None,
+        investigation_attempts=1,
+    )
+
+    assert not is_closed(
+        never_reported,
+        now=NOON + WINDOW + timedelta(hours=2),
+        window=WINDOW,
+        cooldown=COOLDOWN,
+    )
+
+
+def test_an_incident_reported_and_long_quiet_still_closes() -> None:
+    reported = _on_record(_alert("a"))
+
+    assert is_closed(
+        reported,
+        now=NOON + COOLDOWN + timedelta(seconds=1),
+        window=WINDOW,
+        cooldown=COOLDOWN,
+    )

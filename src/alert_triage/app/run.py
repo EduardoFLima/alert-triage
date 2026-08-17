@@ -17,23 +17,27 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from alert_triage.domain.findings import Findings
 from alert_triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 from alert_triage.domain.triage import TriageDecision, triage
 from alert_triage.ports.alert_source import AlertSource, AlertSourceError
 from alert_triage.ports.config import Config
+from alert_triage.ports.investigator import Investigator, InvestigatorError
 from alert_triage.ports.notifier import Notifier, NotifierError
 from alert_triage.ports.triage_ledger import TriageLedger, TriageLedgerError
 
 _log = logging.getLogger(__name__)
 
-ReportBuilder = Callable[[Incident], TriageReport]
-"""How an incident becomes the report about it.
+ReportBuilder = Callable[[Incident, Findings | None], TriageReport]
+"""How an incident and what was learned about it become the report.
 
-Deliberately a callable rather than a port: a port earns its keep once report
-generation can fail in a way a caller has to tell apart from the failures it
-already handles, and the builder this run is handed today cannot fail at all.
+``None`` findings mean no investigation of the incident ever completed, which
+is the only case the report of last resort is for. Deliberately a callable
+rather than a port: a port earns its keep once report generation can fail in a
+way a caller has to tell apart from the failures it already handles, and the
+builders this run is handed cannot fail at all.
 """
 
 
@@ -42,6 +46,7 @@ class Stage(StrEnum):
 
     FETCH = "fetching alerts"
     READ = "reading the ledger"
+    INVESTIGATE = "investigating the incident"
     DELIVER = "delivering the report"
     RECORD = "recording the incident"
 
@@ -105,6 +110,7 @@ def run(
     source: AlertSource,
     ledger: TriageLedger,
     notifier: Notifier,
+    investigator: Investigator,
     build_report: ReportBuilder,
     config: Config,
     now: datetime,
@@ -116,7 +122,8 @@ def run(
         source: Where the alerts to triage come from.
         ledger: What the system remembers between runs.
         notifier: Where a report is delivered.
-        build_report: How an incident becomes the report about it.
+        investigator: What looks into an incident before it is reported.
+        build_report: How an incident and its findings become the report.
         config: The resolved settings the run is driven by.
         now: The instant this run decides against.
         new_id: Supplies the identifier a newly opened incident is named with.
@@ -142,6 +149,7 @@ def run(
             group,
             ledger=ledger,
             notifier=notifier,
+            investigator=investigator,
             build_report=build_report,
             config=config,
             now=now,
@@ -161,6 +169,7 @@ def _handle(
     *,
     ledger: TriageLedger,
     notifier: Notifier,
+    investigator: Investigator,
     build_report: ReportBuilder,
     config: Config,
     now: datetime,
@@ -168,8 +177,8 @@ def _handle(
 ) -> _Handled:
     """Take one group from what is on record to a recorded incident.
 
-    Only the two port failures a group can suffer are caught, and each is
-    contained here so the groups after this one still get their reports.
+    Only the port failures a group can suffer are caught, and each is contained
+    here so the groups after this one still get their reports.
     """
     try:
         known = ledger.open_incidents(group.service, now)
@@ -183,38 +192,89 @@ def _handle(
         now=now,
         window=config.grouping.window,
         cooldown=config.re_notify.cooldown,
+        max_attempts=config.investigation.max_attempts,
         new_id=new_id,
     )
-    delivered, delivery_failure = _delivered(
-        decision, notifier=notifier, build_report=build_report
+    findings, investigation_failure = _investigated(decision, investigator=investigator)
+    incident = (
+        decision.incident.investigation_failed()
+        if investigation_failure is not None
+        else decision.incident
     )
-    incident = decision.incident.reported(now) if delivered else decision.incident
+    delivered, delivery_failure = _delivered(
+        incident,
+        findings,
+        should_report=decision.should_report,
+        exhausted=incident.investigation_attempts >= config.investigation.max_attempts,
+        notifier=notifier,
+        build_report=build_report,
+    )
+    if delivered:
+        incident = incident.reported(now)
     record_failure = _recorded(incident, ledger, now)
     return _Handled(
         delivered=delivered,
         failures=tuple(
             failure
-            for failure in (delivery_failure, record_failure)
+            for failure in (investigation_failure, delivery_failure, record_failure)
             if failure is not None
         ),
     )
 
 
-def _delivered(
-    decision: TriageDecision, *, notifier: Notifier, build_report: ReportBuilder
-) -> tuple[bool, RunFailure | None]:
-    """Deliver a due report, and say whether a channel took it.
+def _investigated(
+    decision: TriageDecision, *, investigator: Investigator
+) -> tuple[Findings | None, RunFailure | None]:
+    """Investigate the incident if it is owed one, and say what came back.
 
-    A report that did not get out leaves the incident unstamped, so the next
-    run owes it again: a cooldown must never run from a report nobody
-    received.
+    A failure here is reported but never fatal: it costs the incident an
+    attempt and its findings, not its place in the run.
     """
     incident = decision.incident
-    if not decision.should_report:
+    if not decision.should_investigate:
+        return None, None
+    try:
+        findings = investigator.investigate(incident)
+    except InvestigatorError as error:
+        _log.error("Investigating %s failed: %s", incident.service, error)
+        return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))
+    _log.info(
+        "Investigated %s: %d finding(s)", incident.service, len(findings.findings)
+    )
+    return findings, None
+
+
+def _delivered(
+    incident: Incident,
+    findings: Findings | None,
+    *,
+    should_report: bool,
+    exhausted: bool,
+    notifier: Notifier,
+    build_report: ReportBuilder,
+) -> tuple[bool, RunFailure | None]:
+    """Deliver a report worth sending, and say whether a channel took it.
+
+    Findings are worth sending — including empty ones, which say the logs were
+    searched and were clean. A failed investigation is not: "these alerts fired
+    and we could not look at them" carries nothing a team can act on, so it
+    waits for the retry. Once the attempts are spent that wait would be
+    forever, so the alerts go out without findings rather than not at all.
+
+    A report that did not get out leaves the incident unstamped, so the next
+    run owes it again: a cooldown must never run from a report nobody received.
+    """
+    if not should_report:
         _log.info("Report suppressed for %s: inside its cooldown", incident.service)
         return False, None
+    if findings is None and not exhausted:
+        _log.info(
+            "Saying nothing about %s: investigation failed with attempts remaining",
+            incident.service,
+        )
+        return False, None
     try:
-        notifier.deliver(build_report(incident))
+        notifier.deliver(build_report(incident, findings))
     except NotifierError as error:
         _log.error("Reporting %s failed: %s", incident.service, error)
         return False, RunFailure(Stage.DELIVER, incident.service, str(error))

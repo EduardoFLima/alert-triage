@@ -34,10 +34,15 @@ class TriageDecision:
             absorbed and its last-reported instant as it was. This is the
             value to record — stamped by the caller if a report is delivered.
         should_report: Whether this incident is due to be reported now.
+        should_investigate: Whether this incident should be investigated now.
+            Never true while the report is suppressed — investigating an
+            incident nobody will be told about buys nothing — and never true
+            once its attempts are spent.
     """
 
     incident: Incident
     should_report: bool
+    should_investigate: bool
 
 
 def triage(
@@ -47,14 +52,25 @@ def triage(
     now: datetime,
     window: timedelta,
     cooldown: timedelta,
+    max_attempts: int,
     new_id: Callable[[], str],
 ) -> TriageDecision:
-    """Decide which incident a group belongs to, and whether to report it.
+    """Decide which incident a group belongs to, and what to do about it.
 
     An incident is reported when it opens, and then not again until the
     cooldown has elapsed since its last report. Suppressing a report never
     suppresses the alerts: they are absorbed either way, so the incident's
     record stays complete for the report that eventually goes out.
+
+    It is investigated when it is due to be reported and still has attempts
+    left. Those two conditions are the whole rule, and the first of them is
+    doing more work than it looks: because a failed investigation delivers
+    nothing, it stamps nothing, so an incident whose investigation failed stays
+    due and comes back for its retry on the next run without needing a state of
+    its own. The attempt bound is what stops that being forever — it applies to
+    every investigation of an incident, not merely the retries, which is what
+    keeps an unreachable platform from costing one investigation per run for as
+    long as the alerts keep firing.
 
     The returned incident is never stamped as reported. That stamp belongs to
     the delivery, which has not happened yet when this returns.
@@ -66,14 +82,27 @@ def triage(
             same inputs always reach the same decision.
         window: The grouping window, applied here across runs.
         cooldown: How long a report suppresses the next one.
+        max_attempts: How many investigations one incident may be given in
+            total, the first included.
         new_id: Supplies the identifier a newly opened incident is named with.
 
     Returns:
-        The resulting incident and whether it is due to be reported.
+        The resulting incident, whether it is due to be reported, and whether
+        it should be investigated.
+
+    Raises:
+        ValueError: ``max_attempts`` is below one, which would leave every
+            incident uninvestigable.
     """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must allow at least one investigation")
     incident = continue_or_open(group, known, window=window, new_id=new_id)
+    should_report = _is_due(incident, now, cooldown)
     return TriageDecision(
-        incident=incident, should_report=_is_due(incident, now, cooldown)
+        incident=incident,
+        should_report=should_report,
+        should_investigate=should_report
+        and incident.investigation_attempts < max_attempts,
     )
 
 
@@ -100,6 +129,15 @@ def is_closed(
     is a fact about a moment, not a recomputation, so retuning the cooldown
     afterwards does not reopen an incident or move when it closed.
 
+    An incident that has never been reported does not close, however quiet it
+    has gone. It still *owes* a report, and owing one is a decision it affects.
+    This only became reachable once a failed investigation was allowed to
+    deliver nothing: before that, an incident was reported on the run that
+    opened it, so it always had a report behind it by the time its alerts aged
+    past the window. Closing it here would discard the attempts it had spent
+    and let the next run open a fresh incident for the same problem, which is
+    precisely the unbounded investigating the attempt bound exists to prevent.
+
     Args:
         incident: The incident to judge.
         now: The instant to judge it at.
@@ -111,6 +149,8 @@ def is_closed(
     """
     if incident.closed_at is not None:
         return True
+    if incident.last_reported_at is None:
+        return False
     return now - incident.latest_alert_at > window and _is_due(incident, now, cooldown)
 
 

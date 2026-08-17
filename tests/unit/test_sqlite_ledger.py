@@ -273,6 +273,7 @@ def test_retained_history_decides_as_though_the_record_were_deleted(
             now=at,
             window=WINDOW,
             cooldown=COOLDOWN,
+            max_attempts=3,
             new_id=lambda: "incident-2",
         )
         for ledger in (retaining, _ledger(forgotten))

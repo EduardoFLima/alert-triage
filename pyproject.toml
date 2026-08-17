@@ -9,6 +9,8 @@ license = { file = "LICENSE" }
 # the dependency tree stays legible.
 dependencies = [
     "datadog-api-client>=2.30",
+    "google-adk>=1.16",
+    "mcp>=1.9",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
 ]
@@ -87,6 +89,14 @@ explicit_package_bases = true
 # it sits here rather than beside the adapter's module path.
 untyped_calls_exclude = ["datadog_api_client"]
 
+# The MCP SDK re-exports its HTTP client factory from the transport module
+# without an explicit `__all__`, which `no_implicit_reexport` rejects. This
+# names that one library rather than relaxing the check everywhere; only the
+# Datadog MCP adapter imports it.
+[[tool.mypy.overrides]]
+module = ["mcp.*"]
+implicit_reexport = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = [
@@ -140,6 +150,7 @@ forbidden_modules = [
     "datadog_api_client",
     "google",
     "mcp",
+    "pydantic",
     "requests",
     "httpx",
     "smtplib",
