@@ -13,13 +13,15 @@ context: |
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Be concise.
+    - "Try to keep short: why now, capabilities, what changes, what is out of scope."
+    - Refer to docs/vision.md, specs; never restate it.
+  design:
+    - Be concise.
+    - "One short paragraph each: the choice, the alternative, why."
+    - Do not restate requirements the proposal or delta spec already state.
 
 # Per-operation guidance (optional)
 # Add advisory guidance for how apply and archive work should be conducted.
