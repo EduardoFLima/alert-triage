@@ -77,7 +77,7 @@ Findings      findings: tuple[Finding, ...]
 ```
 
 A finding is a *pattern* with a bounded number of representative examples, not
-a dump of every record behind it. `MAX_EXAMPLES_PER_FINDING = 3` is a domain
+a dump of every record behind it. `MAX_EXAMPLES_PER_FINDING = 10` is a domain
 constant rather than a config key: it is what makes a finding readable in an
 email, not something an operator tunes per team. `occurrences` carries how
 often the pattern was seen, so "this happened 400 times" survives without 400
@@ -467,7 +467,7 @@ Nothing else in the run depends on it.
 - Which model the default should name. It affects one constant and one README
   line, not the specs, the ports, or the task breakdown, and is best chosen
   against a real investigation rather than in advance.
-- Whether three examples per finding is the right number. It is one constant,
+- Whether ten examples per finding is the right number. It is one constant,
   and reading a handful of real reports settles it; the mechanism does not
   change either way.
 
