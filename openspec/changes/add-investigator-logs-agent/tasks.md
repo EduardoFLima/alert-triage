@@ -45,24 +45,22 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 - [ ] 3.3 Reword the pass-through report from "before investigation exists" to
       "investigation was attempted and did not complete" — test the body says
       so and no longer claims the alerts were never looked at
-- [ ] 3.4 The follow-up form of the investigated report — test that a report
-      built after an earlier degraded one says so in its body, and that a
-      first-time investigated report does not
+- [ ] 3.4 Test the two builders are chosen by the presence of findings alone,
+      so report content stays independent of why the investigation failed
 
 ## 4. The retry decision
 
-- [ ] 4.1 `retry_owed` in `domain/triage.py`: true when attempts are between
-      one and the configured bound — test zero attempts, one attempt, and
-      attempts at and beyond the bound
-- [ ] 4.2 `TriageDecision` carries `should_report` and `retry_owed`, and
-      `should_investigate` is their disjunction — test a due incident with no
-      attempts, a suppressed incident with a retry owed, and a suppressed
-      incident with none
+- [ ] 4.1 `TriageDecision` gains `should_investigate`: due to be reported and
+      attempts remaining — test a due incident with none spent, a due incident
+      with attempts spent, and a suppressed incident
+- [ ] 4.2 Test that an incident whose report is overdue but whose attempts are
+      spent is not investigated, however many runs handle it — the bound is on
+      the incident, not on retries
 - [ ] 4.3 Test a bound of one disables retrying, and a bound below one is
       rejected as unusable configuration
-- [ ] 4.4 Test a normally-due report starts a fresh cycle: an incident that
-      exhausted its attempts and is reported again after the cooldown gets its
-      full allowance back
+- [ ] 4.4 Test the counter clears on delivery, whatever the report carried, and
+      that an incident whose alerts continue past the cooldown after such a
+      report gets its full allowance back
 
 ## 5. Ledger persistence
 
@@ -77,27 +75,30 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 
 ## 6. The run's investigation and retry stages
 
-- [ ] 6.1 Widen `ReportBuilder` to take the incident, the findings or `None`,
-      and whether this follows a degraded report; thread the investigator into
-      `run` — test that a due incident is investigated and its report built
-      from the findings
-- [ ] 6.2 Test an incident that is neither due nor owed a retry is never
-      investigated: the fake investigator is not called
+- [ ] 6.1 Widen `ReportBuilder` to take the incident and the findings or
+      `None`; thread the investigator into `run` — test that a due incident is
+      investigated and its report built from the findings
+- [ ] 6.2 Test an incident inside its cooldown with a successful investigation
+      behind it is never investigated: the fake investigator is not called
 - [ ] 6.3 Add `Stage.INVESTIGATE` and catch `InvestigatorError` — test that a
-      failed investigation of a *due* incident still delivers the fallback
-      report, records the incident as reported, spends one attempt, and yields
-      a `RunFailure` naming the stage and the service
-- [ ] 6.4 Test a retry that fails again delivers nothing, spends an attempt,
-      records the incident, and still finishes the run unsuccessfully
-- [ ] 6.5 Test a retry that succeeds delivers a follow-up report inside the
-      cooldown, stamps the incident as reported, and clears the counter
-- [ ] 6.6 Test a retry that succeeds but whose delivery fails leaves the
-      counter untouched, so the next run still owes the retry
-- [ ] 6.7 Test a retry that completes and finds nothing notable is still
-      delivered, because the outcome changed from "nobody looked"
-- [ ] 6.8 Test an incident with attempts spent is neither investigated nor
-      reported, while still absorbing new alerts and being recorded
-- [ ] 6.9 Test one group's investigation failure leaves the other groups their
+      failed investigation delivers **nothing**, records the incident with the
+      attempt spent and its report stamp untouched, and yields a `RunFailure`
+      naming the stage and the service
+- [ ] 6.4 Test a retry that fails again likewise delivers nothing, spends the
+      second attempt, and still finishes the run unsuccessfully
+- [ ] 6.5 Test a retry that succeeds delivers the findings, stamps the incident
+      as reported, and clears the counter
+- [ ] 6.6 Test a successful investigation whose delivery fails leaves the
+      counter untouched, so the next run investigates again
+- [ ] 6.7 Test an investigation that completes and finds nothing notable is
+      still delivered, because it is a result rather than a failure
+- [ ] 6.8 Test the last attempt failing delivers the alerts-only report, stamps
+      the incident as reported, clears the counter, and still finishes the run
+      unsuccessfully
+- [ ] 6.9 Test an incident with attempts spent and no report delivered yet is
+      not investigated again but is still delivered its alerts-only report, so
+      a failed delivery is retried without spending an investigation
+- [ ] 6.10 Test one group's investigation failure leaves the other groups their
       investigated reports, and the run finishes unsuccessfully
 
 ## 7. Config
@@ -162,11 +163,14 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
       test nothing is fetched and the run finishes unsuccessfully
 - [ ] 10.3 Extend `tests/integration/test_end_to_end.py` with a fake
       investigator: a complete run producing an investigated report, and one
-      producing the degraded report after an investigation failure
-- [ ] 10.4 Integration test of the whole retry arc across three runs against a
-      real ledger file — fail, fail, succeed — asserting one degraded report,
-      then silence, then a follow-up report carrying findings
-- [ ] 10.5 Credential-gated live integration test against the real Datadog MCP
+      delivering nothing after an investigation failure
+- [ ] 10.4 Integration test of the retry arc across three runs against a real
+      ledger file — fail, fail, succeed — asserting silence, silence, then one
+      report carrying findings
+- [ ] 10.5 Integration test of the arc that never succeeds — fail, fail, fail —
+      asserting silence, silence, then the alerts-only report, and that a
+      fourth run investigates nothing and delivers nothing
+- [ ] 10.6 Credential-gated live integration test against the real Datadog MCP
       server, following the pattern in `test_datadog_alert_source_live.py`
 
 ## 11. Documentation and close-out
@@ -174,9 +178,9 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 - [ ] 11.1 README: the `investigation` config section including
       `max_attempts`, the model credential in the environment table, and a
       plain statement that a run now incurs model cost
-- [ ] 11.2 README: explain that a follow-up report can arrive inside the
-      cooldown when a retry finally produces findings, so the behavior is
-      documented rather than surprising
+- [ ] 11.2 README: explain that a failed investigation is silent and retried,
+      so an operator understands why a firing service can be quiet for a few
+      runs and what the alerts-only report means when it does arrive
 - [ ] 11.3 README: update the architecture diagram via the mermaid MCP tool to
       show the Investigator and ObservabilityPlatform ports
 - [ ] 11.4 Run all four CI commands clean, then answer the design's open

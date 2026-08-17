@@ -43,20 +43,23 @@ single agent, is cheaper to get wrong than proving it against four.
 - **The report carries findings.** A report for an investigated incident
   states what was found and the evidence behind it, instead of the
   "not investigated" text.
-- **Investigation failure degrades, it does not block.** When an
-  investigation cannot complete, the run delivers the pass-through report it
-  delivers today, saying the investigation was attempted and did not finish.
-  The team is never worse off than it is before this change. Marking a report
-  "investigation incomplete" and routing it through escalation is slice 10's
-  work, and needs the escalation path from slice 9 to route to.
-- **A failed investigation is retried on the next run, and only a changed
-  outcome is reported.** An incident whose report went out without findings is
-  investigated again next run, up to three attempts in total. A retry that
-  fails again tells nobody anything new, so nothing is delivered. A retry that
-  succeeds delivers the findings the first report could not carry, even though
-  the cooldown has not elapsed — because that *is* new information. Once the
-  attempts are spent, the incident goes back to being governed by the cooldown
-  alone.
+- **A failed investigation tells nobody anything.** "These alerts fired and we
+  could not look at them" carries nothing a team can act on, so it is not sent.
+  The incident is still recorded, with its alerts absorbed and the attempt
+  spent.
+- **A failed investigation is retried on the next run**, up to three attempts
+  in total. The bound applies to every investigation of an incident, not only
+  the ones after the first: because a failure delivers nothing, the incident
+  stays due, and without that bound an unreachable platform would mean one
+  investigation per run for as long as the alerts kept firing.
+- **Silence has a floor.** Once the attempts are spent and a report is still
+  due, the run delivers the alerts-only report — what fired, and that
+  investigation could not complete. Alerts that fired are never lost to a
+  platform outage; they arrive late instead. This is the pass-through report
+  slice 5 already sends, which is why it survives rather than being deleted.
+  Marking a report "investigation incomplete" and routing it through
+  escalation is slice 10's work, and needs the escalation path from slice 9 to
+  route to.
 - **New optional `investigation` config section** carrying the model the agent
   crew runs on and how many attempts an investigation gets. Credentials and
   endpoints stay environment-only, as `docs/vision.md` requires.
@@ -75,15 +78,15 @@ single agent, is cheaper to get wrong than proving it against four.
 - `triage-run`: The run gains an investigation stage between deciding a report
   is due and building it. The requirement describing the pass-through report
   as what a run sends "before investigation exists" is replaced by one
-  covering both the investigated report and the degraded fallback.
+  covering the investigated report, the silence when an investigation fails,
+  and the alerts-only report of last resort.
 - `config`: An optional `investigation` section is added, resolved from the
   file or the environment like every other behavior setting, with defaults
   that let a run work with no configuration for it.
 - `triage-ledger`: An incident now also carries how many investigation
-  attempts it has spent without producing findings, so a retry survives
-  between runs. The "one report per incident until the cooldown elapses" rule
-  gains its first exception: a retry that finally produces findings is
-  reported inside the cooldown.
+  attempts it has spent, so a retry survives between runs. The cooldown rule
+  itself is untouched — every report a run delivers still happens when the
+  cooldown says it may.
 
 ## Impact
 

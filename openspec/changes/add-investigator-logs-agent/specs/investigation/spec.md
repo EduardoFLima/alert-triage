@@ -158,23 +158,28 @@ SHALL require no change to any specialist agent.
 - **THEN** it completes with no real platform, network, or credentials
   involved
 
-### Requirement: An investigation that cannot complete degrades, it does not block
+### Requirement: An investigation that cannot complete tells nobody
 When an investigation cannot complete — the observability platform is
 unreachable or refuses the request, the model fails, or the investigation
 errors for any other reason — the system SHALL return no findings rather than
-partial ones presented as complete, and SHALL report that the investigation
-did not complete along with why. The caller SHALL still be able to deliver a
-report. A failed investigation SHALL NOT suppress a due report, and SHALL NOT
-prevent the incident from being recorded.
+partial ones presented as complete, and SHALL make the failure and its reason
+available to its caller. It SHALL NOT produce a report about the incident on
+the strength of a failed investigation, because "these alerts fired and
+nothing could be learned about them" is not worth a message while there is
+still an attempt left to learn something.
+
+A failed investigation SHALL NOT prevent the incident from being recorded, and
+SHALL NOT cause the incident's alerts to be lost or its identity to change.
 
 #### Scenario: The observability platform is unreachable
 - **WHEN** an investigation cannot reach the platform
 - **THEN** it reports that it did not complete, naming the reason, and returns
   no findings
 
-#### Scenario: A due report still goes out
-- **WHEN** an investigation for a due incident fails
-- **THEN** the caller is still able to deliver a report about that incident
+#### Scenario: A failed investigation is silent
+- **WHEN** an investigation for an incident fails and attempts remain
+- **THEN** nothing is delivered about that incident, and it is still recorded
+  with its alerts absorbed
 
 #### Scenario: Failure is distinguishable from a quiet result
 - **WHEN** an investigation fails
@@ -182,57 +187,99 @@ prevent the incident from being recorded.
   succeeded and found nothing notable
 
 ### Requirement: A failed investigation is retried on later runs, within a bounded number of attempts
-When an incident has been reported without findings because its investigation
-did not complete, the system SHALL investigate it again on the next run, and
-SHALL keep doing so until either an investigation produces findings that reach
-the team or the incident has spent its configured number of attempts. The
+When an incident's investigation fails, the system SHALL investigate it again
+on the next run, and SHALL keep doing so until either an investigation produces
+findings or the incident has spent its configured number of attempts. The
 number of attempts SHALL be an operator-configurable behavior setting with a
 documented default of three, counted as the total number of investigations of
 that incident — the first one included — so that setting it to one disables
 retrying.
 
-Attempts SHALL be counted per incident and SHALL survive between runs.
-An attempt SHALL be counted only when an investigation fails; an investigation
-that succeeds SHALL clear the count once its findings have been delivered, so
-that a delivery failure leaves the retry owed rather than spending it. Once the
-attempts are spent, the system SHALL stop retrying and SHALL leave the incident
-governed by the re-notify cooldown alone.
+Attempts SHALL bound every investigation of an incident, not only the ones
+after the first. While an incident has spent its attempts, the system SHALL NOT
+investigate it again, however overdue its report is, so that a platform that
+stays unreachable costs a bounded number of investigations rather than one per
+run for as long as the alerts keep firing.
+
+Attempts SHALL be counted per incident and SHALL survive between runs. An
+attempt SHALL be counted only when an investigation fails. The count SHALL be
+cleared when a report about the incident is delivered, whatever that report
+carried, so that an incident whose alerts return after its cooldown is
+investigated afresh rather than staying permanently spent — and so that a
+report that failed to deliver leaves the attempt state as it was.
 
 This bound is unrelated to the retries a single platform call makes internally:
 one bounds how many times the system tries to investigate an incident at all,
 across runs, and the other bounds one call within one investigation.
 
 #### Scenario: A retry on the next run
-- **WHEN** an incident was reported without findings and a later run continues
-  it
-- **THEN** the system investigates it again, even though no report is due
+- **WHEN** an incident's investigation failed and a later run handles it again
+- **THEN** the system investigates it again
 
 #### Scenario: Attempts are spent
 - **WHEN** an incident's third investigation fails
-- **THEN** the system does not investigate it again for that cycle, and the
-  incident is governed by the cooldown alone
+- **THEN** the system does not investigate that incident again until a report
+  about it has been delivered
 
-#### Scenario: A successful retry ends the retrying
-- **WHEN** a retry produces findings and they are delivered
-- **THEN** the incident has no attempts outstanding, and a later run does not
-  retry it
+#### Scenario: An overdue incident with no attempts left is not investigated
+- **WHEN** an incident that has spent its attempts is handled by run after run
+  while its report is still owed
+- **THEN** the system investigates it no further, so the cost of an unreachable
+  platform stays bounded
+
+#### Scenario: A successful investigation ends the retrying
+- **WHEN** an investigation produces findings and the report carrying them is
+  delivered
+- **THEN** the incident has no attempts outstanding
 
 #### Scenario: A delivery failure does not spend an attempt
-- **WHEN** a retry produces findings and the report carrying them is not
-  delivered
-- **THEN** the retry is still owed at the next run, and no attempt was spent
-  on the successful investigation
+- **WHEN** an investigation produces findings and the report carrying them is
+  not delivered
+- **THEN** the attempt state is unchanged, and no attempt was spent on the
+  successful investigation
+
+#### Scenario: A fresh cycle after a delivered report
+- **WHEN** an incident that had spent attempts has a report delivered, and its
+  alerts continue past the cooldown
+- **THEN** it is investigated again with its full allowance of attempts
 
 #### Scenario: Retrying is disabled
 - **WHEN** the operator configures a single attempt
-- **THEN** an investigation that fails is not retried, and the incident is
-  governed by the cooldown alone
+- **THEN** an investigation that fails is not retried
 
 #### Scenario: Attempts survive the process
 - **WHEN** an incident's investigation fails, the process ends, and a later
   run continues that incident from a fresh process
 - **THEN** the attempt already spent is remembered, so the incident gets the
   remaining attempts and no more
+
+### Requirement: An incident whose investigation never succeeds is reported without findings
+When an incident has spent every attempt without an investigation producing
+findings, and a report about it is due, the system SHALL deliver a report
+carrying the incident's alerts and stating that investigation was attempted and
+could not complete. Alerts that fired SHALL NOT go unreported merely because
+the system could not investigate them: the delay is the price of trying, and
+silence is not.
+
+This report SHALL be the last resort rather than the first response — it SHALL
+NOT be delivered while an attempt remains, since a later attempt may still be
+able to say something worth reading.
+
+#### Scenario: Every attempt failed
+- **WHEN** an incident's third and final investigation fails and its report is
+  due
+- **THEN** the system delivers a report listing the alerts and saying
+  investigation could not complete
+
+#### Scenario: Alerts are not lost to an unreachable platform
+- **WHEN** the observability platform is unreachable for the whole life of an
+  incident
+- **THEN** the team is still told which alerts fired, later than it would have
+  been told had the investigation worked
+
+#### Scenario: Not delivered while an attempt remains
+- **WHEN** an incident's first investigation fails and two attempts remain
+- **THEN** no report is delivered for it yet
 
 ### Requirement: Investigation credentials and endpoints come from the environment
 The observability platform's location and credentials SHALL be read from the

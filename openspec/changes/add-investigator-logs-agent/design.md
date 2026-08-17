@@ -211,31 +211,31 @@ concatenates their findings; the port, the run, and the report do not change.
 The `Signal` on each finding is what keeps a multi-specialist result legible
 without changing its shape.
 
-### The run gains an investigation stage, and it never blocks delivery
+### The run gains an investigation stage
 
 `ReportBuilder` becomes `Callable[[Incident, Findings | None], TriageReport]`.
-`None` means "no findings — the investigation did not complete", which the
-domain renders as the honest fallback rather than as an empty investigation.
-Two builders live in `domain/report.py`: the investigated one, and today's
-pass-through, which stops being "the report before investigation exists" and
-becomes "the report when investigation could not run".
+`None` means "no findings — every investigation of this incident failed",
+which the domain renders as the honest last-resort report rather than as an
+empty investigation. Two builders live in `domain/report.py`: the investigated
+one, and today's pass-through, which stops being "the report before
+investigation exists" and becomes "the report when investigation never could
+run".
 
-In `_handle`, investigation happens only on the due path, inside `_delivered`,
-after `should_report` is true. A suppressed report therefore costs nothing,
-which the spec requires and which also keeps the cooldown as the bound on
-model spend.
+In `_handle`, investigation happens inside `_delivered`, after `should_report`
+is true and only while attempts remain. An incident inside its cooldown
+therefore costs nothing, which keeps the cooldown the bound on how often model
+spend happens at all.
 
 `Stage.INVESTIGATE` joins the existing stages so a failure names itself.
-`InvestigatorError` is caught where it happens, produces a `RunFailure`, and
-the run carries on to build the fallback report and deliver it — the failure
-is recorded, delivery is not skipped, and the run finishes unsuccessfully.
-This is the "both: degrade and flag" behavior: the team is told, and the exit
-status still says something went wrong.
+`InvestigatorError` is caught where it happens and produces a `RunFailure`, so
+the run finishes unsuccessfully even on the runs where it delivered nothing —
+without that, a platform outage would look from outside the process exactly
+like a quiet night.
 
 *Alternative — treat investigation failure like a ledger or delivery failure
-and skip the group.* Rejected: it would make the system worse than before this
-change for exactly the incidents most likely to matter, since a platform
-having a bad day is correlated with there being something to report.
+and skip the group entirely.* Rejected in substance but not in appearance:
+handling continues for the other groups, and the incident is still recorded
+with its alerts and its spent attempt. What is skipped is only the report.
 
 ### Retry across runs is one integer on the incident
 
@@ -246,73 +246,90 @@ total. The whole state this needs is one counter on `Incident`:
 investigation_attempts: int = 0    # attempts spent without findings reaching the team
 ```
 
-Its value carries two facts at once, which is why nothing else is needed:
-
-- **`0`** — no degraded report is outstanding. Either the incident has never
-  been investigated, or its last investigation's findings reached the team.
-- **`0 < n < max_attempts`** — a degraded report is outstanding and a retry is
-  owed.
-- **`n >= max_attempts`** — the attempts are spent; stop, and let the cooldown
-  govern.
-
-Two transitions, and the asymmetry between them is the important part:
+Two transitions, and only two:
 
 - An investigation that **fails** increments it.
-- An investigation that **succeeds** clears it to `0` *only once the report
-  carrying its findings has been delivered.*
+- A report that is **delivered** clears it to `0` — whatever that report
+  carried.
 
-That second condition is the existing "the stamp follows the delivery" rule
-from `domain/triage.py`, applied to a second counter. If a successful retry's
-report fails to deliver, clearing the counter would strand the findings: the
-cooldown has not elapsed, so no report would be due, and with the counter at
-zero no retry would be owed either — the incident would go quiet holding
-findings nobody received. Leaving the counter alone makes the next run owe the
-retry again. A successful investigation therefore never spends an attempt,
-which is also the honest reading of "three attempts".
+The second rule is the existing "the stamp follows the delivery" rule from
+`domain/triage.py` applied to a second counter, and it is what makes the
+delivery-failure case behave. A successful investigation whose report fails to
+deliver leaves the counter untouched, so the next run investigates again and
+tries again; clearing it on the investigation's success instead would spend
+the attempt on a report nobody received. A successful investigation therefore
+never spends an attempt, which is the honest reading of "three attempts".
 
-The counter resets to `0` when a normally-due report starts a fresh cycle, so
-an incident that exhausted its attempts, went quiet, and re-fired after the
-cooldown gets a full three again rather than staying permanently spent.
+Clearing on delivery is also what restarts the cycle: an incident that spent
+all three attempts, got its alerts-only report, and then kept firing past the
+cooldown is investigated afresh with a full allowance, rather than staying
+permanently spent.
 
-### The decision splits into "investigate?" and "report?"
+### Silence on failure, and what it forces
 
-`triage()` currently answers one question. It now answers two, because they
-have different triggers:
+A failed investigation delivers nothing. "These alerts fired and we could not
+look at them" is not worth a message while an attempt remains that might say
+something better.
+
+That decision has a consequence which is easy to miss and which the earlier
+draft of this design got wrong. When nothing is delivered, nothing is stamped,
+so the incident stays *due* — permanently. The bound on attempts therefore has
+to apply to the **due path as well as the retry path**; otherwise an incident
+whose investigation keeps failing is investigated on every run for as long as
+its alerts keep firing, which is unbounded model spend during exactly the
+outage that caused it. `attempts_remaining` gates every investigation, not
+just retries.
+
+The other consequence is that an incident could be investigated three times,
+fail three times, and never be reported at all — the alerts would vanish
+silently, and a broken observability platform would be indistinguishable from
+a quiet night. That is worse than the problem this project exists to solve, so
+the spent state has a floor: once the attempts are gone and a report is still
+due, the run delivers the alerts-only report. Late, but never silent. The
+pass-through builder from slice 5 is what renders it, which is why it survives
+this change rather than being deleted.
+
+### The decision stays one question, not two
+
+An earlier draft split the decision into `should_report` and `retry_owed`.
+That split turns out to be unnecessary, and seeing why is worth writing down.
+
+A retry is only ever owed after an investigation failed; an investigation only
+ever runs when a report is due; and a failure delivers nothing, so the report
+stays due. **A retry being owed therefore implies the report is still due** —
+`retry_owed` can never be true while `should_report` is false. It carries no
+information of its own, and the whole rule reduces to:
 
 ```
-should_investigate = should_report or retry_owed
-should_deliver     = should_report or (retry_owed and the investigation produced findings)
+should_investigate = should_report and attempts_remaining
+should_deliver     = should_report and (findings_produced or attempts_now_spent)
 ```
 
-`should_report` is today's cooldown rule, unchanged. `retry_owed` is
-`0 < investigation_attempts < max_attempts`. The second line cannot be decided
-before the investigation runs, so `TriageDecision` carries `should_report` and
-`retry_owed` and the run combines them with the outcome it just got — the
-domain still holds the rule, and the run still holds no arithmetic.
+`should_report` is today's cooldown rule, untouched. `attempts_now_spent` is
+evaluated *after* this run's investigation, so the run that spends the last
+attempt is the one that delivers the alerts-only report rather than the run
+after it.
 
-Note that "produced findings" means the investigation completed, not that it
-found something. An investigation that ran and found nothing notable is a
-changed outcome: the earlier report said nobody had looked, and now somebody
-has. The spec says so explicitly because it is the case most likely to be
-implemented backwards.
+This is why the re-notify cooldown needs no exception, and why the ledger
+delta is smaller than it was: every report a run delivers still happens when
+`should_report` is true, exactly as before this change. An earlier draft of
+this design introduced a cooldown exception for a successful retry inside the
+cooldown; with nothing delivered on failure, that situation is unreachable.
 
 *Alternative — a `last_investigation_failed` boolean beside a counter.*
 Rejected: two fields that must agree, where one integer already says both
-things, and the boolean is derivable from `attempts > 0`.
+things.
 
 *Alternative — persist the findings so a retry is not needed after a delivery
 failure.* Rejected for this slice: it means storing and versioning findings in
 the ledger to save one re-investigation in a rare case, and re-investigating is
 both cheap and more current.
 
-### The follow-up report says it is a follow-up
-
-A report delivered because a retry succeeded arrives inside the cooldown,
-which is the one thing the system has promised not to do. Left unexplained, it
-reads as the duplicate the cooldown exists to prevent. The investigated report
-builder therefore takes whether it follows a degraded report, and says so in
-its body. This is a report-content concern, so it lives in `domain/report.py`
-with the builders and needs no port or adapter to know about it.
+One thing worth stating because it is easy to implement backwards:
+`findings_produced` means the investigation *completed*, not that it found
+something. An investigation that ran and found nothing notable is a result and
+is reported as one — "we looked, the logs are clean" is information. Only a
+failed investigation is silent.
 
 ### `Investigation` config section; the model credential is environmental
 
@@ -413,26 +430,34 @@ without one.
   possible moment. → The bound is three and it is per incident, so the extra
   cost is bounded and proportional; an operator who wants none sets
   `max_attempts` to 1.
-- **A second report inside the cooldown reintroduces the fatigue this project
-  exists to reduce**, in miniature. → It happens at most once per incident per
-  cycle, only when the message genuinely changed from "nobody looked" to "here
-  is what we found", and the body says it is a follow-up. This is the same
-  trade-off `docs/vision.md` records under Acknowledgement, and the same answer:
-  a report worth sending is one that can say something new.
+- **A real incident is reported later than it used to be.** Before this change
+  a firing service produced a report on the first run. Now, if the platform is
+  unreachable, the team hears nothing until the attempts are spent — three runs
+  later. → This is the deliberate trade: a message saying only "we could not
+  look" has no action attached to it, and the delay only ever applies when the
+  investigation is failing. The floor is that the report always eventually
+  arrives, so the delay is bounded and never becomes silence.
+- **Escalation-worthy incidents wait too.** The delay above applies to a
+  service melting down just as much as to a quiet one, and slice 9's escalation
+  path does not exist yet to cut the queue. → Escalation is explicitly designed
+  to bypass batching and investigation, so when slice 9 lands it should bypass
+  the attempt sequence too. Worth carrying forward as a note on that slice
+  rather than pre-building it here.
 - **The retry rule is easy to get subtly wrong** — spending an attempt on a
-  successful investigation, or clearing the counter before delivery — and both
-  mistakes are invisible until an incident goes quiet holding findings. → The
-  transitions are specified as scenarios in their own right, and the tasks
-  drive each from its own failing test.
+  successful investigation, clearing the counter before delivery, or letting
+  the attempt bound apply only to retries and not to the due path — and every
+  one of those mistakes is invisible until either an incident goes quiet or the
+  bill arrives. → Each transition is specified as a scenario in its own right,
+  and the tasks drive each from its own failing test.
 
 ## Migration Plan
 
 The ledger's schema gains one column, `investigation_attempts`, defaulting to
-`0`. Existing rows therefore read back as "no attempts outstanding", which is
-the correct reading of an incident recorded before the counter existed: it was
-reported with the pass-through body under the old behavior, and there is no
-outstanding degraded report to improve on. No backfill, no rewrite of existing
-records, and a ledger file from before this change opens and works.
+`0`. Existing rows therefore read back as "no attempts spent", which is the
+correct reading of an incident recorded before the counter existed: it was
+reported under the old behavior, and it is entitled to a full allowance of
+attempts from here. No backfill, no rewrite of existing records, and a ledger
+file from before this change opens and works.
 
 Rollback is the reverse and equally cheap: an older build ignores the column.
 Nothing else in the run depends on it.

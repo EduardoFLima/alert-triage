@@ -1,99 +1,99 @@
 ## ADDED Requirements
 
-### Requirement: A run investigates an incident when a report is due or a retry is owed
+### Requirement: A run investigates an incident that is due or owed a retry, while attempts remain
 A run SHALL investigate an incident when its report is due, and also when the
-incident has an investigation retry owed, even though no report is due for it.
-It SHALL investigate after deciding, and before building any report, and SHALL
-build a report it delivers from the findings the investigation returned. It
-SHALL NOT investigate an incident that is neither due nor owed a retry, and
-SHALL NOT investigate an incident it could not read from the ledger.
+incident's last investigation failed, even though no report is due for it. In
+both cases it SHALL investigate only while the incident has investigation
+attempts remaining. It SHALL investigate after deciding, and before building
+any report, and SHALL build any report it delivers from the findings the
+investigation returned. It SHALL NOT investigate an incident that is neither
+due nor owed a retry, an incident that has spent its attempts, or an incident
+it could not read from the ledger.
 
 #### Scenario: A due incident is investigated
-- **WHEN** a run decides a report is due for an incident
+- **WHEN** a run decides a report is due for an incident with attempts
+  remaining
 - **THEN** it investigates that incident and delivers a report built from the
   findings
 
-#### Scenario: A suppressed report costs no investigation
-- **WHEN** a run continues an incident inside its cooldown with no retry owed
+#### Scenario: A quiet incident costs no investigation
+- **WHEN** a run continues an incident inside its cooldown whose last
+  investigation succeeded
 - **THEN** it investigates nothing for that incident and delivers nothing
 
 #### Scenario: A retry is investigated without a report being due
-- **WHEN** a run continues an incident that is inside its cooldown and has a
-  retry owed
+- **WHEN** a run continues an incident inside its cooldown whose last
+  investigation failed, with attempts remaining
 - **THEN** it investigates that incident
+
+#### Scenario: A spent incident is not investigated however overdue it is
+- **WHEN** a run handles an incident that has spent its attempts and whose
+  report is still owed
+- **THEN** it does not investigate that incident
 
 #### Scenario: Each group is investigated on its own
 - **WHEN** a run has three due incidents across three services
 - **THEN** each is investigated for its own service and window, and the
   findings of one never appear in another's report
 
-### Requirement: A due report is delivered whether or not its investigation succeeded
-When the investigation of an incident whose report is due fails, a run SHALL
-deliver a report about that incident anyway, stating that investigation was
-attempted and did not complete. It SHALL continue with the remaining groups,
-record the incident as it records any other, and finish unsuccessfully, naming
-the stage and the service. It SHALL NOT retry the investigation within the same
-run — a retry belongs to the next run.
+### Requirement: A run delivers a report only when it has something to say
+A run SHALL deliver a report about an incident when its investigation produced
+findings, and otherwise only when the incident has spent every attempt and a
+report is due. An investigation that failed while attempts remain SHALL
+produce no report at all, because it tells the team nothing it can act on.
 
-#### Scenario: Investigation fails for one service
-- **WHEN** a run handles three due incidents and the investigation fails for
-  the second
-- **THEN** all three are reported and recorded, the second's report says the
-  investigation did not complete, and the run finishes unsuccessfully
+A run SHALL record the incident whether or not it delivered anything, and
+SHALL finish unsuccessfully whenever an investigation failed, naming the stage
+and the service, so that a silent run and a healthy run are still told apart
+from outside the process.
 
-#### Scenario: The cooldown still runs from the delivered report
-- **WHEN** a report whose investigation failed is delivered and accepted
-- **THEN** the incident is recorded as reported at the run's instant, exactly
-  as any delivered report is
+#### Scenario: Findings are delivered
+- **WHEN** an investigation produces findings for an incident whose report is
+  due
+- **THEN** the run delivers a report carrying them and records the incident as
+  reported at the run's instant
+
+#### Scenario: A first failure says nothing
+- **WHEN** an incident's first investigation fails and attempts remain
+- **THEN** the run delivers nothing for it, records it with the attempt spent,
+  and finishes unsuccessfully
+
+#### Scenario: A retry fails again
+- **WHEN** a second investigation of an incident fails and an attempt remains
+- **THEN** the run again delivers nothing, records the incident with the
+  attempt spent, and finishes unsuccessfully
+
+#### Scenario: A retry succeeds
+- **WHEN** a later investigation of an incident produces findings
+- **THEN** the run delivers a report carrying them, and the incident has no
+  attempts outstanding
+
+#### Scenario: The last attempt fails
+- **WHEN** an incident's final investigation fails and its report is due
+- **THEN** the run delivers a report listing the alerts and saying
+  investigation could not complete, records the incident as reported, and
+  finishes unsuccessfully
+
+#### Scenario: An investigation that found nothing notable is still delivered
+- **WHEN** an investigation completes and finds nothing notable
+- **THEN** the run delivers a report saying so, because an investigation that
+  ran and found nothing is a result
+
+#### Scenario: A silent run is still diagnosable
+- **WHEN** a run investigates two incidents, both investigations fail, and
+  nothing is delivered
+- **THEN** the run finishes unsuccessfully and its output names investigation
+  as the stage that failed and the services it concerned
 
 #### Scenario: One failure, one attempt
 - **WHEN** an investigation fails during a run
 - **THEN** the run does not investigate that incident again before it finishes
 
-#### Scenario: The failure is diagnosable
-- **WHEN** an investigation fails
-- **THEN** the run's output names investigation as the stage that failed and
-  the service it concerned
-
-### Requirement: A retry is reported only when it changes what the team knows
-When a run investigates an incident because a retry is owed rather than
-because a report is due, it SHALL deliver a report only if that investigation
-produced findings. A retry that fails again SHALL deliver nothing, because it
-tells the team nothing it was not already told. A retry that produces findings
-SHALL deliver them even though the re-notify cooldown has not elapsed, and the
-report SHALL make clear that it follows an earlier report that carried no
-findings, so a second message inside the cooldown is legible rather than
-mysterious.
-
-A run SHALL record the incident in either case, and SHALL finish unsuccessfully
-when a retry's investigation failed, exactly as it does for a due report's
-investigation.
-
-#### Scenario: A retry fails again
-- **WHEN** a second investigation of an incident fails
-- **THEN** the run delivers nothing for that incident, records it with the
-  attempt spent, and finishes unsuccessfully
-
-#### Scenario: A retry succeeds
-- **WHEN** a third investigation of an incident produces findings
-- **THEN** the run delivers a report carrying them, even though the cooldown
-  has not elapsed, and records the incident as reported at the run's instant
-
-#### Scenario: The follow-up report explains itself
-- **WHEN** a report is delivered because a retry finally produced findings
-- **THEN** its body makes clear that it follows an earlier report about the
-  same incident that could not carry any
-
-#### Scenario: A retry that found nothing notable still counts as a change
-- **WHEN** a retry completes successfully and finds nothing notable
-- **THEN** the run delivers a report saying so, because an investigation that
-  ran and found nothing is not what the earlier report said
-
-#### Scenario: Attempts are spent and the incident is left alone
-- **WHEN** an incident has spent its configured attempts without ever
-  producing findings
-- **THEN** later runs neither investigate nor report it until its cooldown
-  elapses, and it is still recorded and still absorbs new alerts
+#### Scenario: One group's failure does not cost the others their reports
+- **WHEN** a run handles three incidents and the investigation fails for the
+  second
+- **THEN** the first and third are still investigated and reported, and the
+  run finishes unsuccessfully
 
 ## MODIFIED Requirements
 
@@ -104,11 +104,11 @@ and its body SHALL carry both what the investigation found, with the evidence
 behind it, and the alerts absorbed into the incident — when they fired, their
 titles, and the links back to the platform that reported them.
 
-When no findings are available because the investigation did not complete, the
-report SHALL carry the alerts as above and SHALL state plainly that
-investigation was attempted and did not complete, rather than presenting
-itself as triage. A report SHALL NOT present a hypothesis, a root cause, or a
-confidence level, none of which an investigation produces yet.
+When no findings are available because every investigation of the incident
+failed, the report SHALL carry the alerts as above and SHALL state plainly
+that investigation was attempted and could not complete, rather than
+presenting itself as triage. A report SHALL NOT present a hypothesis, a root
+cause, or a confidence level, none of which an investigation produces yet.
 
 #### Scenario: A report identifies its service and alerts
 - **WHEN** a report is built for an incident with three alerts
@@ -126,9 +126,8 @@ confidence level, none of which an investigation produces yet.
   hypothesis, root cause, or confidence level
 
 #### Scenario: The report does not pretend to be triage
-- **WHEN** a report is built for an incident whose investigation did not
-  complete
-- **THEN** its body says investigation was attempted and did not complete,
+- **WHEN** a report is built for an incident whose investigations all failed
+- **THEN** its body says investigation was attempted and could not complete,
   rather than presenting itself as a triage conclusion
 
 #### Scenario: Report content is replaceable
