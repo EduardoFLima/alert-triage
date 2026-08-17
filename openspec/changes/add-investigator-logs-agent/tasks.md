@@ -4,34 +4,34 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 
 ## 1. Domain: what an investigation comes back with
 
-- [ ] 1.1 `Window` value (start, end) derived from an incident, rejecting an
+- [x] 1.1 `Window` value (start, end) derived from an incident, rejecting an
       end before its start — test that an incident's window spans its earliest
       to its latest alert
-- [ ] 1.2 `LogRecord` value (timestamp, level, message, service) — test it
+- [x] 1.2 `LogRecord` value (timestamp, level, message, service) — test it
       keeps what a human needs to recognise the evidence and nothing more
-- [ ] 1.3 `Signal` enum with `LOGS`, and `Finding` (signal, observation,
+- [x] 1.3 `Signal` enum with `LOGS`, and `Finding` (signal, observation,
       occurrences, examples) rejecting an observation with no examples — test
       that a finding cannot claim something it shows nothing for
-- [ ] 1.4 Cap examples at `MAX_EXAMPLES_PER_FINDING` — test a finding built
+- [x] 1.4 Cap examples at `MAX_EXAMPLES_PER_FINDING` — test a finding built
       from many records keeps a bounded number of them while `occurrences`
       still reports the full count
-- [ ] 1.5 `Findings` holding a tuple of findings — test that empty findings
+- [x] 1.5 `Findings` holding a tuple of findings — test that empty findings
       are a valid, successful "nothing notable", distinct from any failure
-- [ ] 1.6 `Incident.investigation_attempts`, defaulting to 0, with
+- [x] 1.6 `Incident.investigation_attempts`, defaulting to 0, with
       `investigation_failed()` incrementing it and `findings_reported()`
       clearing it — test both transitions and that neither touches the
       incident's identity, alerts, or report stamp
 
 ## 2. Ports
 
-- [ ] 2.1 `ports/observability_platform.py`: the
+- [x] 2.1 `ports/observability_platform.py`: the
       `ObservabilityPlatform` protocol with `search_logs(service, window,
       query)` and `ObservabilityPlatformError` — test a substitute satisfies
       the protocol and that the error is defined beside the port
-- [ ] 2.2 `ports/investigator.py`: the `Investigator` protocol with
+- [x] 2.2 `ports/investigator.py`: the `Investigator` protocol with
       `investigate(incident) -> Findings` and `InvestigatorError` — test a
       substitute satisfies the protocol
-- [ ] 2.3 Confirm `tests/unit/test_architecture.py` still passes: both ports
+- [x] 2.3 Confirm `tests/unit/test_architecture.py` still passes: both ports
       import the domain and nothing else
 
 ## 3. Reporting findings

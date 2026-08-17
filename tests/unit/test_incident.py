@@ -90,3 +90,36 @@ def test_absorbed_alerts_are_kept_oldest_first() -> None:
     grown = incident.absorb([_alert(source_id="a")])
 
     assert [alert.source_id for alert in grown.alerts] == ["a", "b"]
+
+
+def test_an_incident_has_spent_no_investigation_attempts_to_begin_with() -> None:
+    assert _incident(_alert()).investigation_attempts == 0
+
+
+def test_a_failed_investigation_spends_an_attempt() -> None:
+    incident = _incident(_alert())
+
+    assert incident.investigation_failed().investigation_attempts == 1
+    assert (
+        incident.investigation_failed().investigation_failed().investigation_attempts
+        == 2
+    )
+
+
+def test_a_delivered_report_clears_the_attempts() -> None:
+    """Whatever it carried: a delivery is what ends a round of retrying."""
+    spent = _incident(_alert()).investigation_failed().investigation_failed()
+
+    assert spent.reported(NOON).investigation_attempts == 0
+
+
+def test_spending_an_attempt_leaves_the_rest_of_the_incident_alone() -> None:
+    opening = _alert()
+    incident = _incident(opening).reported(NOON)
+
+    failed = incident.investigation_failed()
+
+    assert failed.id == incident.id
+    assert failed.service == incident.service
+    assert failed.alerts == (opening,)
+    assert failed.last_reported_at == NOON
