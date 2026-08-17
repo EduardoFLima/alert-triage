@@ -35,10 +35,20 @@ recommended action. An investigation that gathered evidence and found nothing
 notable SHALL return findings that say so, which is a success and SHALL NOT be
 reported as a failure.
 
+A finding SHALL describe a pattern and illustrate it with a bounded number of
+representative examples, together with how many times the pattern was seen.
+It SHALL NOT carry every record behind the pattern, so that a report stays
+readable however much the service logged.
+
 #### Scenario: Findings carry their evidence
 - **WHEN** an investigation observes something about an incident
 - **THEN** the observation is returned together with the evidence supporting
   it and the signal it was drawn from
+
+#### Scenario: A pattern seen many times
+- **WHEN** an investigation finds a pattern occurring hundreds of times
+- **THEN** the finding reports how many times it occurred and carries only a
+  bounded number of examples, not one entry per occurrence
 
 #### Scenario: Nothing notable was found
 - **WHEN** an investigation queries the platform successfully and finds
@@ -87,6 +97,49 @@ observe in retrieved logs.
 #### Scenario: Evidence is traceable
 - **WHEN** the findings report a log pattern
 - **THEN** a human reading the report can tell which logs it was drawn from
+
+### Requirement: Evidence in a finding is always evidence the platform returned
+The evidence carried by a finding SHALL consist only of records the
+observability platform actually returned during that investigation. The system
+SHALL NOT present as evidence any text produced by the reasoning that formed
+the finding, however plausible it looks. Evidence SHALL be identified against
+what was retrieved and reproduced from the retrieved record, so that a
+fabricated or mistaken reference cannot be rendered into a report.
+
+A finding whose evidence cannot be traced back to retrieved records SHALL be
+discarded, and the system SHALL record that it was discarded and why, so that
+fabrication is visible to whoever is tuning the investigation. Discarding one
+finding SHALL NOT discard the others, and SHALL NOT fail the investigation:
+findings whose evidence checks out SHALL still be reported. An investigation
+left with no findings after discarding SHALL return an empty result — an
+honest "nothing notable" — rather than a failure, because the investigation
+did run.
+
+This requirement constrains evidence, not description. How a finding
+characterises its evidence — a rate, a count, a description of a pattern —
+remains the investigation's own account of what it saw, which is why the
+examples travel with it for a human to check it against.
+
+#### Scenario: Evidence names a record that was never retrieved
+- **WHEN** a finding's evidence refers to a log record the platform did not
+  return during the investigation
+- **THEN** the finding is discarded, the discard is recorded, and it does not
+  appear in any report
+
+#### Scenario: One bad finding among good ones
+- **WHEN** an investigation produces three findings and only one has evidence
+  that cannot be traced to retrieved records
+- **THEN** the other two are returned and reported, and the investigation is
+  not treated as a failure
+
+#### Scenario: Nothing survives the check
+- **WHEN** every finding an investigation produced has untraceable evidence
+- **THEN** the investigation returns no findings, which is reported as nothing
+  notable rather than as a failed investigation
+
+#### Scenario: Evidence is reproduced, not restated
+- **WHEN** a finding's evidence is presented to a human
+- **THEN** what they read is the retrieved record itself, not a retelling of it
 
 ### Requirement: Evidence is gathered through a platform boundary
 Specialist agents SHALL obtain observability evidence — logs, and later

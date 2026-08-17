@@ -31,6 +31,8 @@ Three constraints shape everything below.
 - Keep a full run exercisable with no network, no model, and no credentials.
 - Make the Logs agent's own behavior — its instruction, its evidence
   discipline — testable separately from the machinery that runs it.
+- Make evidence discipline *enforced* rather than requested: no finding reaches
+  a report unless the logs behind it are ones the platform actually returned.
 
 **Non-Goals:**
 
@@ -70,9 +72,21 @@ needs to be recomputed.
 
 ```
 Signal        StrEnum: LOGS today; APM, TRACE, INFRASTRUCTURE in slice 7
-Finding       signal, observation, evidence
+Finding       signal, observation, occurrences, examples: tuple[LogRecord, ...]
 Findings      findings: tuple[Finding, ...]
 ```
+
+A finding is a *pattern* with a bounded number of representative examples, not
+a dump of every record behind it. `MAX_EXAMPLES_PER_FINDING = 3` is a domain
+constant rather than a config key: it is what makes a finding readable in an
+email, not something an operator tunes per team. `occurrences` carries how
+often the pattern was seen, so "this happened 400 times" survives without 400
+records travelling with it.
+
+The split between `observation`/`occurrences` and `examples` is the split
+between what the model *says* and what the platform actually *returned* — see
+the evidence decision below, which is what makes it load-bearing rather than
+cosmetic.
 
 `Findings` with an empty tuple *is* "queried successfully, nothing notable" —
 a legitimate success the spec requires be distinguishable from failure.
@@ -131,8 +145,63 @@ adapter boundary — the domain does not learn what pydantic is, and the import
 contract enforces that.
 
 The instruction lives in its own module as a constant so that a unit test can
-assert what it asks for (the incident's window, evidence for every
-observation, no root cause) without constructing an agent or reaching a model.
+assert what it asks for (the incident's window, a citation for every
+observation, a bounded number of examples, no root cause) without constructing
+an agent or reaching a model. The instruction is how the agent is asked to
+behave; the citation resolution below is what happens when it does not.
+
+### Fabricated evidence cannot reach a report
+
+An instruction that says "cite your evidence" is a request, and a model can
+satisfy it with text that looks like a log line and never existed. The fix is
+not a better instruction — it is to make the model incapable of *writing*
+evidence at all.
+
+Every record the agent ever sees passes through one place: the `search_logs`
+tool wrapper. That wrapper retains what the platform returned during this
+investigation, keyed by an identifier it assigns as it hands records to the
+model. The output schema then gives the model no free-text evidence field.
+It cites identifiers:
+
+```
+observation:  "OOMKilled recurs roughly every 40s from 14:02"
+occurrences:  47
+cites:        ["rec_7", "rec_12", "rec_19"]      -> at most MAX_EXAMPLES_PER_FINDING
+```
+
+The adapter resolves each citation against the records it retained and builds
+`Finding.examples` from the real `LogRecord`s. A citation naming a record that
+was never retrieved does not resolve. The consequence is structural: the log
+lines a human reads in a report are assembled by us out of what Datadog
+actually sent, never out of model output. Invented evidence has no path to the
+page.
+
+A citation that does not resolve causes that finding to be **dropped**, with
+the unresolvable citation logged so the fabrication is visible to whoever is
+tuning the agent. The findings that verified are still reported — a model that
+got one thing wrong has not necessarily got the rest wrong, and discarding
+real evidence to punish an invented one serves nobody. A finding whose
+citations *all* fail to resolve is dropped entirely; if that leaves no findings
+at all, the result is an honest empty "nothing notable" rather than a failure,
+because the investigation did run.
+
+What this does **not** verify is the model's characterisation: `observation`
+and `occurrences` are its own prose and its own arithmetic, and it can still
+say "every 40 seconds" over records that are minutes apart. That is a real
+residual risk, named in Risks below and bounded by the examples sitting right
+beside the claim where a human can see them disagree. Verifying the count
+would mean the adapter re-deriving the pattern itself, which is the agent's
+job, not the adapter's.
+
+*Alternative — free-text evidence, verified by string-matching it against the
+retrieved records.* Rejected: it turns verification into fuzzy matching
+against paraphrase, whitespace, and truncation, and the near-misses are
+exactly where a fabrication hides. Resolving an identifier is exact and has
+one obvious test.
+
+*Alternative — trust the instruction and check nothing.* Rejected: that is
+what the previous draft of this document did, while claiming slice 8 would fix
+it. It would not have. See Risks.
 
 ### The `Investigator` implementation is a crew today of one
 
@@ -280,10 +349,16 @@ behavior covers this adapter too.
 ### Testing
 
 - `tests/unit/` — the ports' contracts; `Findings` and the report builders;
-  the run's investigation stage and its failure path, against a fake
-  investigator; the agent instruction's content; the adapter's translation of
-  a canned MCP tool response into `LogRecord`s, and of a canned model payload
-  into `Findings`. No network, no model.
+  the run's investigation stage, its failure path, and the retry transitions,
+  against a fake investigator; the agent instruction's content; the adapter's
+  translation of a canned MCP tool response into `LogRecord`s, and of a canned
+  model payload into `Findings`. No network, no model.
+- Citation resolution is the part worth testing hardest, and it needs no model
+  at all: feed the adapter a canned set of retrieved records and a canned model
+  payload, and assert what comes out. Resolvable citations become examples;
+  a citation to a record never retrieved is dropped; a finding whose citations
+  all fail disappears; a payload of nothing but fabrications yields empty
+  findings rather than an error. Fabrication is a unit test, not a hope.
 - `tests/integration/` — the end-to-end run gains a fake investigator, so it
   covers the new stage without gaining a dependency. A live, credential-gated
   test against the real MCP server follows the existing pattern in
@@ -302,12 +377,20 @@ without one.
   happens, and the adapter sets a connection timeout on the MCP transport.
   Accepted deliberately rather than half-implemented; slice 10 is the fix and
   should follow closely.
-- **The model may report a pattern the logs do not show.** An agent asked for
-  evidence can still fabricate it. → The instruction requires every
-  observation to cite retrieved logs, the schema gives evidence its own field
-  so an empty one is visible, and the report presents findings as observations
-  rather than conclusions. This is mitigated, not solved; slice 8's confidence
-  level is where it gets addressed properly.
+- **The model may characterise a pattern the logs do not support.** Fabricated
+  *evidence* is structurally impossible — the model cannot write a log line,
+  only cite one, and an unresolvable citation drops the finding. What survives
+  is mis-description: a real set of records summarised as "every 40 seconds"
+  when they are minutes apart, or an inflated `occurrences`. → The examples sit
+  beside the claim in the report with their real timestamps, so a reader can
+  see the two disagree, and the report presents findings as observations rather
+  than conclusions.
+
+  An earlier draft of this document deferred this to "slice 8's confidence
+  level". That was wrong and is worth recording as wrong: a confidence level is
+  produced by the same model that would have fabricated the evidence, so it
+  verifies nothing. Nothing in slice 8 addresses fabrication; it is addressed
+  here or not at all.
 - **Giving up runtime tool discovery** (see the port decision above). →
   Widening the port is a small, deliberate change, and slice 7 will exercise
   it three times, which is a fair test of whether the boundary is in the right
@@ -359,7 +442,10 @@ Nothing else in the run depends on it.
 - Which model the default should name. It affects one constant and one README
   line, not the specs, the ports, or the task breakdown, and is best chosen
   against a real investigation rather than in advance.
-- Whether the evidence a finding cites should be structured log records or the
-  agent's own prose quotation of them. Both satisfy the spec's "a human can
-  tell which logs it was drawn from"; the answer will be obvious after reading
-  a handful of real reports.
+- Whether three examples per finding is the right number. It is one constant,
+  and reading a handful of real reports settles it; the mechanism does not
+  change either way.
+
+*(A previous open question — whether evidence should be structured records or
+the agent's prose — is now closed by the evidence decision above. It has to be
+structured records, because prose is what a model can fabricate.)*

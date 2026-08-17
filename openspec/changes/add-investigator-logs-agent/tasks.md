@@ -10,11 +10,14 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 - [ ] 1.2 `LogRecord` value (timestamp, level, message, service) — test it
       keeps what a human needs to recognise the evidence and nothing more
 - [ ] 1.3 `Signal` enum with `LOGS`, and `Finding` (signal, observation,
-      evidence) rejecting an observation with no evidence — test that a
-      finding cannot claim something it cites nothing for
-- [ ] 1.4 `Findings` holding a tuple of findings — test that empty findings
+      occurrences, examples) rejecting an observation with no examples — test
+      that a finding cannot claim something it shows nothing for
+- [ ] 1.4 Cap examples at `MAX_EXAMPLES_PER_FINDING` — test a finding built
+      from many records keeps a bounded number of them while `occurrences`
+      still reports the full count
+- [ ] 1.5 `Findings` holding a tuple of findings — test that empty findings
       are a valid, successful "nothing notable", distinct from any failure
-- [ ] 1.5 `Incident.investigation_attempts`, defaulting to 0, with
+- [ ] 1.6 `Incident.investigation_attempts`, defaulting to 0, with
       `investigation_failed()` incrementing it and `findings_reported()`
       clearing it — test both transitions and that neither touches the
       incident's identity, alerts, or report stamp
@@ -34,8 +37,8 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 ## 3. Reporting findings
 
 - [ ] 3.1 `build_investigated_report(incident, findings)` — test its subject
-      names the service and its body carries every finding with its evidence
-      and every alert with its time and link
+      names the service and its body carries every finding with its occurrence
+      count and its example records, and every alert with its time and link
 - [ ] 3.2 Test the investigated report offers no hypothesis, root cause, or
       confidence level, and that findings with nothing notable read as such
       rather than as an empty section
@@ -128,15 +131,24 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 ## 9. The Logs agent
 
 - [ ] 9.1 The agent instruction as a module constant — test it asks for the
-      incident's window, requires evidence for every observation, and forbids
-      naming a root cause
-- [ ] 9.2 The pydantic output schema and its translation into `Findings` —
-      test a canned model payload maps to findings with `Signal.LOGS`, and
-      that a payload with an evidence-free observation is rejected
+      incident's window, requires a citation for every observation, bounds the
+      examples, and forbids naming a root cause
+- [ ] 9.2 The pydantic output schema — test it offers the model no free-text
+      evidence field, only citations, so invented log text has nowhere to go
 - [ ] 9.3 Wrap the `ObservabilityPlatform` port's methods as ADK
       `FunctionTool`s — test the agent is given those tools and no
       platform-specific ones
-- [ ] 9.4 The `Investigator` implementation: run the agent for one incident,
+- [ ] 9.4 The tool wrapper retains every returned record under an identifier it
+      assigns — test two searches in one investigation both contribute, and
+      that identifiers do not collide
+- [ ] 9.5 Resolve citations into `Finding.examples` from the retained records —
+      test a canned payload of resolvable citations produces findings whose
+      examples are the real records, with `Signal.LOGS`
+- [ ] 9.6 Drop what does not resolve — test a citation to a never-retrieved
+      record drops that finding while its siblings survive, that the discard is
+      logged with the offending citation, and that a payload of nothing but
+      fabrications yields empty findings rather than an error
+- [ ] 9.7 The `Investigator` implementation: run the agent for one incident,
       `asyncio.run` at the adapter boundary, translate the result — test
       against a stubbed model, and test that a model or tool failure becomes
       `InvestigatorError`

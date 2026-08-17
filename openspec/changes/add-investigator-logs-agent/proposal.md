@@ -24,7 +24,14 @@ single agent, is cheaper to get wrong than proving it against four.
   this project's vocabulary: observations tied to evidence, with no
   hypothesis and no confidence. Those arrive in slice 8, and a findings value
   that cannot express them is what keeps this slice from pretending to
-  conclude anything.
+  conclude anything. A finding describes a pattern and illustrates it with a
+  few real examples, rather than carrying every record behind it.
+- **Fabricated evidence cannot reach a report.** The evidence in a finding is
+  only ever a record the platform actually returned: the agent cites what it
+  retrieved and the system reproduces the real record, so invented log lines
+  have no path into a report. A finding whose evidence cannot be traced is
+  discarded and the discard recorded, while the findings that check out are
+  still reported.
 - **New ADK adapter: the Logs agent** — an `LlmAgent` whose only tools are the
   observability platform's, instructed to look for error and warning patterns
   in the incident's window and report what it found. It is the whole
