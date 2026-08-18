@@ -2,6 +2,11 @@
 .venv/
 venv/
 
+# Connection settings: credentials live here, the example never does
+.env
+.env.*
+!.env.example
+
 # Byte-compiled / caches
 __pycache__/
 *.py[cod]

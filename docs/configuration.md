@@ -2,6 +2,11 @@
 
 Two kinds of setting, and which kind a value is decides where it goes.
 
+Each kind ships an annotated example naming every setting it holds, its
+default, and whether it is mandatory: [`config.example.yaml`](../config.example.yaml)
+and [`.env.example`](../.env.example). Copy them rather than starting from a
+blank file — a test fails if either drifts from the schema it describes.
+
 *Behavior* — what the system watches and how it triages — lives in an optional
 `config.yaml`. *Connection* — where a platform is, how to authenticate, and
 where reports are sent — is read from the environment only.
@@ -47,6 +52,33 @@ resurrect duplicate reports — retention is counted from the moment an incident
 
 Writing any of the settings below into `config.yaml` has no effect — the key is
 inert, and resolution proceeds as if it were absent.
+
+### Where the environment comes from: `.env`
+
+The variables below can be exported by hand, or written into a `.env` file in
+the directory a run is started from. The file is read once at startup, before
+anything is resolved, and every name in it is one that could equally have been
+exported — it introduces no setting of its own and no second syntax to learn.
+
+```dotenv
+DD_API_KEY=...
+DD_APP_KEY=...
+export ALERT_TRIAGE_EMAIL_TO="sre@example.com,oncall@example.com"
+```
+
+Comments, quoted values, and an `export` prefix are all understood; a bare
+`NAME` with no value declares nothing and is dropped rather than carried as an
+empty string.
+
+**The process wins.** A name the environment already carries is never
+overridden by the file, so a container, a systemd unit, or a CI secret keeps
+its value even when a stray `.env` sits beside the checkout. The file is a
+convenience for a laptop, not a deployment mechanism — which is also why it is
+gitignored and only [`.env.example`](../.env.example) is committed.
+
+Because the path is relative, a run started from another directory finds no
+file and reads the process environment alone. That is not an error: a
+deployment that exports everything needs no file at all.
 
 ### Datadog
 

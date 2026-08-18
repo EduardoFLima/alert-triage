@@ -1,0 +1,68 @@
+# Behavior: what the system watches and how it triages.
+#
+# Copy to `config.yaml` and keep only the keys you want to change — every key
+# below except `scope.owner` is optional and the value shown is the default.
+# The file itself is optional too.
+#
+# Connection settings (credentials, endpoints, where reports go) are never read
+# from here; see `.env.example`. Any key naming one is inert.
+#
+# Every key here can also be set as an environment variable, by mapping its
+# `section.key` path to `SECTION_KEY` (`scope.owner` -> `SCOPE_OWNER`). When
+# both are set, the environment wins.
+
+scope:
+  # MANDATORY. The team whose alerts are triaged; no default, and a run that
+  # cannot resolve it refuses to start.
+  owner: sre
+
+grouping:
+  # Optional. How far apart alerts of one service may fire and still be treated
+  # as one incident, in seconds.
+  window_seconds: 1800
+
+ingestion:
+  # Optional. How far back from the start of a run alerts are considered, in
+  # seconds. Keep comfortably wider than the interval the job runs on.
+  lookback_seconds: 3600
+  # Optional. Bound on a single request to the observability platform, in
+  # seconds.
+  request_timeout_seconds: 30
+  # Optional. Retries of a failed platform request before the fetch gives up.
+  max_retries: 3
+
+re_notify:
+  # Optional. How long after reporting an incident the system waits before
+  # reporting it again, in seconds (2 days).
+  cooldown_seconds: 172800
+
+ledger:
+  # Optional. How long a closed incident is kept for a human to consult before
+  # it is deleted, in seconds (30 days). Counted from when the incident closed,
+  # and tuned independently of the re-notify cooldown.
+  retention_seconds: 2592000
+
+circuit_breakers:
+  # Optional. Tool calls one investigating agent may make.
+  max_tool_calls_per_agent: 8
+  # Optional. Handoffs between agents within one investigation.
+  max_agent_hops: 2
+  # Optional. Wall-clock bound on a single investigation, in seconds.
+  max_investigation_duration_seconds: 300
+  # Optional. Retries of a failed MCP call during an investigation.
+  max_mcp_retries: 3
+  # Optional. Timeout of a single MCP call, in seconds.
+  mcp_call_timeout_seconds: 30
+
+# Optional. Services escalated beyond the defaults, keyed by service tag.
+# Being listed is what makes a service critical, so the entries below are left
+# commented out: uncommenting one declares that service critical. Every key
+# within an entry is optional, and an entry may be listed with none of them
+# (`payments: {}`).
+critical_services: {}
+  # checkout:
+  #   # Optional. Criticality tier this service is escalated under.
+  #   tier: critical
+  #   # Optional. Latency above which escalation bypasses batching, in
+  #   # milliseconds.
+  #   latency_threshold_ms: 2000

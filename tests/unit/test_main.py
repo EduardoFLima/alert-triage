@@ -77,6 +77,26 @@ def test_the_failures_a_run_could_not_avoid_name_their_stage_and_service(
     assert "checkout" in caplog.text
 
 
+def test_the_run_is_given_the_environment_the_env_file_contributed_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading the .env file happens once, here, and nothing below knows of it."""
+    environments: list[object] = []
+
+    def execute(*, now: datetime, env: object = None, **_: object) -> RunOutcome:
+        environments.append(env)
+        return RunOutcome()
+
+    monkeypatch.setattr(entrypoint, "execute", execute)
+    monkeypatch.setattr(
+        entrypoint, "resolve_environment", lambda: {"SCOPE_OWNER": "from-the-env-file"}
+    )
+
+    entrypoint.main()
+
+    assert environments == [{"SCOPE_OWNER": "from-the-env-file"}]
+
+
 def test_the_run_is_given_one_instant_and_it_is_timezone_aware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

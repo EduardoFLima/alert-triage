@@ -1,16 +1,19 @@
 """The entrypoint: one run, started by a human or a scheduler, and an exit code.
 
-Three things happen here and nowhere else. The run's instant is taken once, so
-every decision below is made against the same "now". Logging is configured
-once, so importing the pipeline into a test or a future service configures
-nothing on its caller's behalf. And the run's outcome becomes a process exit
-status, which is the only thing a scheduler can read.
+Four things happen here and nowhere else. The run's instant is taken once, so
+every decision below is made against the same "now". The environment is read
+once, from the process and from any ``.env`` file beside it, so nothing below
+resolves settings from two different pictures of the world. Logging is
+configured once, so importing the pipeline into a test or a future service
+configures nothing on its caller's behalf. And the run's outcome becomes a
+process exit status, which is the only thing a scheduler can read.
 """
 
 import logging
 import sys
 from datetime import UTC, datetime
 
+from alert_triage.adapters.env_file import resolve_environment
 from alert_triage.app.composition import execute
 from alert_triage.app.run import RunOutcome
 from alert_triage.ports.config import ConfigError
@@ -33,7 +36,7 @@ def main() -> int:
     """
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, stream=sys.stderr)
     try:
-        outcome = execute(now=datetime.now(UTC))
+        outcome = execute(now=datetime.now(UTC), env=resolve_environment())
     except ConfigError as error:
         _log.error("Refusing to start: %s", error)
         return FAILURE

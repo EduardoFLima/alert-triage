@@ -62,6 +62,18 @@ export DD_API_KEY=...                                      # and DD_APP_KEY
 
 That is enough for a first run. Everything else has a documented default.
 
+Rather than exporting by hand, copy the two annotated examples and edit them —
+every key and every variable is listed there with its default:
+
+```bash
+cp config.example.yaml config.yaml   # behavior; safe to commit
+cp .env.example .env                 # connection; gitignored, never committed
+```
+
+A `.env` file beside the run is read at startup and only *supplements* the
+environment: anything the process already exported wins, so a container or a
+scheduler is never overridden by a file lying next to it.
+
 Which kind a setting is decides where it goes: *behavior* — what the system
 watches and how it triages — lives in an optional `config.yaml`, while
 *connection* — credentials, the ledger's location, where reports are sent — is

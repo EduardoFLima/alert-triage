@@ -9,6 +9,7 @@ license = { file = "LICENSE" }
 # the dependency tree stays legible.
 dependencies = [
     "datadog-api-client>=2.30",
+    "python-dotenv>=1.0",
     "pyyaml>=6.0",
 ]
 
@@ -145,4 +146,5 @@ forbidden_modules = [
     "urllib",
     "msal",
     "yaml",
+    "dotenv",
 ]
