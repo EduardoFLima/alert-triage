@@ -7,6 +7,9 @@ venv/
 .env.*
 !.env.example
 
+# Local run state: the default ledger lands here, and it is a run's history
+data/
+
 # Byte-compiled / caches
 __pycache__/
 *.py[cod]

@@ -106,7 +106,7 @@ A run reads everything it needs from its environment:
 - At least one notification channel, or the run refuses to start rather than
   fetching alerts it could tell nobody about.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.
-  Defaults to `alert_triage.db` in the working directory, which is why a
+  Defaults to `data/alert_triage.db` under the working directory, which is why a
   deployment should set it explicitly.
 
 The run's account of itself goes to stderr; what it did goes in its exit

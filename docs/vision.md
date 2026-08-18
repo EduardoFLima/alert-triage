@@ -237,7 +237,7 @@ under the platform's own conventional variable names rather than the
   application refuses to start without them.
 - `DD_SITE` — Datadog region, defaulting to `datadoghq.com`.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the triage ledger keeps its records,
-  defaulting to `alert_triage.db` in the working directory. Unlike a
+  defaulting to `data/alert_triage.db` under the working directory. Unlike a
   credential it has a default, because a path is not a secret and a manual run
   should need no configuration beyond `scope`.
 

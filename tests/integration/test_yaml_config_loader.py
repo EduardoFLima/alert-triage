@@ -405,9 +405,10 @@ ledger_storage:
 
 
 def test_a_ledger_location_in_the_file_is_not_where_records_are_kept(
-    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Where a database lives is a deployment fact; `config.yaml` is behavior."""
+    monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, SCOPED + LEDGER_LOCATION_IN_FILE)
 
     config = load_config(path, env={})

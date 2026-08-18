@@ -98,10 +98,13 @@ a default, since a path is not a credential:
 
 ```bash
 export ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/ledger.db
-# optional; defaults to alert_triage.db in the working directory
+# optional; defaults to data/alert_triage.db under the working directory
 ```
 
-The ledger is a SQLite database, created with its schema on first use. A first
+The ledger is a SQLite database, created with its schema on first use, along
+with the directory it sits in. At the default path that directory is `data/`,
+which the repository ignores: a checkout you run from collects its state there
+rather than beside the source. A first
 run against an empty one has nothing on record, so every alert group it finds
 opens a new incident and is reported — there is no migration step and an empty
 ledger is not an error. Because the default path is relative, a run started
@@ -114,7 +117,7 @@ reported, when, and for which alerts — open the database file with any SQLite
 client:
 
 ```bash
-sqlite3 alert_triage.db \
+sqlite3 data/alert_triage.db \
   "SELECT id, service, last_reported_at, closed_at FROM incidents;"
 ```
 
