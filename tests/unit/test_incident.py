@@ -37,8 +37,8 @@ def test_the_window_an_incident_spans_is_read_from_its_alerts() -> None:
 
     incident = _incident(last, first)
 
-    assert incident.started_at == first.fired_at
-    assert incident.latest_alert_at == last.fired_at
+    assert incident.window.start == first.fired_at
+    assert incident.window.end == last.fired_at
 
 
 def test_there_is_no_incident_without_the_alerts_that_opened_it() -> None:
@@ -60,9 +60,9 @@ def test_absorbing_a_later_alert_extends_the_window() -> None:
 
     grown = incident.absorb([_alert(timedelta(minutes=3), source_id="b")])
 
-    assert grown.started_at == NOON
-    assert grown.latest_alert_at == NOON + timedelta(minutes=3)
-    assert incident.latest_alert_at == NOON, "the original is left as it stands"
+    assert grown.window.start == NOON
+    assert grown.window.end == NOON + timedelta(minutes=3)
+    assert incident.window.end == NOON, "the original is left as it stands"
 
 
 def test_an_alert_already_absorbed_is_not_recorded_twice() -> None:
@@ -90,3 +90,36 @@ def test_absorbed_alerts_are_kept_oldest_first() -> None:
     grown = incident.absorb([_alert(source_id="a")])
 
     assert [alert.source_id for alert in grown.alerts] == ["a", "b"]
+
+
+def test_an_incident_has_spent_no_investigation_attempts_to_begin_with() -> None:
+    assert _incident(_alert()).investigation_attempts == 0
+
+
+def test_a_failed_investigation_spends_an_attempt() -> None:
+    incident = _incident(_alert())
+
+    assert incident.investigation_failed().investigation_attempts == 1
+    assert (
+        incident.investigation_failed().investigation_failed().investigation_attempts
+        == 2
+    )
+
+
+def test_a_delivered_report_clears_the_attempts() -> None:
+    """Whatever it carried: a delivery is what ends a round of retrying."""
+    spent = _incident(_alert()).investigation_failed().investigation_failed()
+
+    assert spent.reported(NOON).investigation_attempts == 0
+
+
+def test_spending_an_attempt_leaves_the_rest_of_the_incident_alone() -> None:
+    opening = _alert()
+    incident = _incident(opening).reported(NOON)
+
+    failed = incident.investigation_failed()
+
+    assert failed.id == incident.id
+    assert failed.service == incident.service
+    assert failed.alerts == (opening,)
+    assert failed.last_reported_at == NOON

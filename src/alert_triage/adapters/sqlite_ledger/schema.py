@@ -15,10 +15,11 @@ and it stays inspectable rather than becoming an opaque number.
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS incidents (
-    id               TEXT PRIMARY KEY,
-    service          TEXT NOT NULL,
-    last_reported_at TEXT,
-    closed_at        TEXT
+    id                     TEXT PRIMARY KEY,
+    service                TEXT NOT NULL,
+    last_reported_at       TEXT,
+    closed_at              TEXT,
+    investigation_attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS incident_alerts (
     incident_id TEXT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
@@ -30,4 +31,21 @@ CREATE TABLE IF NOT EXISTS incident_alerts (
 );
 CREATE INDEX IF NOT EXISTS incidents_by_service ON incidents(service);
 CREATE INDEX IF NOT EXISTS alerts_by_incident ON incident_alerts(incident_id);
+"""
+
+ADDED_COLUMNS = (
+    "ALTER TABLE incidents ADD COLUMN "
+    "investigation_attempts INTEGER NOT NULL DEFAULT 0",
+)
+"""Columns a table gained after the first version of it was already in use.
+
+``CREATE TABLE IF NOT EXISTS`` leaves an existing table exactly as it stands,
+so a column added to the statement above reaches a fresh deployment and no
+other. SQLite has no ``ADD COLUMN IF NOT EXISTS``, so each of these is applied
+and its "duplicate column" complaint ignored, which is idempotent for the same
+reason the ``IF NOT EXISTS`` above is.
+
+The default is what makes this need no backfill: an incident recorded before
+the column existed reads back as having spent no attempts, which is the truth
+about it.
 """

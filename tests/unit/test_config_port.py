@@ -1,12 +1,15 @@
 from dataclasses import dataclass, field
 from datetime import timedelta
 
+import pytest
+
 from alert_triage.ports.config import (
     CircuitBreakers,
     Config,
     CriticalService,
     Grouping,
     Ingestion,
+    Investigation,
     Ledger,
     ReNotify,
     Scope,
@@ -23,7 +26,12 @@ class InMemoryConfig:
     circuit_breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
     re_notify: ReNotify = field(default_factory=ReNotify)
     ledger: Ledger = field(default_factory=Ledger)
+    investigation: Investigation = field(default_factory=Investigation)
     critical_services: dict[str, CriticalService] = field(default_factory=dict)
+
+
+def _config(**overrides: object) -> InMemoryConfig:
+    return InMemoryConfig(scope=Scope(owner="sre"), **overrides)  # type: ignore[arg-type]
 
 
 def test_an_in_memory_implementation_satisfies_the_port() -> None:
@@ -128,3 +136,35 @@ def test_retuning_retention_leaves_how_often_a_report_repeats_alone() -> None:
     )
 
     assert config.re_notify.cooldown == timedelta(days=2)
+
+
+def test_the_investigation_model_has_a_documented_default() -> None:
+    assert Investigation().model == Investigation.DEFAULT_MODEL
+
+
+def test_an_investigation_gets_three_attempts_by_default() -> None:
+    assert Investigation().max_attempts == Investigation.DEFAULT_MAX_ATTEMPTS
+    assert Investigation.DEFAULT_MAX_ATTEMPTS == 3
+
+
+def test_the_operator_can_choose_the_model_and_the_attempts() -> None:
+    investigation = Investigation(model="some-other-model", max_attempts=1)
+
+    assert investigation.model == "some-other-model"
+    assert investigation.max_attempts == 1
+
+
+def test_an_attempt_bound_below_one_is_refused() -> None:
+    """Zero attempts would leave every incident permanently uninvestigable."""
+    with pytest.raises(ValueError, match="max_attempts"):
+        Investigation(max_attempts=0)
+
+
+def test_a_config_carries_its_investigation_settings() -> None:
+    config = _config(investigation=Investigation(max_attempts=2))
+
+    assert config.investigation.max_attempts == 2
+
+
+def test_a_config_defaults_its_investigation_settings() -> None:
+    assert _config().investigation.max_attempts == 3

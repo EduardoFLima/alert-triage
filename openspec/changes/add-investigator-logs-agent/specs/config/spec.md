@@ -7,8 +7,12 @@ run investigates without any configuration for it. The section SHALL carry
 how an investigation reasons — the model it runs on — and how many attempts an
 incident's investigation gets before the system stops retrying it, defaulting
 to three. It SHALL NOT carry the location of, or credentials for, any platform
-or model provider: those are deployment facts read from the environment only,
-and a key shaped like one written into this section SHALL be inert.
+or model provider: those are deployment facts read from the environment only.
+A key shaped like one written *into this section* SHALL be refused by name, as
+any key the schema has never heard of already is — an operator who typed it
+meant something by it, and silently ignoring it would leave them believing a
+credential had been supplied. A credential written as its own top-level section
+remains inert, exactly as it already is.
 
 The attempt bound SHALL be resolved independently of the `circuit_breakers`
 section, which bounds a single call inside one investigation rather than how
@@ -42,5 +46,5 @@ many investigations an incident is given.
 #### Scenario: A credential written into the section
 - **WHEN** `config.yaml` sets a key shaped like a model or platform credential
   under `investigation`
-- **THEN** it is not used to authenticate anything, and resolution proceeds as
-  if it were absent
+- **THEN** the system refuses to start and names the unrecognised key, rather
+  than starting as though a credential had been supplied

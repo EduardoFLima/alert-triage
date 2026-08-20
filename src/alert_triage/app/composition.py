@@ -17,14 +17,21 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
+from alert_triage.adapters.adk.investigator import AdkInvestigator, run_with_adk
 from alert_triage.adapters.datadog.alert_source import build_alert_source
-from alert_triage.adapters.datadog.connection import resolve_connection
+from alert_triage.adapters.datadog.connection import (
+    DatadogConnection,
+    resolve_connection,
+)
+from alert_triage.adapters.datadog.datadog_mcp import DatadogMcpPlatform
 from alert_triage.adapters.fan_out.resolution import resolve_notifier
 from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.sqlite_ledger.location import resolve_ledger_path
 from alert_triage.adapters.yaml_config.loader import DEFAULT_CONFIG_PATH, load_config
 from alert_triage.app.run import RunOutcome, run
-from alert_triage.domain.report import build_pass_through_report
+from alert_triage.domain.report import build_report
+from alert_triage.ports.config import Investigation
+from alert_triage.ports.investigator import Investigator
 
 
 def execute(
@@ -50,9 +57,12 @@ def execute(
             configured. Nothing is fetched and nothing is delivered.
     """
     config = load_config(config_path, env)
-    connection = resolve_connection(env)
+    datadog_connection = resolve_connection(env)
     notifier = resolve_notifier(env)
-    source = build_alert_source(connection, config.ingestion, config.scope.owner)
+    source = build_alert_source(
+        datadog_connection, config.ingestion, config.scope.owner
+    )
+    investigator = build_investigator(datadog_connection, config.investigation)
 
     with closing(sqlite3.connect(resolve_ledger_path(env))) as database:
         return run(
@@ -64,11 +74,35 @@ def execute(
                 retention=config.ledger.retention,
             ),
             notifier=notifier,
-            build_report=build_pass_through_report,
+            investigator=investigator,
+            build_report=build_report,
             config=config,
             now=now,
             new_id=_new_id,
         )
+
+
+def build_investigator(
+    datadog_connection: DatadogConnection, investigation: Investigation
+) -> Investigator:
+    """Assemble the agent crew over the platform it gathers evidence from.
+
+    A named function rather than an inline construction so that a test can
+    substitute the one adapter that would otherwise reach both a model and an
+    MCP server, exactly as it already substitutes the alert source and the
+    notifier.
+
+    Args:
+        datadog_connection: Where Datadog is and how to authenticate.
+        investigation: How an investigation reasons.
+
+    Returns:
+        The investigator a run is handed.
+    """
+    return AdkInvestigator(
+        platform=DatadogMcpPlatform(datadog_connection),
+        run_agent=run_with_adk(investigation.model),
+    )
 
 
 def _new_id() -> str:
