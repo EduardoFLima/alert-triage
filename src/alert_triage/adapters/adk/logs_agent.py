@@ -20,8 +20,8 @@ from pydantic import BaseModel, Field
 from alert_triage.domain.findings import MAX_EXAMPLES_PER_FINDING
 from alert_triage.domain.incident import Incident
 
-SearchLogs = Callable[[str, str, str, str], list[dict[str, Any]]]
-"""The one tool the Logs agent is given, as ADK will see it."""
+LogsTool = Callable[..., Any]
+"""One tool the Logs agent is given, as ADK will see it."""
 
 LOGS_INSTRUCTION = f"""
 You are a logs specialist doing the first-pass investigation a knowledgeable
@@ -35,6 +35,10 @@ Rules you must follow:
 
 - Search before you report. You may search more than once, narrowing your
   query as you learn what the service is logging.
+- Ask for the count rather than counting yourself. The records you are shown
+  are a sample, not the total, so use the counting tool for how many times a
+  pattern occurred. A number you arrived at any other way will be replaced by
+  the number of records you cited.
 - Every observation must cite the records that show it, by the `id` field of
   the records the search returned. Cite at most {MAX_EXAMPLES_PER_FINDING}
   records per observation, choosing ones that represent the pattern.
@@ -91,21 +95,21 @@ def describe(incident: Incident) -> str:
     )
 
 
-def build_logs_agent(*, model: str, search_logs: SearchLogs) -> LlmAgent:
-    """Build the Logs specialist around the one tool it is allowed.
+def build_logs_agent(*, model: str, tools: list[LogsTool]) -> LlmAgent:
+    """Build the Logs specialist around the tools it is allowed.
 
     Args:
         model: The model the agent reasons with.
-        search_logs: The log search, already bound to the observability
-            platform and to this investigation's record keeping.
+        tools: The log tools, already bound to the observability platform
+            and to this investigation's record keeping.
 
     Returns:
-        The agent, with that tool and no other.
+        The agent, with those tools and no others.
     """
     return LlmAgent(
         name="logs_specialist",
         model=model,
         instruction=LOGS_INSTRUCTION,
-        tools=[search_logs],
+        tools=list(tools),
         output_schema=ReportedFindings,
     )

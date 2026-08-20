@@ -65,17 +65,13 @@ class TriageReport:
         return self.incident.service
 
 
-def build_pass_through_report(incident: Incident) -> TriageReport:
-    """Build the report the system sends while investigation does not exist yet.
+def _build_pass_through_report(incident: Incident) -> TriageReport:
+    """Build the report of last resort: what fired, and that nobody could look.
 
-    It carries the incident's own alerts and no conclusion of any kind, which
-    is what its body says in as many words: passing alerts along untouched is
-    the honest thing to do until something has actually looked at them.
-
-    Lives beside ``TriageReport`` rather than in an adapter because it needs
-    nothing but the incident. What replaces it will need a model and a tool
-    call, and will arrive as an adapter behind the same one-argument callable
-    the run already takes.
+    Reached only once every investigation of the incident has failed. It
+    carries the incident's own alerts and no conclusion of any kind, which is
+    what its body says in as many words — alerts that fired are worth passing
+    on even when nothing could be learned about them.
 
     Args:
         incident: The incident to report, with the alerts absorbed so far.
@@ -109,11 +105,11 @@ def build_report(incident: Incident, findings: Findings | None) -> TriageReport:
         The report to deliver.
     """
     if findings is None:
-        return build_pass_through_report(incident)
-    return build_investigated_report(incident, findings)
+        return _build_pass_through_report(incident)
+    return _build_investigated_report(incident, findings)
 
 
-def build_investigated_report(incident: Incident, findings: Findings) -> TriageReport:
+def _build_investigated_report(incident: Incident, findings: Findings) -> TriageReport:
     """Build the report for an incident an investigation actually looked at.
 
     States what was found and the records behind it, and still lists the alerts
@@ -155,7 +151,7 @@ def _investigated_body(incident: Incident, findings: Findings) -> str:
     """Lead with what was found, then the alerts that prompted looking."""
     lines = [
         f"{_alert_count(len(incident.alerts))} fired for service "
-        f"{incident.service} since {incident.started_at.isoformat()}.",
+        f"{incident.service} since {incident.window.start.isoformat()}.",
         "",
         *_findings_lines(findings),
         "",
@@ -203,7 +199,7 @@ def _body(incident: Incident) -> str:
     """Say what fired, when, and where to look — and that nobody has looked."""
     lines = [
         f"{_alert_count(len(incident.alerts))} fired for service "
-        f"{incident.service} since {incident.started_at.isoformat()}.",
+        f"{incident.service} since {incident.window.start.isoformat()}.",
         "",
         NOT_INVESTIGATED,
         "",

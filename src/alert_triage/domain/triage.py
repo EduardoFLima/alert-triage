@@ -151,7 +151,7 @@ def is_closed(
         return True
     if incident.last_reported_at is None:
         return False
-    return now - incident.latest_alert_at > window and _is_due(incident, now, cooldown)
+    return now - incident.window.end > window and _is_due(incident, now, cooldown)
 
 
 def continue_or_open(
@@ -201,4 +201,4 @@ def _continues(incident: Incident, group: AlertGroup, window: timedelta) -> bool
         return False
     if incident.shares_an_alert_with(group.alerts):
         return True
-    return group.alerts[0].fired_at - incident.latest_alert_at <= window
+    return group.alerts[0].fired_at - incident.window.end <= window

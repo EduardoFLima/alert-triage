@@ -115,10 +115,27 @@ left with no findings after discarding SHALL return an empty result — an
 honest "nothing notable" — rather than a failure, because the investigation
 did run.
 
-This requirement constrains evidence, not description. How a finding
-characterises its evidence — a rate, a count, a description of a pattern —
-remains the investigation's own account of what it saw, which is why the
-examples travel with it for a human to check it against.
+A count is evidence too, and is held to the same standard. The number of times
+a finding says a pattern occurred SHALL be a total the observability platform
+reported during that investigation; a count arrived at any other way SHALL be
+replaced by the number of records the finding shows. A sample of records can
+never establish a total, so counting SHALL be asked of the platform rather than
+performed on the sample.
+
+What remains unconstrained is prose. How a finding *describes* its evidence — a
+rate, a characterisation of a pattern — is the investigation's own account of
+what it saw, which is why the records travel beside it for a human to check it
+against.
+
+#### Scenario: A count the platform reported
+- **WHEN** a finding reports a total the platform returned during the
+  investigation
+- **THEN** that total is what the report states
+
+#### Scenario: A count nobody asked the platform for
+- **WHEN** a finding claims a total the platform never reported
+- **THEN** the system reports the number of records the finding shows instead,
+  and records that the claim was replaced
 
 #### Scenario: Evidence names a record that was never retrieved
 - **WHEN** a finding's evidence refers to a log record the platform did not

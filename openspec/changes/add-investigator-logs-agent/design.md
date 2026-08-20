@@ -113,19 +113,36 @@ what query* to search; what it cannot do is name a Datadog tool.
 
 *Alternative — hand the agent Datadog's `McpToolset` directly.* This is the
 more literal reading of "MCP earns its keep where a model discovers and
-chooses tools at runtime" in `docs/vision.md`, and it is less code. Rejected:
-the agent's instruction would then have to talk about `search_datadog_logs`
-and Datadog's query syntax, so a second observability platform would mean
-rewriting every specialist agent — precisely what the port exists to prevent,
-and a direct violation of `AGENTS.md`'s "a port never types itself against a
-vendor SDK's model; translate at the adapter". It also hands the model
-Datadog's entire `core` toolset when the Logs agent needs one tool of it.
+chooses tools at runtime" in `docs/vision.md`, and it is less code. Rejected,
+but for one reason rather than the three first given here: **interception**.
+Every record the agent sees has to pass through code this project owns, or the
+citation resolution in `evidence` has nothing to resolve against and the
+anti-fabrication guarantee dies. A toolset the model talks to directly takes
+that with it.
 
-The trade-off is real and worth naming: bounding the tool surface at the port
-means the system gives up runtime tool discovery. MCP stays as the adapter's
-*transport* — which is what makes it cheap to widen the port in slice 7 — but
-the port, not the server, decides what a specialist can ask for. Widening the
-port is a deliberate act, which is the point.
+The other two reasons offered here originally were weaker than they looked and
+are worth correcting rather than quietly dropping:
+
+- *"The instruction would have to name Datadog tools."* Not necessarily — MCP
+  tools carry their own descriptions, so an instruction can stay generic. The
+  coupling is real but milder than claimed.
+- *"MCP as transport makes slice 7 cheap."* It makes the *transport* cheap and
+  leaves the translation, which is the bulk: evidence has to become typed
+  domain values or it can be neither rendered nor cited.
+
+What MCP does buy, and what a first draft of this design missed by looking only
+at `search_datadog_logs`, is a catalogue of tools that are *analyses* rather
+than endpoints — `apm_latency_bottleneck_summary`,
+`search_datadog_service_dependencies`, `get_change_stories`,
+`apm_search_watchdog_stories`. Slices 7 and 8 want exactly those, and several
+have no simple REST equivalent to reimplement. That is the real justification
+for the dependency, and it is a justification for the *transport*, not for
+handing the model the server.
+
+So the shape is a **recording proxy**: the port stays this project's
+vocabulary, each specialist is handed only the tools it needs, and every one of
+those tools forwards to MCP through a wrapper that registers what comes back.
+Slice 7 widens the port per capability rather than opening the catalogue.
 
 `Window` and `LogRecord` are domain values. `LogRecord` stays thin —
 timestamp, level, message, service — because a finding cites evidence a human
@@ -185,13 +202,23 @@ citations *all* fail to resolve is dropped entirely; if that leaves no findings
 at all, the result is an honest empty "nothing notable" rather than a failure,
 because the investigation did run.
 
-What this does **not** verify is the model's characterisation: `observation`
-and `occurrences` are its own prose and its own arithmetic, and it can still
-say "every 40 seconds" over records that are minutes apart. That is a real
-residual risk, named in Risks below and bounded by the examples sitting right
-beside the claim where a human can see them disagree. Verifying the count
-would mean the adapter re-deriving the pattern itself, which is the agent's
-job, not the adapter's.
+**The count is held to the same standard as the records.** A first draft of
+this design left `occurrences` as the model's own arithmetic and recorded that
+as an accepted risk — "3 real records, seen 400 times" is a claim no citation
+can catch. It does not have to be accepted. The platform can be *asked* for the
+total, so `count_logs` is its own capability on the port, the agent is
+instructed to use it rather than tally what it was shown, and `Retrieved`
+remembers every total the platform reported. A count the platform never
+returned is replaced by the number of records the finding shows.
+
+That deliberately prefers an undercount to an invented one: the records sit
+beside the number either way, so a reader who sees "2 occurrences" with two
+records can tell nothing is missing, while "400" with two records would be a
+claim they cannot check.
+
+What remains unverified is prose. `observation` is still the model's own
+characterisation, and it can describe records minutes apart as "every 40
+seconds". That residual is named in Risks, and the timestamps travel beside it.
 
 *Alternative — free-text evidence, verified by string-matching it against the
 retrieved records.* Rejected: it turns verification into fuzzy matching
@@ -396,12 +423,21 @@ without one.
   should follow closely.
 - **The model may characterise a pattern the logs do not support.** Fabricated
   *evidence* is structurally impossible — the model cannot write a log line,
-  only cite one, and an unresolvable citation drops the finding. What survives
-  is mis-description: a real set of records summarised as "every 40 seconds"
-  when they are minutes apart, or an inflated `occurrences`. → The examples sit
-  beside the claim in the report with their real timestamps, so a reader can
-  see the two disagree, and the report presents findings as observations rather
-  than conclusions.
+  only cite one, and an unresolvable citation drops the finding. An inflated
+  count is impossible too: a total the platform never reported is replaced by
+  the records shown. What survives is mis-description — a real set of records
+  summarised as "every 40 seconds" when they are minutes apart. → The examples
+  sit beside the claim with their real timestamps, so a reader can see the two
+  disagree, and the report presents findings as observations rather than
+  conclusions.
+- **`asyncio.run` inside a running loop.** The agent framework calls a
+  synchronous tool inline on its own event loop; that tool reaches an adapter
+  that has a coroutine of its own to run. Every test that substitutes the
+  platform passes and the live path raises. → `blocking_run` detects a running
+  loop and offloads to a worker thread, and the case is a unit test rather than
+  something only a credential-gated run would find. Worth remembering when
+  slice 7 adds adapters: any of them calling `asyncio.run` directly reintroduces
+  it.
 
   An earlier draft of this document deferred this to "slice 8's confidence
   level". That was wrong and is worth recording as wrong: a confidence level is

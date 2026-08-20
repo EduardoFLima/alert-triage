@@ -35,7 +35,7 @@ from alert_triage.ports.observability_platform import (
 
 _log = logging.getLogger(__name__)
 
-RunAgent = Callable[[Any, str], dict[str, Any]]
+RunAgent = Callable[[list[Any], str], dict[str, Any]]
 """How the agent is driven: given its tool and its prompt, report what it found.
 
 An argument rather than a detail so that a test can stand in for the model. The
@@ -76,7 +76,7 @@ class AdkInvestigator:
         retrieved = Retrieved()
         try:
             reported = self._run_agent(
-                self._tool(incident, retrieved), describe(incident)
+                self._tools(incident, retrieved), describe(incident)
             )
         except ObservabilityPlatformError as error:
             raise InvestigatorError(
@@ -88,12 +88,17 @@ class AdkInvestigator:
             ) from error
         return findings_from(_reported_findings(reported), retrieved)
 
-    def _tool(self, incident: Incident, retrieved: Retrieved) -> Any:
-        """The log search, bound to this incident's investigation.
+    def _tools(self, incident: Incident, retrieved: Retrieved) -> list[Any]:
+        """The tools this specialist is allowed, bound to its investigation.
 
-        Named and annotated for the model's benefit: ADK derives the tool's
-        schema from this signature, so it takes the plain strings a model can
-        produce rather than a domain value it has never heard of.
+        Named and annotated for the model's benefit: ADK derives each tool's
+        schema from its signature, so they take the plain strings a model can
+        produce rather than domain values it has never heard of.
+
+        Everything the platform returns passes through here on its way to the
+        model, which is what makes the model's citations checkable and its
+        counts creditable. A tool that bypassed this would take both guarantees
+        with it.
         """
 
         def search_logs(
@@ -118,7 +123,29 @@ class AdkInvestigator:
             )
             return retrieved.offer(found)
 
-        return search_logs
+        def count_logs(service: str, start: str, end: str, query: str) -> int:
+            """Count how many of a service's log records match, over a window.
+
+            Use this for the number of times a pattern occurred. Do not count
+            the records you were shown: they are a sample, not the total.
+
+            Args:
+                service: The service whose logs to count.
+                start: Start of the window, ISO-8601.
+                end: End of the window, ISO-8601.
+                query: What to count, in plain terms.
+
+            Returns:
+                How many records matched.
+            """
+            total = self._platform.count_logs(
+                service, _window(start, end, incident), query
+            )
+            _log.info("Counted %s logs for %r: %d", service, query, total)
+            retrieved.counted(total)
+            return total
+
+        return [search_logs, count_logs]
 
 
 def _window(start: str, end: str, incident: Incident) -> Window:
@@ -164,10 +191,10 @@ def run_with_adk(model: str) -> RunAgent:
         reported.
     """
 
-    def _run(tool: Any, prompt: str) -> dict[str, Any]:
+    def _run(tools: list[Any], prompt: str) -> dict[str, Any]:
         from alert_triage.adapters.adk.logs_agent import build_logs_agent
 
-        agent = build_logs_agent(model=model, search_logs=tool)
+        agent = build_logs_agent(model=model, tools=tools)
         return asyncio.run(_reported(agent, prompt))
 
     return _run

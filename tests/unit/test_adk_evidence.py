@@ -59,6 +59,7 @@ def test_a_citation_to_a_record_that_was_never_retrieved_resolves_to_nothing() -
 def test_findings_are_built_from_the_records_that_were_actually_returned() -> None:
     retrieved = Retrieved()
     (offered,) = retrieved.offer([_record(message="container OOMKilled")])
+    retrieved.counted(5)
 
     (finding,) = findings_from([_cited([offered["id"]])], retrieved).findings
 
@@ -124,6 +125,43 @@ def test_a_finding_citing_nothing_at_all_is_dropped() -> None:
     assert findings_from([_cited([])], retrieved).findings == ()
 
 
+def test_a_count_the_platform_returned_is_kept() -> None:
+    """The number is evidence when the platform said it, not when the model did."""
+    retrieved = Retrieved()
+    (offered,) = retrieved.offer([_record()])
+    retrieved.counted(47)
+
+    (finding,) = findings_from(
+        [_cited([offered["id"]], occurrences=47)], retrieved
+    ).findings
+
+    assert finding.occurrences == 47
+
+
+def test_a_count_the_platform_never_returned_falls_back_to_what_is_shown() -> None:
+    """Inflating 3 records into '400 times' is the one thing citations cannot catch."""
+    retrieved = Retrieved()
+    offered = retrieved.offer([_record(message="a"), _record(message="b")])
+    retrieved.counted(2)
+
+    (finding,) = findings_from(
+        [_cited([one["id"] for one in offered], occurrences=400)], retrieved
+    ).findings
+
+    assert finding.occurrences == 2
+
+
+def test_a_count_is_only_credited_to_the_investigation_that_asked_for_it() -> None:
+    retrieved = Retrieved()
+    (offered,) = retrieved.offer([_record()])
+
+    (finding,) = findings_from(
+        [_cited([offered["id"]], occurrences=47)], retrieved
+    ).findings
+
+    assert finding.occurrences == 1, "nothing was counted, so nothing is claimed"
+
+
 def test_an_occurrence_count_below_the_surviving_citations_is_raised_to_fit() -> None:
     """A count the model got wrong must not make a good finding unbuildable."""
     retrieved = Retrieved()
@@ -141,6 +179,7 @@ def test_more_citations_than_a_finding_shows_are_capped() -> None:
     offered = retrieved.offer(
         [_record(timedelta(seconds=n)) for n in range(MAX_EXAMPLES_PER_FINDING + 5)]
     )
+    retrieved.counted(400)
 
     (finding,) = findings_from(
         [_cited([one["id"] for one in offered], occurrences=400)], retrieved

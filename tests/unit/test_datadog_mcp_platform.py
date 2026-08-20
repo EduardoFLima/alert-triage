@@ -1,13 +1,16 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
 from alert_triage.adapters.datadog.connection import DatadogConnection
-from alert_triage.adapters.datadog.mcp import (
+from alert_triage.adapters.datadog.mcp_platform import (
     API_KEY_HEADER,
     APP_KEY_HEADER,
     LOGS_TOOLSET,
+    blocking_run,
+    count_from,
     mcp_endpoint,
     mcp_headers,
     records_from,
@@ -94,3 +97,70 @@ def test_a_payload_whose_timestamp_cannot_be_read_is_refused() -> None:
 def test_a_payload_that_is_not_a_record_at_all_is_refused() -> None:
     with pytest.raises(ObservabilityPlatformError):
         records_from(["container OOMKilled"])
+
+
+async def _answer() -> str:
+    return "ran"
+
+
+def test_a_coroutine_runs_when_no_loop_is_running() -> None:
+    assert blocking_run(_answer()) == "ran"
+
+
+def test_a_coroutine_runs_from_inside_a_running_loop() -> None:
+    """ADK calls a synchronous tool inline on its own loop.
+
+    The tool reaches this adapter, which has its own coroutine to run.
+    ``asyncio.run`` refuses that outright, which is why the live path failed
+    where every substituted test passed.
+    """
+
+    async def _from_inside_a_loop() -> str:
+        return blocking_run(_answer())
+
+    assert asyncio.run(_from_inside_a_loop()) == "ran"
+
+
+def test_the_answer_comes_back_from_inside_a_running_loop() -> None:
+    async def _double(value: int) -> int:
+        return value * 2
+
+    async def _from_inside_a_loop() -> int:
+        return blocking_run(_double(21))
+
+    assert asyncio.run(_from_inside_a_loop()) == 42
+
+
+def test_a_failure_inside_a_running_loop_still_reaches_the_caller() -> None:
+    async def _explodes() -> None:
+        raise ObservabilityPlatformError("the platform refused")
+
+    async def _from_inside_a_loop() -> None:
+        blocking_run(_explodes())
+
+    with pytest.raises(ObservabilityPlatformError, match="refused"):
+        asyncio.run(_from_inside_a_loop())
+
+
+def test_a_count_is_read_from_an_aggregation_result() -> None:
+    assert count_from({"data": [{"count": 47}]}) == 47
+
+
+def test_a_count_of_nothing_is_zero_rather_than_an_error() -> None:
+    """A service that logged nothing matching is a finding, not a failure."""
+    assert count_from({"data": []}) == 0
+
+
+def test_a_count_of_zero_is_read_as_zero() -> None:
+    assert count_from({"data": [{"count": 0}]}) == 0
+
+
+def test_a_count_that_cannot_be_read_is_refused() -> None:
+    with pytest.raises(ObservabilityPlatformError):
+        count_from({"data": [{"count": "many"}]})
+
+
+def test_a_negative_count_is_refused() -> None:
+    """However the platform got there, fewer than none did not happen."""
+    with pytest.raises(ObservabilityPlatformError):
+        count_from({"data": [{"count": -1}]})

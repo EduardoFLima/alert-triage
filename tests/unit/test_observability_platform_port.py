@@ -22,6 +22,9 @@ class _Platform:
     ) -> Sequence[LogRecord]:
         return ()
 
+    def count_logs(self, service: str, window: Window, query: str) -> int:
+        return 0
+
 
 def test_an_implementation_needs_only_the_ports_own_vocabulary() -> None:
     assert isinstance(_Platform(), ObservabilityPlatform)
@@ -44,3 +47,19 @@ def test_a_platform_answers_in_domain_records() -> None:
     found = _Platform().search_logs("checkout", WINDOW, "status:error")
 
     assert all(isinstance(record, LogRecord) for record in found)
+
+
+def test_a_platform_that_only_searches_is_not_a_platform() -> None:
+    """Counting is its own capability: a sample of records is not a total."""
+
+    class _OnlySearches:
+        def search_logs(
+            self, service: str, window: Window, query: str
+        ) -> Sequence[LogRecord]:
+            return ()
+
+    assert not isinstance(_OnlySearches(), ObservabilityPlatform)
+
+
+def test_a_platform_counts_in_the_ports_own_vocabulary() -> None:
+    assert _Platform().count_logs("checkout", WINDOW, "status:error") == 0

@@ -37,8 +37,8 @@ def test_the_window_an_incident_spans_is_read_from_its_alerts() -> None:
 
     incident = _incident(last, first)
 
-    assert incident.started_at == first.fired_at
-    assert incident.latest_alert_at == last.fired_at
+    assert incident.window.start == first.fired_at
+    assert incident.window.end == last.fired_at
 
 
 def test_there_is_no_incident_without_the_alerts_that_opened_it() -> None:
@@ -60,9 +60,9 @@ def test_absorbing_a_later_alert_extends_the_window() -> None:
 
     grown = incident.absorb([_alert(timedelta(minutes=3), source_id="b")])
 
-    assert grown.started_at == NOON
-    assert grown.latest_alert_at == NOON + timedelta(minutes=3)
-    assert incident.latest_alert_at == NOON, "the original is left as it stands"
+    assert grown.window.start == NOON
+    assert grown.window.end == NOON + timedelta(minutes=3)
+    assert incident.window.end == NOON, "the original is left as it stands"
 
 
 def test_an_alert_already_absorbed_is_not_recorded_twice() -> None:
