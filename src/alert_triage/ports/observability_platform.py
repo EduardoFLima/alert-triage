@@ -60,29 +60,3 @@ class ObservabilityPlatform(Protocol):
                 Never signalled by returning an empty or partial result.
         """
         ...
-
-    def count_logs(self, service: str, window: Window, query: str) -> int:
-        """Count a service's matching log records over a window.
-
-        Deliberately its own capability rather than something a caller derives
-        from ``search_logs``. A search returns a page of records to read; this
-        answers "how many are there", which is the number a finding reports and
-        which no sample of records can establish.
-
-        It exists so that "seen 400 times" is something the platform said
-        rather than something the investigation counted, which is the
-        difference between evidence and arithmetic nobody checked.
-
-        Args:
-            service: Service tag whose logs are counted.
-            window: The period to count over.
-            query: What to count, in the caller's own terms.
-
-        Returns:
-            How many records matched. Zero is a success.
-
-        Raises:
-            ObservabilityPlatformError: The count could not be performed. Never
-                signalled by returning zero.
-        """
-        ...

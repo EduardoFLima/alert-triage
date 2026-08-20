@@ -67,7 +67,7 @@ def test_a_firing_incident_absorbs_only_the_alerts_it_has_not_seen() -> None:
 
     assert resulting.id == incident.id
     assert resulting.alerts == (seen, fresh)
-    assert resulting.window.end == fresh.fired_at
+    assert resulting.latest_alert_at == fresh.fired_at
 
 
 def test_a_burst_straddling_two_runs_is_the_incident_it_would_have_been() -> None:

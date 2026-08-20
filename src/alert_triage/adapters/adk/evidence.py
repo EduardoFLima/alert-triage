@@ -41,17 +41,8 @@ class Retrieved:
     """
 
     def __init__(self) -> None:
-        """Start with nothing retrieved, nothing citable, and nothing counted."""
+        """Start with nothing retrieved and nothing citable."""
         self._records: dict[str, LogRecord] = {}
-        self._counts: set[int] = set()
-
-    def counted(self, count: int) -> None:
-        """Remember a total the platform reported during this investigation."""
-        self._counts.add(count)
-
-    def was_counted(self, count: int) -> bool:
-        """Whether the platform actually reported this total."""
-        return count in self._counts
 
     def offer(self, records: Iterable[LogRecord]) -> list[dict[str, Any]]:
         """Keep these records and describe them for the model.
@@ -121,38 +112,9 @@ def _finding(payload: Any, retrieved: Retrieved) -> Finding | None:
     return Finding(
         signal=Signal.LOGS,
         observation=observation,
-        occurrences=_credited(payload, retrieved, examples, observation),
+        occurrences=max(_occurrences(payload), len(examples)),
         examples=examples,
     )
-
-
-def _credited(
-    payload: dict[str, Any],
-    retrieved: Retrieved,
-    examples: tuple[LogRecord, ...],
-    observation: str,
-) -> int:
-    """How many times to say the pattern occurred, on the platform's authority.
-
-    Citations settle whether a record is real; they say nothing about how many
-    of them there are, and "3 records, seen 400 times" is a claim no citation
-    can check. So a count is kept only when the platform actually returned it
-    during this investigation. Anything else falls back to what can be shown,
-    which is the records in hand — an undercount is a smaller lie than an
-    invented one, and the records sit beside it either way.
-    """
-    claimed = _occurrences(payload)
-    if retrieved.was_counted(claimed):
-        return max(claimed, len(examples))
-    if claimed:
-        _log.warning(
-            "The finding %r claimed %d occurrences, which the platform never "
-            "reported; reporting the %d record(s) shown instead",
-            observation,
-            claimed,
-            len(examples),
-        )
-    return len(examples)
 
 
 def _examples(

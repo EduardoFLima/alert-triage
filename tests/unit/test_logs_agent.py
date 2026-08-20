@@ -73,7 +73,7 @@ def test_the_agent_is_given_the_ports_tool_and_no_other() -> None:
     def _search(service: str, start: str, end: str, query: str) -> list[dict[str, str]]:
         return []
 
-    agent = build_logs_agent(model="a-model", tools=[_search])
+    agent = build_logs_agent(model="a-model", search_logs=_search)
 
     assert [getattr(tool, "__name__", None) for tool in agent.tools] == ["_search"]
 
@@ -82,13 +82,13 @@ def test_the_agent_runs_on_the_configured_model() -> None:
     def _search(service: str, start: str, end: str, query: str) -> list[dict[str, str]]:
         return []
 
-    assert build_logs_agent(model="a-model", tools=[_search]).model == "a-model"
+    assert build_logs_agent(model="a-model", search_logs=_search).model == "a-model"
 
 
 def test_the_agent_reports_through_the_findings_schema() -> None:
     def _search(service: str, start: str, end: str, query: str) -> list[dict[str, str]]:
         return []
 
-    agent = build_logs_agent(model="a-model", tools=[_search])
+    agent = build_logs_agent(model="a-model", search_logs=_search)
 
     assert agent.output_schema is ReportedFindings

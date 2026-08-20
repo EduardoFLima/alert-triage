@@ -12,8 +12,7 @@ Datadog's field names.
 
 import asyncio
 import json
-from collections.abc import Coroutine, Iterable, Sequence
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -21,38 +20,6 @@ from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.domain.findings import LogRecord
 from alert_triage.domain.window import Window
 from alert_triage.ports.observability_platform import ObservabilityPlatformError
-
-
-def blocking_run[T](coroutine: Coroutine[Any, Any, T]) -> T:
-    """Run a coroutine to completion from synchronous code, wherever that code is.
-
-    ``asyncio.run`` is the obvious way to do this and is wrong here. The agent
-    framework calls a synchronous tool *inline on its own event loop*; that tool
-    reaches this adapter, and ``asyncio.run`` refuses to start a second loop on
-    a thread that is already running one. Every test that substitutes the
-    platform passes, and the live path raises.
-
-    Off the loop there is nothing to work around. On it, the coroutine is handed
-    to a worker thread that has no loop of its own, and the caller blocks on the
-    result — which is what it was going to do anyway, the port being synchronous
-    by design.
-
-    Args:
-        coroutine: The work to run.
-
-    Returns:
-        Whatever the coroutine returned.
-
-    Raises:
-        Exception: Whatever the coroutine raised, unchanged.
-    """
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coroutine)
-    with ThreadPoolExecutor(max_workers=1) as offloaded:
-        return offloaded.submit(asyncio.run, coroutine).result()
-
 
 LOGS_TOOLSET = "core"
 """The one toolset holding the log search this port needs.
@@ -143,50 +110,12 @@ def _instant(raw: Any) -> datetime:
 
 
 LOG_SEARCH_TOOL = "search_datadog_logs"
-LOG_ANALYSIS_TOOL = "analyze_datadog_logs"
-"""The MCP tools behind ``search_logs`` and ``count_logs``.
+"""The MCP tool behind ``search_logs``.
 
-Named here and nowhere else. They are the only Datadog-specific strings in the
-investigation path, and keeping them inside the adapter is what lets a second
+Named here and nowhere else. It is the one Datadog-specific string in the
+investigation path, and keeping it inside the adapter is what lets a second
 platform satisfy the same port without an agent noticing.
 """
-
-COUNT_ANALYSIS = "SELECT count(*) AS count FROM logs"
-"""What ``count_logs`` asks the log analysis for.
-
-Written here rather than left to the agent. A model composing its own SQL is a
-query surface nobody can check, and the whole point of counting on the platform
-is that the number comes back as evidence rather than as arithmetic the
-investigation did in its head.
-"""
-
-
-def count_from(payload: Any) -> int:
-    """Read the count out of a log analysis result.
-
-    Args:
-        payload: What the analysis returned, in the platform's own shape.
-
-    Returns:
-        How many records matched. An analysis with no rows counted nothing,
-        which is zero rather than an error.
-
-    Raises:
-        ObservabilityPlatformError: The result carried no readable count.
-    """
-    rows = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(rows, list):
-        raise ObservabilityPlatformError(
-            "The platform's log analysis carried no rows to count"
-        )
-    if not rows:
-        return 0
-    count = rows[0].get("count") if isinstance(rows[0], dict) else None
-    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
-        raise ObservabilityPlatformError(
-            f"The platform returned a count that could not be read: {count!r}"
-        )
-    return count
 
 
 class DatadogMcpPlatform:
@@ -230,56 +159,18 @@ class DatadogMcpPlatform:
             ObservabilityPlatformError: The search could not be performed, or
                 what came back could not be read as log records.
         """
-        result = self._invoke(
-            LOG_SEARCH_TOOL,
-            self._log_arguments(service, window, query),
-            doing=f"Searching {service} logs",
-        )
-        return records_from(_entries(result))
-
-    def count_logs(self, service: str, window: Window, query: str) -> int:
-        """Count a service's matching log records over a window.
-
-        Args:
-            service: Service tag whose logs are counted.
-            window: The period to count over.
-            query: What to count, in the caller's own terms.
-
-        Returns:
-            How many records matched.
-
-        Raises:
-            ObservabilityPlatformError: The count could not be performed, or
-                what came back carried no readable count.
-        """
-        result = self._invoke(
-            LOG_ANALYSIS_TOOL,
-            self._log_arguments(service, window, query) | {"query_sql": COUNT_ANALYSIS},
-            doing=f"Counting {service} logs",
-        )
-        return count_from(_answered(result))
-
-    def _log_arguments(
-        self, service: str, window: Window, query: str
-    ) -> dict[str, str]:
-        """The arguments every log tool takes, in the platform's own spelling."""
-        return {
-            "query": f"service:{service} {query}".strip(),
-            "from": window.start.isoformat(),
-            "to": window.end.isoformat(),
-        }
-
-    def _invoke(self, tool: str, arguments: dict[str, str], *, doing: str) -> Any:
-        """Call one MCP tool, translating anything that goes wrong on the way."""
         try:
-            return blocking_run(self._call(tool, arguments))
+            payloads = asyncio.run(self._call(service, window, query))
         except ObservabilityPlatformError:
             raise
         except Exception as error:
-            raise ObservabilityPlatformError(f"{doing} failed: {error}") from error
+            raise ObservabilityPlatformError(
+                f"Searching {service} logs failed: {error}"
+            ) from error
+        return records_from(payloads)
 
-    async def _call(self, tool: str, arguments: dict[str, str]) -> Any:
-        """Open a session, call one tool, and hand back its raw result."""
+    async def _call(self, service: str, window: Window, query: str) -> Iterable[Any]:
+        """Open a session, call the log search once, and read what came back."""
         from mcp import ClientSession
         from mcp.client.streamable_http import (
             create_mcp_http_client,
@@ -293,34 +184,16 @@ class DatadogMcpPlatform:
             ClientSession(streams[0], streams[1]) as session,
         ):
             await session.initialize()
-            return await session.call_tool(
-                tool, arguments, read_timeout_seconds=self._timeout_seconds
+            result = await session.call_tool(
+                LOG_SEARCH_TOOL,
+                {
+                    "query": f"service:{service} {query}".strip(),
+                    "from": window.start.isoformat(),
+                    "to": window.end.isoformat(),
+                },
+                read_timeout_seconds=self._timeout_seconds,
             )
-
-
-def _answered(result: Any) -> Any:
-    """Read a tool result's own payload, whichever way the server carried it."""
-    _refused(result)
-    structured = getattr(result, "structuredContent", None)
-    if isinstance(structured, dict):
-        return structured
-    text = _text_of(result)
-    if not text:
-        return {}
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as error:
-        raise ObservabilityPlatformError(
-            f"The platform's answer could not be read: {error}"
-        ) from error
-
-
-def _refused(result: Any) -> None:
-    """Fail on a tool the server would not run, rather than reading its excuse."""
-    if getattr(result, "isError", False):
-        raise ObservabilityPlatformError(
-            f"The platform refused the request: {_text_of(result)}"
-        )
+        return _entries(result)
 
 
 def _entries(result: Any) -> Iterable[Any]:
@@ -330,7 +203,10 @@ def _entries(result: Any) -> Iterable[Any]:
     here, so the shape of the answer stays the adapter's problem rather than
     anybody else's.
     """
-    _refused(result)
+    if getattr(result, "isError", False):
+        raise ObservabilityPlatformError(
+            f"The platform refused the log search: {_text_of(result)}"
+        )
     structured = getattr(result, "structuredContent", None)
     if isinstance(structured, dict):
         found = _listed(structured)

@@ -27,16 +27,11 @@ class _Platform:
     """A platform that answers with canned records, or refuses."""
 
     def __init__(
-        self,
-        records: Sequence[LogRecord] = (),
-        failure: str | None = None,
-        total: int = 0,
+        self, records: Sequence[LogRecord] = (), failure: str | None = None
     ) -> None:
         self.records = records
         self.failure = failure
-        self.total = total
         self.asked: list[tuple[str, Window, str]] = []
-        self.counted: list[tuple[str, Window, str]] = []
 
     def search_logs(
         self, service: str, window: Window, query: str
@@ -45,12 +40,6 @@ class _Platform:
         if self.failure is not None:
             raise ObservabilityPlatformError(self.failure)
         return self.records
-
-    def count_logs(self, service: str, window: Window, query: str) -> int:
-        self.counted.append((service, window, query))
-        if self.failure is not None:
-            raise ObservabilityPlatformError(self.failure)
-        return self.total
 
 
 def _record(message: str = "container OOMKilled") -> LogRecord:
@@ -62,11 +51,9 @@ def _agent_that(
 ) -> Any:
     """A stand-in for the model: it calls the tool, then reports what we say."""
 
-    def _run(tools: list[Any], prompt: str) -> dict[str, Any]:
-        search, count = tools
+    def _run(tool: Any, prompt: str) -> dict[str, Any]:
         if searches:
-            search("checkout", NOON.isoformat(), NOON.isoformat(), "status:error")
-            count("checkout", NOON.isoformat(), NOON.isoformat(), "status:error")
+            tool("checkout", NOON.isoformat(), NOON.isoformat(), "status:error")
         return {"findings": reports if reports is not None else []}
 
     return _run
@@ -124,7 +111,7 @@ def test_a_platform_failure_becomes_an_investigator_failure() -> None:
 
 
 def test_a_model_failure_becomes_an_investigator_failure() -> None:
-    def _explodes(tools: list[Any], prompt: str) -> dict[str, Any]:
+    def _explodes(tool: Any, prompt: str) -> dict[str, Any]:
         raise RuntimeError("the model refused")
 
     investigator = AdkInvestigator(platform=_Platform(), run_agent=_explodes)
@@ -165,8 +152,8 @@ def test_the_records_offered_to_the_model_carry_citable_identifiers() -> None:
     platform = _Platform([_record("first"), _record("second")])
     offered: list[Any] = []
 
-    def _capture(tools: list[Any], prompt: str) -> dict[str, Any]:
-        offered.extend(tools[0]("checkout", NOON.isoformat(), NOON.isoformat(), "*"))
+    def _capture(tool: Any, prompt: str) -> dict[str, Any]:
+        offered.extend(tool("checkout", NOON.isoformat(), NOON.isoformat(), "*"))
         return {"findings": []}
 
     AdkInvestigator(platform=platform, run_agent=_capture).investigate(_incident())
