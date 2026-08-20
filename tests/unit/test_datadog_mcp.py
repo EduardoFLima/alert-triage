@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from alert_triage.adapters.datadog.connection import DatadogConnection
-from alert_triage.adapters.datadog.mcp import (
+from alert_triage.adapters.datadog.datadog_mcp import (
     API_KEY_HEADER,
     APP_KEY_HEADER,
     LOGS_TOOLSET,

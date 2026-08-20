@@ -23,7 +23,7 @@ from alert_triage.adapters.datadog.connection import (
     DatadogConnection,
     resolve_connection,
 )
-from alert_triage.adapters.datadog.mcp import DatadogMcpPlatform
+from alert_triage.adapters.datadog.datadog_mcp import DatadogMcpPlatform
 from alert_triage.adapters.fan_out.resolution import resolve_notifier
 from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.sqlite_ledger.location import resolve_ledger_path
@@ -57,10 +57,12 @@ def execute(
             configured. Nothing is fetched and nothing is delivered.
     """
     config = load_config(config_path, env)
-    connection = resolve_connection(env)
+    datadog_connection = resolve_connection(env)
     notifier = resolve_notifier(env)
-    source = build_alert_source(connection, config.ingestion, config.scope.owner)
-    investigator = build_investigator(connection, config.investigation)
+    source = build_alert_source(
+        datadog_connection, config.ingestion, config.scope.owner
+    )
+    investigator = build_investigator(datadog_connection, config.investigation)
 
     with closing(sqlite3.connect(resolve_ledger_path(env))) as database:
         return run(
@@ -81,7 +83,7 @@ def execute(
 
 
 def build_investigator(
-    connection: DatadogConnection, investigation: Investigation
+    datadog_connection: DatadogConnection, investigation: Investigation
 ) -> Investigator:
     """Assemble the agent crew over the platform it gathers evidence from.
 
@@ -91,14 +93,14 @@ def build_investigator(
     notifier.
 
     Args:
-        connection: Where Datadog is and how to authenticate.
+        datadog_connection: Where Datadog is and how to authenticate.
         investigation: How an investigation reasons.
 
     Returns:
         The investigator a run is handed.
     """
     return AdkInvestigator(
-        platform=DatadogMcpPlatform(connection),
+        platform=DatadogMcpPlatform(datadog_connection),
         run_agent=run_with_adk(investigation.model),
     )
 

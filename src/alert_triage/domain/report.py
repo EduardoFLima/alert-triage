@@ -65,7 +65,7 @@ class TriageReport:
         return self.incident.service
 
 
-def build_pass_through_report(incident: Incident) -> TriageReport:
+def _build_pass_through_report(incident: Incident) -> TriageReport:
     """Build the report the system sends while investigation does not exist yet.
 
     It carries the incident's own alerts and no conclusion of any kind, which
@@ -109,11 +109,11 @@ def build_report(incident: Incident, findings: Findings | None) -> TriageReport:
         The report to deliver.
     """
     if findings is None:
-        return build_pass_through_report(incident)
-    return build_investigated_report(incident, findings)
+        return _build_pass_through_report(incident)
+    return _build_investigated_report(incident, findings)
 
 
-def build_investigated_report(incident: Incident, findings: Findings) -> TriageReport:
+def _build_investigated_report(incident: Incident, findings: Findings) -> TriageReport:
     """Build the report for an incident an investigation actually looked at.
 
     States what was found and the records behind it, and still lists the alerts
@@ -155,7 +155,7 @@ def _investigated_body(incident: Incident, findings: Findings) -> str:
     """Lead with what was found, then the alerts that prompted looking."""
     lines = [
         f"{_alert_count(len(incident.alerts))} fired for service "
-        f"{incident.service} since {incident.started_at.isoformat()}.",
+        f"{incident.service} since {incident.window.start.isoformat()}.",
         "",
         *_findings_lines(findings),
         "",
@@ -203,7 +203,7 @@ def _body(incident: Incident) -> str:
     """Say what fired, when, and where to look — and that nobody has looked."""
     lines = [
         f"{_alert_count(len(incident.alerts))} fired for service "
-        f"{incident.service} since {incident.started_at.isoformat()}.",
+        f"{incident.service} since {incident.window.start.isoformat()}.",
         "",
         NOT_INVESTIGATED,
         "",

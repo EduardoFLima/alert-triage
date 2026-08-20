@@ -52,16 +52,6 @@ class Incident:
         object.__setattr__(self, "alerts", tuple(sorted(self.alerts, key=_fired_at)))
 
     @property
-    def started_at(self) -> datetime:
-        """When the earliest alert of the incident fired."""
-        return self.alerts[0].fired_at
-
-    @property
-    def latest_alert_at(self) -> datetime:
-        """When the most recent alert of the incident fired."""
-        return self.alerts[-1].fired_at
-
-    @property
     def window(self) -> Window:
         """The stretch of time the incident's alerts span.
 
@@ -69,7 +59,7 @@ class Incident:
         is wanted around the alerts, not around the run that happened to fetch
         them.
         """
-        return Window(start=self.started_at, end=self.latest_alert_at)
+        return Window(start=self.alerts[0].fired_at, end=self.alerts[-1].fired_at)
 
     def absorb(self, alerts: Iterable[Alert]) -> "Incident":
         """Take in the alerts of this incident that are not recorded yet.
