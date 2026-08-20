@@ -10,6 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from alert_triage.adapters.adk.credentials import (
+    API_KEY_VARIABLE as MODEL_API_KEY_VARIABLE,
+)
 from alert_triage.adapters.datadog.connection import (
     API_KEY_VARIABLE,
     APP_KEY_VARIABLE,
@@ -54,6 +57,7 @@ CONNECTION_VARIABLES = (
     API_KEY_VARIABLE,
     APP_KEY_VARIABLE,
     SITE_VARIABLE,
+    MODEL_API_KEY_VARIABLE,
     LEDGER_PATH_VARIABLE,
     SMTP_HOST_VARIABLE,
     SMTP_PORT_VARIABLE,
@@ -126,5 +130,9 @@ def test_the_example_env_file_supplies_nothing_by_being_copied_unedited() -> Non
     """Every optional name stays commented out, so defaults remain the defaults."""
     environment = resolve_environment(ENV_EXAMPLE, {})
 
-    assert set(environment) == {API_KEY_VARIABLE, APP_KEY_VARIABLE}
+    assert set(environment) == {
+        API_KEY_VARIABLE,
+        APP_KEY_VARIABLE,
+        MODEL_API_KEY_VARIABLE,
+    }
     assert not any(environment.values())

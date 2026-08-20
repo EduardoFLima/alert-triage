@@ -5,9 +5,10 @@ is what keeps ``run`` free of any integration and what makes swapping one — a
 second platform, another channel, a different store — a change to this module
 alone.
 
-Configuration is resolved before anything is built: a deployment missing its
-scope or its only notification channel refuses to start, rather than fetching
-alerts it could tell nobody about.
+Nothing is fetched until everything is assembled, and each piece refuses over
+what it alone needs: a deployment missing its scope, its only notification
+channel, or the credential its investigations reason on stops here, rather
+than fetching alerts it could tell nobody about or investigate.
 """
 
 import sqlite3
@@ -17,6 +18,7 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
+from alert_triage.adapters.adk.credentials import require_model_credential
 from alert_triage.adapters.adk.investigator import AdkInvestigator, run_with_adk
 from alert_triage.adapters.datadog.alert_source import build_alert_source
 from alert_triage.adapters.datadog.connection import (
@@ -53,8 +55,9 @@ def execute(
 
     Raises:
         ConfigError: The deployment is not configured well enough to run —
-            the scope is missing, a credential is absent, or no channel is
-            configured. Nothing is fetched and nothing is delivered.
+            the scope is missing, a platform or model credential is absent, or
+            no channel is configured. Nothing is fetched and nothing is
+            delivered.
     """
     config = load_config(config_path, env)
     datadog_connection = resolve_connection(env)
@@ -62,7 +65,7 @@ def execute(
     source = build_alert_source(
         datadog_connection, config.ingestion, config.scope.owner
     )
-    investigator = build_investigator(datadog_connection, config.investigation)
+    investigator = build_investigator(env, datadog_connection, config.investigation)
 
     with closing(sqlite3.connect(resolve_ledger_path(env))) as database:
         return run(
@@ -83,7 +86,9 @@ def execute(
 
 
 def build_investigator(
-    datadog_connection: DatadogConnection, investigation: Investigation
+    env: Mapping[str, str] | None,
+    datadog_connection: DatadogConnection,
+    investigation: Investigation,
 ) -> Investigator:
     """Assemble the agent crew over the platform it gathers evidence from.
 
@@ -92,13 +97,26 @@ def build_investigator(
     MCP server, exactly as it already substitutes the alert source and the
     notifier.
 
+    The model's credential is checked here rather than beside the other
+    startup checks because this is what needs it: a deployment that stops
+    building an investigator stops needing a key, and a check kept somewhere
+    that merely remembers to run it would outlive what it guards.
+
     Args:
+        env: Environment the model's credential is read from, or ``None`` for
+            the process's.
         datadog_connection: Where Datadog is and how to authenticate.
         investigation: How an investigation reasons.
 
     Returns:
         The investigator a run is handed.
+
+    Raises:
+        ConfigError: The model has no credential. Refused while the run is
+            still being assembled, so no alert is fetched and no attempt is
+            spent discovering it.
     """
+    require_model_credential(env)
     return AdkInvestigator(
         platform=DatadogMcpPlatform(datadog_connection),
         run_agent=run_with_adk(investigation.model),

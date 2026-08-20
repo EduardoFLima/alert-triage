@@ -6,12 +6,14 @@ from uuid import UUID
 
 import pytest
 
+from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.app import composition
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import Finding, Findings, LogRecord, Signal
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
-from alert_triage.ports.config import ConfigError
+from alert_triage.ports.config import ConfigError, Investigation
+from alert_triage.ports.investigator import Investigator
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
@@ -21,6 +23,7 @@ ENVIRONMENT = {
     "SCOPE_OWNER": "sre",
     "DD_API_KEY": "api-key",
     "DD_APP_KEY": "app-key",
+    "GOOGLE_API_KEY": "model-key",
     "ALERT_TRIAGE_LEDGER_PATH": ":memory:",
     "ALERT_TRIAGE_SMTP_HOST": "relay.example",
     "ALERT_TRIAGE_EMAIL_FROM": "triage@example",
@@ -103,6 +106,12 @@ def investigator() -> FakeInvestigator:
 
 
 @pytest.fixture
+def connection() -> DatadogConnection:
+    """Where Datadog is, as the environment would have resolved it."""
+    return DatadogConnection(site="datadoghq.com", api_key="api-key", app_key="app-key")
+
+
+@pytest.fixture
 def notifier() -> FakeNotifier:
     """The notifier the composition root is made to resolve."""
     return FakeNotifier()
@@ -178,6 +187,52 @@ def test_a_missing_scope_refuses_to_start_and_fetches_nothing(
 
     with pytest.raises(ConfigError, match=r"scope\.owner"):
         composition.execute(now=NOON, env=without_scope, config_path=no_config_file)
+
+    assert source.asked_since is None
+
+
+def test_an_investigator_is_built_over_the_platform_it_gathers_evidence_from(
+    connection: DatadogConnection,
+) -> None:
+    """The real adapters, which reach nothing until they are asked to."""
+    built = composition.build_investigator(
+        {"GOOGLE_API_KEY": "model-key"}, connection, Investigation()
+    )
+
+    assert isinstance(built, Investigator)
+
+
+def test_an_investigator_refuses_to_be_built_without_a_model_credential(
+    connection: DatadogConnection,
+) -> None:
+    """Checked where the model is reached from, not somewhere that remembers to."""
+    with pytest.raises(ConfigError, match="GOOGLE_API_KEY"):
+        composition.build_investigator({}, connection, Investigation())
+
+
+def test_a_missing_model_credential_refuses_to_start_and_fetches_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    source: FakeAlertSource,
+    notifier: FakeNotifier,
+    no_config_file: Path,
+) -> None:
+    """An investigation nothing could authenticate is found out before the cost.
+
+    The investigator is deliberately not substituted here: building it for
+    real is what the missing credential has to stop.
+    """
+    monkeypatch.setattr(
+        composition, "build_alert_source", lambda *args, **kwargs: source
+    )
+    monkeypatch.setattr(composition, "resolve_notifier", lambda env: notifier)
+    without_credential = {
+        name: value for name, value in ENVIRONMENT.items() if name != "GOOGLE_API_KEY"
+    }
+
+    with pytest.raises(ConfigError, match="GOOGLE_API_KEY"):
+        composition.execute(
+            now=NOON, env=without_credential, config_path=no_config_file
+        )
 
     assert source.asked_since is None
 
