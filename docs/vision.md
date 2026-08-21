@@ -430,8 +430,9 @@ under the platform's own conventional variable names rather than the
 - `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) — the credential an investigation's
   model reasons on, under the Google GenAI SDK's own names so an operator
   who already exports one exports nothing new. No default. A deployment
-  authenticating against Vertex AI sets `GOOGLE_GENAI_USE_VERTEXAI`
-  instead, and is not refused for having no API key. Which model runs is
+  authenticating against the enterprise platform sets
+  `GOOGLE_GENAI_USE_ENTERPRISE` instead, and is not refused for having no
+  API key. Which model runs is
   behavior and lives in `config.yaml`; the key it costs to reach is a
   deployment fact and lives here.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the triage ledger keeps its records,
