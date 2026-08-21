@@ -19,13 +19,20 @@ does the legwork and presents a hypothesis with its confidence, not a verdict.
 
 ## Architecture
 
-Hexagonal (ports & adapters). The domain doesn't know which observability
-tool, which multi-agent framework, or which notification channel it's
-talking to — those are all adapters behind ports. This matters for two
-concrete reasons: the tool is meant to be shared publicly so others can
-plug in their own observability/notification tooling, and it needs to run
-in three different execution contexts (manual/local, container, GKE/Cloud
-Run) without the core changing.
+Hexagonal (ports & adapters). The domain doesn't know which alert source,
+which multi-agent framework, or which notification channel it's talking
+to — those are all adapters behind ports. This matters for two concrete
+reasons: the tool is meant to be shared publicly so others can plug in
+their own observability/notification tooling, and it needs to run in three
+different execution contexts (manual/local, container, GKE/Cloud Run)
+without the core changing.
+
+One path is deliberately *not* a hand-written port: the evidence a
+specialist agent gathers while investigating. That boundary is MCP itself.
+The reasoning is in [Evidence and the platform
+boundary](#evidence-and-the-platform-boundary) below, and it is a reversal
+— slice 6 built the port, shipped it, and showed what extending it would
+cost.
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
@@ -45,7 +52,13 @@ Run) without the core changing.
     ┌───────▼──────┐  ┌───────▼────────┐               ┌──────▼──────┐
     │ Datadog      │  │ ADK agent crew │               │ Email       │
     │ REST adapter │  │ adapter        │               │ Teams       │
-    └──────────────┘  └────────────────┘               └─────────────┘
+    └──────────────┘  └───────┬────────┘               └─────────────┘
+                              │ MCP toolset, filtered per specialist,
+                              │ every result through the evidence callback
+                      ┌───────▼────────┐
+                      │ Observability  │
+                      │ MCP server     │
+                      └────────────────┘
 ```
 
 ### Ports
@@ -53,14 +66,14 @@ Run) without the core changing.
 - **AlertSource** — fetch recent alerts (Datadog REST adapter for v1, against
   the Events API). Ingestion asks one fixed question on a schedule and wants a
   typed answer with real pagination and errors that tell "no alerts" apart
-  from "auth rejected"; MCP earns its keep where a model discovers and
-  chooses tools at runtime, which is the `ObservabilityPlatform` port below,
-  not this one.
+  from "auth rejected". MCP earns its keep where a model discovers and
+  chooses tools at runtime, which is the investigation path, not this one —
+  and that path is reached through MCP directly rather than through a port
+  of ours.
 - **Investigator** — given a group of related alerts, produce findings +
-  hypothesis (ADK multi-agent adapter for v1)
-- **ObservabilityPlatform** — queried by the investigator's specialist
-  agents for logs, traces, and metrics around the alert window (Datadog
-  MCP adapter for v1)
+  hypothesis (ADK multi-agent adapter for v1). This port stays: what the
+  domain wants is "investigate this incident, give me findings", and that
+  question is genuinely independent of who answers it.
 - **TriageLedger** — tracks which alert-groups have already been reported
   and when, to dedup and enforce re-notify cooldown
 - **Notifier** — deliver the triage report (Email + Teams adapters for v1)
@@ -78,13 +91,35 @@ once, not per-alert.
 
 The Investigator is one adapter implementation: a crew of specialist
 agents, each scoped to one observability dimension, feeding a reasoning
-agent that forms the actual hypothesis:
+agent that forms the actual hypothesis.
+
+Each specialist is a **declaration**, not a construction: its name, the
+signal it reports under, its instruction, its output schema, the toolsets
+and tool names it may reach, and — optionally — the model it runs on. The
+tools are part of the specialist's identity, since what an APM agent *is*
+includes what it is allowed to ask. Changing them is editing one tuple
+rather than threading an argument through the coordinator that runs the
+crew. The composition root supplies only deployment facts: where the MCP
+server is, how to authenticate, and the default model.
+
+Two things that would otherwise be structural become cheap. A specialist
+can name its own model, so trace-waterfall reasoning can run on a stronger
+one than log pattern-spotting without either being a special case. And the
+coordinator never learns a tool signature, so adding the remaining
+specialists is adding declarations rather than editing the thing that runs
+them.
+
+The crew:
 
 - **APM agent** — service-level golden signals (latency, error rate,
   throughput), plus single-hop upstream/downstream evidence (e.g. "latency
   degraded, correlates with a call-volume increase from upstream service
   X"). Deliberately bounded to one hop — it does not recursively
   investigate the neighboring services themselves. That's a roadmap item.
+  On Datadog the dependency evidence is a tool rather than an inference:
+  `search_datadog_service_dependencies`. Note that Grafana has no
+  equivalent, which is one of the reasons the platform boundary moved —
+  see below.
 - **Trace agent** — specific slow/failed trace waterfall analysis
 - **Logs agent** — error/warning patterns around the alert window
 - **Infrastructure agent** — CPU/memory/disk/network around the alert
@@ -96,9 +131,127 @@ agent that forms the actual hypothesis:
 - **Report agent** — formats the Diagnostician's hypothesis + evidence into
   the actual email/Teams message
 
-Deploy-version comparisons (item: "did this start after a deploy") use
-Datadog's own service-version tag — no separate version-control integration
-needed for v1. Comparing against actual GitHub history is a roadmap item.
+Deploy-version comparisons (item: "did this start after a deploy") need no
+separate version-control integration for v1. Datadog answers the question
+directly with `get_change_stories` / `semantic_search_change_stories`,
+which return deployments and infrastructure changes over a window — a
+better answer than reading the service-version tag, and one the specialist
+reaches simply by listing the tool. Comparing against actual GitHub history
+remains a roadmap item.
+
+### Evidence and the platform boundary
+
+Slice 6 shipped an `ObservabilityPlatform` port: one typed method per
+question a specialist could ask, with a Datadog MCP adapter translating
+each answer into a domain record. It worked. Building it is also what
+showed it should not be extended, for three reasons, in the order they
+bite.
+
+**The catalogue is far larger than a port can track.** Datadog's MCP server
+exposes 150+ tools across 20+ toolsets. The four planned specialists want
+roughly fifteen between them — `analyze_datadog_logs`,
+`search_datadog_service_dependencies`, `apm_latency_bottleneck_summary`,
+`get_change_stories`, `search_datadog_k8s_resources`, and the rest. One
+method cost ~245 lines of adapter, nearly all of it turning JSON into other
+JSON. The volume is not the worst of it; the gate is. Widening what an
+agent may ask becomes a port change plus an adapter method plus a domain
+type plus tests, which prices every "what if the trace agent had this tool"
+experiment out of reach. Investigation quality is precisely the thing that
+has to be iterated on.
+
+**A second platform cannot satisfy the port anyway.** Checked against
+Grafana's MCP server rather than assumed. Every Grafana query tool takes a
+datasource UID discovered at runtime — a step with no Datadog counterpart
+and nowhere to hide inside an adapter. Grafana has no service-dependency
+tool at all, so the single-hop dependency evidence this document scopes
+into v1 would have no implementation behind it. And Grafana has primitives
+Datadog lacks — `find_error_pattern_logs`, `find_slow_requests` — that a
+Datadog-shaped port cannot express, so its own strengths would be
+unreachable through our abstraction. The port's promise, that substituting
+the platform leaves every agent unchanged, is not merely expensive to keep.
+Against a real second platform it is false.
+
+**The vocabulary was never neutral.** `LogRecord` carries timestamp, level,
+message, and service, read out of Datadog's `status` and `service` fields.
+A Loki stream is a label set and a line, with no guaranteed `service`
+label. The port claimed this project's vocabulary; what it actually had was
+Datadog's, untested against anything else.
+
+So MCP *is* the boundary. It is already a cross-vendor protocol for
+discovering and invoking tools, and wrapping it in a second, hand-written
+abstraction bought a neutrality that did not survive contact with a second
+vendor.
+
+#### Keeping the evidence discipline without the port
+
+The port was also where fabricated evidence was caught: every record passed
+through the adapter, so citations could be checked against what the
+platform really returned. That discipline is kept. It moves down one layer,
+to ADK's `after_tool_callback`, which sees every tool result before the
+model does and may replace it. Catching fabrication there is strictly more
+general, because it works for tools nobody wrote a method for.
+
+The citation unit generalises with it. Records-with-ids only works for
+tools returning discrete records; aggregations, flame graphs, dependency
+maps and trace waterfalls have no such thing, and those are among the most
+useful tools available. So both the call and the items within it are
+identified:
+
+```
+call-3           one tool call, its result held verbatim
+call-3/item-7    one record within that result
+```
+
+A pattern finding cites items; an aggregate finding cites the call. A
+finding citing neither is discarded, exactly as before.
+
+Two things the port gave for free now have to be built deliberately:
+
+- **A failed search must not read as silence.** `ObservabilityPlatformError`
+  kept "the service logged nothing" apart from "the search failed", which
+  are opposite findings. With a toolset, a failure comes back as an MCP
+  error result that the *model* interprets — and it may well decide the
+  service was quiet. The callback has to replace a failed result with an
+  explicit refusal the model cannot misread, and record the failure so the
+  investigation is reported as incomplete rather than empty. This is the
+  one genuine regression, and it gates the restructure.
+- **Evidence still has to render in an email.** With no per-tool domain
+  type, one shallow normaliser gives every retrieved item an id, an
+  instant, and a human-readable summary alongside its raw payload. One
+  normaliser, not one per tool.
+
+`before_tool_callback` is the matching seat on the way in, and it is where
+the per-agent tool-call bound belongs — see [Circuit
+breakers](#circuit-breakers).
+
+#### What portability now means
+
+Dropping the port does not drop the goal. It relocates it, and makes it
+honest. What stays platform-neutral is the machinery: the evidence
+callback, the output schemas, `Signal`, `Finding`, the report, the retry
+arc, the ledger. What is platform-specific is the specialist itself — its
+tool names and its instruction — because query dialects (Datadog's syntax,
+LogQL, PromQL) are not translatable in any case, and the old port only
+pretended otherwise by passing the dialect through a parameter labelled
+neutral.
+
+That is a smaller neutral core than the port claimed, and unlike the
+port's, it is true. It also fits the actual goal better. Sharing this
+publicly is a *contributor* story rather than a migration story, and the
+two have opposite economics: a port asks a contributor to implement fifteen
+methods before anything runs at all, whereas a declaration asks them to
+copy one specialist, swap a tuple of tool names, and rewrite one
+instruction — yielding a working Grafana logs specialist on its own,
+without touching the rest. It also lets a platform contribute specialists
+that have no counterpart elsewhere, rather than forcing every platform into
+Datadog's shape.
+
+What is lost is the completeness contract. A type checker could tell a
+contributor when a port was fully implemented; nothing tells them whether
+their instruction is any good. The answer to that is an evaluation harness,
+not a port — canned incidents with expected findings, scored per
+specialist. It is owed to the Datadog specialists just as much, which is
+why it is now a slice of its own rather than a nicety.
 
 ### Re-notification
 
@@ -164,6 +317,22 @@ A tripped breaker does not silently truncate: it produces a report marked
 routes through the escalation path — an incomplete automated triage is
 itself a signal a human should look sooner.
 
+Two of these defaults were set when a specialist had exactly one tool, and
+the move to MCP toolsets changes what they mean:
+
+- `max_tool_calls_per_agent` stops being a safety net and becomes a live
+  constraint. A specialist with one tool could hardly loop; one with six
+  and runtime discovery will, and on Grafana it must spend calls on
+  datasource discovery before it can ask anything at all. The bound now
+  belongs in `before_tool_callback`, which is a better seat than the old
+  design had for it — the callback can refuse a call rather than the
+  coordinator counting after the fact.
+- `max_mcp_retries` and `mcp_call_timeout_seconds` were ours to enforce
+  while we owned the MCP client. With `McpToolset`, ADK owns it, so these
+  have to be expressed through its connection parameters or dropped in
+  favour of what it already provides. Deciding which is part of the
+  restructure, not of this document.
+
 ## Config file
 
 A single YAML file (e.g. `config.yaml`) is the one place configuration is
@@ -192,6 +361,28 @@ it (or an environment variable) provides is not:
   settings, resolved independently of the `circuit_breakers` above: those
   bound an agent's tool calls during investigation, and the two will be
   tuned against different evidence.
+- `investigation` — optional. How an investigation reasons and how many
+  chances it gets: `model` (the default every specialist runs on) and
+  `max_attempts` (how many investigations one incident may be given in
+  total, first included, default three — one disables retrying). Because a
+  specialist is a named declaration, `model` can be overridden per
+  specialist without a schema change:
+
+  ```yaml
+  investigation:
+    model: gemini-2.5-flash        # the default for every specialist
+    specialists:
+      trace:
+        model: gemini-2.5-pro      # waterfall reasoning wants more
+  ```
+
+  The credential the model needs is *not* here — it is a deployment fact,
+  read from the environment like every other. Which tools a specialist may
+  reach is not here either: that is the specialist's identity, expressed in
+  code beside its instruction, not an operator setting. An operator tuning
+  tool lists at runtime would be editing the agent's job description
+  through a config file, and the instruction that assumes those tools would
+  not follow.
 - `re_notify` — optional. How long a report suppresses the next one for the
   same incident (`cooldown_seconds`, default 2 days).
 - `ledger` — optional. How long a closed incident is kept for a human to
@@ -236,6 +427,13 @@ under the platform's own conventional variable names rather than the
 - `DD_API_KEY`, `DD_APP_KEY` — Datadog credentials. No default; the
   application refuses to start without them.
 - `DD_SITE` — Datadog region, defaulting to `datadoghq.com`.
+- `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) — the credential an investigation's
+  model reasons on, under the Google GenAI SDK's own names so an operator
+  who already exports one exports nothing new. No default. A deployment
+  authenticating against Vertex AI sets `GOOGLE_GENAI_USE_VERTEXAI`
+  instead, and is not refused for having no API key. Which model runs is
+  behavior and lives in `config.yaml`; the key it costs to reach is a
+  deployment fact and lives here.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the triage ledger keeps its records,
   defaulting to `data/alert_triage.db` under the working directory. Unlike a
   credential it has a default, because a path is not a secret and a manual run
@@ -277,10 +475,19 @@ GCP (Cloud Run job or GKE) — GCP is the target landscape.
 
 ## Explicitly deferred (roadmap, not v1 scope)
 
-- FinOps agent (cost-impact or cost-anomaly investigation)
+- FinOps agent (cost-impact or cost-anomaly investigation). Datadog's
+  `cost_recommendations` makes this a specialist declaration rather than an
+  integration, which lowers its cost considerably.
 - Multi-hop dependency traversal (recursively investigating upstream/
   downstream services, not just single-hop evidence)
-- GitHub deploy-history correlation (beyond the DD version tag)
+- GitHub deploy-history correlation. Less urgent than it was: Datadog's
+  change-story tools already answer "did this start after a deploy" without
+  leaving the platform, so this is now about correlating with commits and
+  authors rather than about detecting the deploy at all.
+- A second observability platform (Grafana is the obvious candidate). What
+  it takes is set out under [What portability now
+  means](#what-portability-now-means): specialists of its own, not an
+  adapter implementing ours.
 
 ### Acknowledgement — the missing input
 
@@ -312,15 +519,18 @@ question rather than a feature:
 
 - **From the observability platform.** Datadog monitors already carry ack and
   mute state, and a team that acts usually acts there first. This needs no new
-  inbound channel — it is another read through the ports that already
-  exist — and it respects where people already work. Probably the first
-  thing to try.
+  inbound channel — it is another read through a boundary that already
+  exists — and it respects where people already work. Probably the first
+  thing to try, and cheaper than it looked: `search_datadog_monitors`
+  returns monitors by status, and Grafana OnCall's `update_alert_group`
+  acknowledges and resolves outright. Reaching either is adding a tool name
+  to a declaration, not building an integration.
 - **From the notification channel.** A reaction or reply on the Teams message,
   a reply to the email. Closest to where the report is actually read, but the
   `Notifier` port is one-way by design, and acknowledgement is inbound.
   Polling for reactions keeps the scheduled-job shape; a webhook does not —
   it turns a job that runs and exits into a service that must be reachable,
-  which is a deployment change (slice 12), not just a port.
+  which is a deployment change (slice 14), not just a port.
 
 Two failure modes worth designing against from the start:
 
@@ -330,7 +540,7 @@ Two failure modes worth designing against from the start:
   when the incident closes — so that going quiet is always a decision
   someone made recently.
 - **A worsening incident must break through.** Acknowledgement suppresses the
-  routine repeat, not the escalation path (slice 9). If severity crosses a
+  routine repeat, not the escalation path (slice 11). If severity crosses a
   threshold or the blast radius grows, that is new information and the ack
   should not hold it back.
 
@@ -360,25 +570,49 @@ testable, building only on the slices before it.
    with a trivial pass-through report; first fully runnable manual job.
    Testable end-to-end with fakes.
 6. **Investigator port + ObservabilityPlatform port + first specialist
-   agent (Logs)** — proves the ADK + MCP adapter pattern, with the Logs
-   agent querying observability data through the ObservabilityPlatform
-   port. Testable against mocked MCP tool responses.
-7. **Remaining specialist agents** (APM incl. single-hop dependency
-   evidence, Trace, Infrastructure) — same pattern as slice 6, querying
-   through the same ObservabilityPlatform port, addable independently.
-8. **Diagnostician + Report agent** — cross-signal reasoning to hypothesis
-   + confidence, then formatting. Testable against canned findings.
-9. **Escalation path** — severity/threshold rule + critical-services
-   overrides, bypassing batching. Testable as rule-engine unit tests.
-10. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
-    trip → partial report + auto-escalate. Testable by forcing a trip
+   agent (Logs)** — *done, and partly superseded.* It proved the ADK + MCP
+   pattern, the evidence discipline, and the retry arc, all of which stand.
+   It also established that the `ObservabilityPlatform` port should not be
+   extended — see [Evidence and the platform
+   boundary](#evidence-and-the-platform-boundary). Its live-MCP test and
+   README tasks were deliberately left undone rather than written against
+   an architecture already being replaced.
+7. **Investigation restructure** — retire the `ObservabilityPlatform` port
+   in favour of a filtered MCP toolset per specialist; move the evidence
+   check into `after_tool_callback` and generalise citations to
+   call-and-item; make each specialist a named declaration owning its
+   tools, instruction, schema, and optional model. Ordered first because
+   every later investigation slice is cheaper after it and rework without
+   it compounds. Its gate is the failed-search-is-not-silence marker: until
+   a failed search demonstrably cannot be read as a quiet service, the
+   restructure is not done. Testable with a stubbed model and a fake MCP
+   server, plus the first credential-gated live run.
+8. **Evaluation harness** — canned incidents with expected findings, scored
+   per specialist, so instruction quality is measurable rather than felt.
+   Ordered before the remaining specialists deliberately: the restructure
+   makes the instruction the main variable, and writing three more of them
+   blind is how you end up with three that need rewriting. It also settles
+   the questions slice 6 left open — which model to default to, and how
+   many examples a finding should carry. Testable as a scoring run over
+   fixtures.
+9. **Remaining specialist agents** (APM incl. single-hop dependency
+   evidence, Trace, Infrastructure) — one declaration each, added
+   independently, scored by slice 8.
+10. **Diagnostician + Report agent** — cross-signal reasoning to hypothesis
+    + confidence, then formatting. Testable against canned findings.
+11. **Escalation path** — severity/threshold rule + critical-services
+    overrides, bypassing batching. Testable as rule-engine unit tests.
+12. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
+    trip → partial report + auto-escalate. The per-agent bound sits in
+    `before_tool_callback`, and the two MCP-level bounds are re-expressed
+    through ADK's connection parameters. Testable by forcing a trip
     condition.
-11. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
+13. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
     deliberate lint error, a type error, and a boundary violation on a scratch
     branch and confirm each produces a red run naming the rule, the expression,
     and the offending import, then delete the branch. Deferred out of slice 0
     because it is the one check that cannot be proven locally — it needs real
     runs on the remote. Criteria VLD-002…VLD-004 in
     `docs/spec-process-cicd-ci.md`.
-12. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
+14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.
