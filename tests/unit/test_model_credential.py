@@ -3,7 +3,7 @@ import pytest
 from alert_triage.adapters.adk.credentials import (
     ALTERNATE_API_KEY_VARIABLE,
     API_KEY_VARIABLE,
-    VERTEX_AI_VARIABLE,
+    ENTERPRISE_VARIABLE,
     require_model_credential,
 )
 from alert_triage.ports.config import ConfigError
@@ -29,14 +29,23 @@ def test_an_empty_credential_is_treated_as_absent() -> None:
         require_model_credential(env={API_KEY_VARIABLE: ""})
 
 
-def test_vertex_ai_authenticates_without_an_api_key() -> None:
+def test_the_enterprise_platform_authenticates_without_an_api_key() -> None:
     """That deployment holds credentials the SDK finds for itself, not a key here."""
-    require_model_credential(env={VERTEX_AI_VARIABLE: "true"})
+    require_model_credential(env={ENTERPRISE_VARIABLE: "true"})
 
 
-def test_vertex_ai_switched_off_still_requires_a_key() -> None:
+def test_the_enterprise_variable_is_spelled_as_the_sdk_reads_it() -> None:
+    """The literal name the SDK reads, deliberately not the constant.
+
+    A rename here that ``google-genai`` did not make would silently refuse a
+    deployment that authenticates perfectly well.
+    """
+    require_model_credential(env={"GOOGLE_GENAI_USE_ENTERPRISE": "true"})
+
+
+def test_the_enterprise_platform_switched_off_still_requires_a_key() -> None:
     with pytest.raises(ConfigError, match=API_KEY_VARIABLE):
-        require_model_credential(env={VERTEX_AI_VARIABLE: "false"})
+        require_model_credential(env={ENTERPRISE_VARIABLE: "false"})
 
 
 def test_the_environment_is_read_from_the_process_by_default(
@@ -44,7 +53,7 @@ def test_the_environment_is_read_from_the_process_by_default(
 ) -> None:
     monkeypatch.delenv(API_KEY_VARIABLE, raising=False)
     monkeypatch.delenv(ALTERNATE_API_KEY_VARIABLE, raising=False)
-    monkeypatch.delenv(VERTEX_AI_VARIABLE, raising=False)
+    monkeypatch.delenv(ENTERPRISE_VARIABLE, raising=False)
 
     with pytest.raises(ConfigError, match=API_KEY_VARIABLE):
         require_model_credential()

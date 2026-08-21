@@ -21,9 +21,9 @@ from alert_triage.ports.config import ConfigError
 
 API_KEY_VARIABLE = "GOOGLE_API_KEY"
 ALTERNATE_API_KEY_VARIABLE = "GEMINI_API_KEY"
-VERTEX_AI_VARIABLE = "GOOGLE_GENAI_USE_VERTEXAI"
+ENTERPRISE_VARIABLE = "GOOGLE_GENAI_USE_ENTERPRISE"
 
-VERTEX_AI_ENABLED = frozenset({"true", "1"})
+ENTERPRISE_ENABLED = frozenset({"true", "1"})
 
 
 def require_model_credential(env: Mapping[str, str] | None = None) -> None:
@@ -38,13 +38,13 @@ def require_model_credential(env: Mapping[str, str] | None = None) -> None:
             an investigation — having spent the attempt that failure counts.
     """
     environment = os.environ if env is None else env
-    if _uses_vertex_ai(environment) or _api_key(environment):
+    if _uses_enterprise_platform(environment) or _api_key(environment):
         return
     raise ConfigError(
         f"{API_KEY_VARIABLE} is required and has no default: set it (or "
         f"{ALTERNATE_API_KEY_VARIABLE}) in the environment, or set "
-        f"{VERTEX_AI_VARIABLE} to authenticate against Vertex AI instead. "
-        f"Credentials are never read from config.yaml."
+        f"{ENTERPRISE_VARIABLE} to authenticate against the enterprise "
+        f"platform instead. Credentials are never read from config.yaml."
     )
 
 
@@ -53,10 +53,10 @@ def _api_key(env: Mapping[str, str]) -> str | None:
     return env.get(API_KEY_VARIABLE) or env.get(ALTERNATE_API_KEY_VARIABLE)
 
 
-def _uses_vertex_ai(env: Mapping[str, str]) -> bool:
-    """Whether the SDK will authenticate against Vertex AI rather than a key.
+def _uses_enterprise_platform(env: Mapping[str, str]) -> bool:
+    """Whether the SDK will authenticate against the platform rather than a key.
 
     Read exactly as ``google-genai`` reads it, so this agrees with the client
     it guards rather than refusing a deployment that would have worked.
     """
-    return (env.get(VERTEX_AI_VARIABLE) or "").lower() in VERTEX_AI_ENABLED
+    return (env.get(ENTERPRISE_VARIABLE) or "").lower() in ENTERPRISE_ENABLED
