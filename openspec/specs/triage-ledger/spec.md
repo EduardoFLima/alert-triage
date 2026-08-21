@@ -143,9 +143,10 @@ testable at any point in time.
 
 ### Requirement: Recorded incidents survive the process
 The system SHALL persist each incident it opens or continues — its identifier,
-its service, the alerts absorbed into it, the window they span, and when it was
-last reported — such that a later run in a new process reaches the same
-decisions it would have reached had the runs shared a process.
+its service, the alerts absorbed into it, the window they span, when it was
+last reported, and how many investigation attempts it has spent without a
+report being delivered — such that a later run in a new process reaches the
+same decisions it would have reached had the runs shared a process.
 
 #### Scenario: A second run in a new process
 - **WHEN** an incident is recorded, the process ends, and a later run continues
@@ -168,6 +169,18 @@ decisions it would have reached had the runs shared a process.
   and a closed one still within its retention period
 - **THEN** the system offers only the open incident to the decision, so
   retained history cannot influence it
+
+#### Scenario: Spent attempts are recoverable from the record
+- **WHEN** an incident whose investigation has failed is recorded, the process
+  ends, and a later run retrieves it
+- **THEN** the attempts already spent are recovered, so the incident gets the
+  remaining attempts and no more
+
+#### Scenario: An incident recorded before attempts were tracked
+- **WHEN** a run retrieves an incident recorded by an earlier version of the
+  system, which stored no attempt count for it
+- **THEN** the system treats it as having no attempts spent, rather than
+  failing to read the record
 
 ### Requirement: An incident closes once it can no longer affect a decision
 The system SHALL treat an incident as closed once it can neither be continued
