@@ -157,7 +157,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "datadog-api-client", specifier = ">=2.30" },
-    { name = "google-adk", specifier = ">=1.16" },
+    { name = "google-adk", specifier = ">=2.7" },
     { name = "mcp", specifier = ">=1.9" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },

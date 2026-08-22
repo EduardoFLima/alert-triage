@@ -432,9 +432,24 @@ under the platform's own conventional variable names rather than the
   who already exports one exports nothing new. No default. A deployment
   authenticating against the enterprise platform sets
   `GOOGLE_GENAI_USE_ENTERPRISE` instead, and is not refused for having no
-  API key. Which model runs is
+  API key; `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` name where its
+  investigations are billed and made, and fall back to what that platform's
+  own credential discovery provides. Which model runs is
   behavior and lives in `config.yaml`; the key it costs to reach is a
   deployment fact and lives here.
+
+  These are *resolved and supplied to the model*, not left for the SDK to
+  rediscover. The SDK reads the process environment; a run reads the process
+  environment supplemented by its `.env`, and a name the file supplies is one
+  the SDK would never see. Supplying it is also what makes the refusal
+  trustworthy: the value the run refuses on is the value the model is built
+  from, so a deployment cannot pass its startup check and then fail to
+  authenticate on the first incident.
+
+  The one name this does not cover is `GOOGLE_APPLICATION_CREDENTIALS`, read
+  by the Google auth library from the process environment before any of this
+  is resolved. A service-account path belongs in the process environment, not
+  in `.env`.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the triage ledger keeps its records,
   defaulting to `data/alert_triage.db` under the working directory. Unlike a
   credential it has a default, because a path is not a secret and a manual run

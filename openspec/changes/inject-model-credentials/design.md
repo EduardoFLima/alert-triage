@@ -55,6 +55,13 @@ widens from a model name to a name-or-model, and nothing else about it changes;
 what a model costs to reach is not the Logs specialist's concern, and its unit
 tests stay free of the SDK's model types.
 
+**The composition root builds the model.** The alternative was to hand
+`run_with_adk` the resolved access and let the ADK adapter build the model on
+first use, which would keep ADK unimported by a run that never investigates.
+It was rejected on two counts: naming concrete adapters is precisely the
+composition root's job, and a model built behind a closure is a model no test
+can look at. ADK is now imported at startup rather than at the first incident.
+
 **Keep the client lazy.** ADK builds it on first use, and forcing it at startup
 would run credential discovery — file and network I/O — before the run has
 decided it needs a model. The existing startup refusal already catches the

@@ -13,6 +13,11 @@ import pytest
 from alert_triage.adapters.adk.credentials import (
     API_KEY_VARIABLE as MODEL_API_KEY_VARIABLE,
 )
+from alert_triage.adapters.adk.credentials import (
+    ENTERPRISE_VARIABLE,
+    LOCATION_VARIABLE,
+    PROJECT_VARIABLE,
+)
 from alert_triage.adapters.datadog.connection import (
     API_KEY_VARIABLE,
     APP_KEY_VARIABLE,
@@ -58,6 +63,9 @@ CONNECTION_VARIABLES = (
     APP_KEY_VARIABLE,
     SITE_VARIABLE,
     MODEL_API_KEY_VARIABLE,
+    ENTERPRISE_VARIABLE,
+    PROJECT_VARIABLE,
+    LOCATION_VARIABLE,
     LEDGER_PATH_VARIABLE,
     SMTP_HOST_VARIABLE,
     SMTP_PORT_VARIABLE,
