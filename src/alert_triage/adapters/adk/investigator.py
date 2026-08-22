@@ -20,7 +20,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from alert_triage.adapters.adk.evidence import Retrieved, findings_from
 from alert_triage.adapters.adk.logs_agent import describe
@@ -32,6 +32,9 @@ from alert_triage.ports.observability_platform import (
     ObservabilityPlatform,
     ObservabilityPlatformError,
 )
+
+if TYPE_CHECKING:
+    from google.adk.models import BaseLlm
 
 _log = logging.getLogger(__name__)
 
@@ -150,11 +153,15 @@ def _reported_findings(reported: Any) -> list[Any]:
     return findings if isinstance(findings, list) else []
 
 
-def run_with_adk(model: str) -> RunAgent:
+def run_with_adk(model: "str | BaseLlm") -> RunAgent:
     """Drive the Logs agent with a real model, once per incident.
 
     ADK is asynchronous underneath; the event loop is owned here so that the
     port, the run, and the composition root all stay synchronous.
+
+    The model arrives built, and already told how to authenticate: what it
+    costs to reach is resolved from the run's environment in the composition
+    root, not rediscovered here from the process's.
 
     Args:
         model: The model the agent reasons with.

@@ -15,6 +15,7 @@ from collections.abc import Callable
 from typing import Any
 
 from google.adk.agents import LlmAgent
+from google.adk.models import BaseLlm
 from pydantic import BaseModel, Field
 
 from alert_triage.domain.findings import MAX_EXAMPLES_PER_FINDING
@@ -91,11 +92,12 @@ def describe(incident: Incident) -> str:
     )
 
 
-def build_logs_agent(*, model: str, search_logs: SearchLogs) -> LlmAgent:
+def build_logs_agent(*, model: str | BaseLlm, search_logs: SearchLogs) -> LlmAgent:
     """Build the Logs specialist around the one tool it is allowed.
 
     Args:
-        model: The model the agent reasons with.
+        model: The model the agent reasons with — a name, or one already
+            built and told how to authenticate.
         search_logs: The log search, already bound to the observability
             platform and to this investigation's record keeping.
 

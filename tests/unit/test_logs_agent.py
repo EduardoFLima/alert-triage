@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from alert_triage.adapters.adk.credentials import ApiKey
 from alert_triage.adapters.adk.logs_agent import (
     LOGS_INSTRUCTION,
     LogsFinding,
@@ -7,6 +8,7 @@ from alert_triage.adapters.adk.logs_agent import (
     build_logs_agent,
     describe,
 )
+from alert_triage.adapters.adk.model import build_model
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import MAX_EXAMPLES_PER_FINDING
 from alert_triage.domain.incident import Incident
@@ -92,3 +94,14 @@ def test_the_agent_reports_through_the_findings_schema() -> None:
     agent = build_logs_agent(model="a-model", search_logs=_search)
 
     assert agent.output_schema is ReportedFindings
+
+
+def test_the_agent_accepts_a_model_already_built() -> None:
+    """Told how to authenticate elsewhere; the specialist only reasons with it."""
+
+    def _search(service: str, start: str, end: str, query: str) -> list[dict[str, str]]:
+        return []
+
+    reasoner = build_model("a-model", ApiKey("model-key"))
+
+    assert build_logs_agent(model=reasoner, search_logs=_search).model is reasoner

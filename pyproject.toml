@@ -9,7 +9,7 @@ license = { file = "LICENSE" }
 # the dependency tree stays legible.
 dependencies = [
     "datadog-api-client>=2.30",
-    "google-adk>=1.16",
+    "google-adk>=2.7",
     "mcp>=1.9",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",

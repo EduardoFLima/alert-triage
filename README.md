@@ -103,6 +103,9 @@ A run reads everything it needs from its environment:
   that may instead live in `config.yaml`.
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
   authenticates with. `DD_SITE` if the account is not on `datadoghq.com`.
+- `GOOGLE_API_KEY` — what the model an investigation reasons on costs to
+  reach. A deployment on the enterprise platform sets
+  `GOOGLE_GENAI_USE_ENTERPRISE=true` instead and needs no key.
 - At least one notification channel, or the run refuses to start rather than
   fetching alerts it could tell nobody about.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.

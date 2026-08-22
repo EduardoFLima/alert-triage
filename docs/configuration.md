@@ -91,6 +91,35 @@ export DD_APP_KEY=...      # required; the Events API needs both
 export DD_SITE=datadoghq.eu  # optional, defaults to datadoghq.com
 ```
 
+### The model an investigation reasons on
+
+Under the Google GenAI SDK's own variable names. Which model runs is behavior
+and belongs in `config.yaml`; what it costs to reach is a deployment fact:
+
+```bash
+export GOOGLE_API_KEY=...    # required, or GEMINI_API_KEY
+```
+
+A deployment on the enterprise platform authenticates with the credentials it
+already holds, and needs no key at all:
+
+```bash
+export GOOGLE_GENAI_USE_ENTERPRISE=true
+export GOOGLE_CLOUD_PROJECT=triage-prod     # optional; discovered if unset
+export GOOGLE_CLOUD_LOCATION=europe-west4   # optional; defaults to global
+```
+
+A run resolves these itself and hands them to the model, rather than leaving
+the SDK to read the process environment behind it. That is what lets them live
+in `.env` like everything else — and what makes the startup refusal mean
+something, since the value a run refuses on is the value its model is built
+from.
+
+**One exception.** `GOOGLE_APPLICATION_CREDENTIALS` is read by the Google auth
+library straight from the process environment, before the `.env` file is
+consulted. A service-account path written in `.env` is not found. Export it, or
+use `gcloud auth application-default login`.
+
 ### The triage ledger
 
 Where the ledger keeps its records is a deployment fact on the same rule — with

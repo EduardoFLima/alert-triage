@@ -84,6 +84,36 @@ refuse to start if `scope` cannot be resolved from either source.
 - **THEN** the adapter translates it into that platform's own way of
   expressing ownership, and the config exposes no platform-specific form
 
+### Requirement: One resolved environment, read by everything
+A run SHALL resolve its environment once, from the process environment
+supplemented by an optional file beside the run, and every setting and
+credential the run uses SHALL be read from that resolved environment. A name
+the process exported SHALL win over the same name in the file, so a container
+or scheduler is never overridden by a file lying beside it. No part of the
+system SHALL read the process environment behind the resolved one: a name the
+file supplies SHALL behave exactly as though it had been exported, including
+where the setting is consumed by a vendor library rather than by this system's
+own code.
+
+#### Scenario: A value supplied only by the file
+- **WHEN** a setting or credential is declared in the file and not exported by
+  the process
+- **THEN** the run behaves exactly as it would had the operator exported that
+  name, whichever component consumes it
+
+#### Scenario: The process disagrees with the file
+- **WHEN** the same name is exported by the process and declared in the file
+- **THEN** the run uses the exported value
+
+#### Scenario: No file is present
+- **WHEN** the file is absent
+- **THEN** the run resolves entirely from the process environment and reports
+  no error for the missing file
+
+#### Scenario: A name the file only mentions
+- **WHEN** the file names a variable without giving it a value
+- **THEN** it does not shadow the same name exported by the process
+
 ### Requirement: Environment variable overrides for any config value
 The system SHALL allow any value normally set in `config.yaml` to instead be
 set via an environment variable, using a predictable naming convention

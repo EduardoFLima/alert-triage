@@ -6,6 +6,7 @@ from uuid import UUID
 
 import pytest
 
+from alert_triage.adapters.adk.credentials import ApiKey
 from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.app import composition
 from alert_triage.domain.alert import Alert
@@ -255,3 +256,32 @@ def test_a_deployment_with_no_channel_refuses_to_start_and_fetches_nothing(
         composition.execute(now=NOON, env=without_channel, config_path=no_config_file)
 
     assert source.asked_since is None
+
+
+def test_the_model_is_built_from_the_credential_the_environment_resolved(
+    monkeypatch: pytest.MonkeyPatch, connection: DatadogConnection
+) -> None:
+    """Supplied to the model, not left for the SDK to find in the process.
+
+    The environment a run resolves includes names it never exported, so a
+    model that goes looking for its own credential looks in the wrong place.
+    """
+    asked: dict[str, object] = {}
+
+    def _build_model(model: str, access: object) -> str:
+        asked["model"] = model
+        asked["access"] = access
+        return "a-built-model"
+
+    monkeypatch.setattr(composition, "build_model", _build_model)
+
+    composition.build_investigator(
+        {"GOOGLE_API_KEY": "model-key"},
+        connection,
+        Investigation(model="gemini-from-the-config-file"),
+    )
+
+    assert asked == {
+        "model": "gemini-from-the-config-file",
+        "access": ApiKey("model-key"),
+    }

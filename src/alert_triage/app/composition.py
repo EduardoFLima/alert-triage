@@ -18,8 +18,9 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from alert_triage.adapters.adk.credentials import require_model_credential
+from alert_triage.adapters.adk.credentials import resolve_model_access
 from alert_triage.adapters.adk.investigator import AdkInvestigator, run_with_adk
+from alert_triage.adapters.adk.model import build_model
 from alert_triage.adapters.datadog.alert_source import build_alert_source
 from alert_triage.adapters.datadog.connection import (
     DatadogConnection,
@@ -114,12 +115,13 @@ def build_investigator(
     Raises:
         ConfigError: The model has no credential. Refused while the run is
             still being assembled, so no alert is fetched and no attempt is
-            spent discovering it.
+            spent discovering it — and refused on the same value the model is
+            then built from, so the two cannot disagree.
     """
-    require_model_credential(env)
+    reasoner = build_model(investigation.model, resolve_model_access(env))
     return AdkInvestigator(
         platform=DatadogMcpPlatform(datadog_connection),
-        run_agent=run_with_adk(investigation.model),
+        run_agent=run_with_adk(reasoner),
     )
 
 
