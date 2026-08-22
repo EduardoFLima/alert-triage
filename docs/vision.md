@@ -328,10 +328,18 @@ the move to MCP toolsets changes what they mean:
   design had for it — the callback can refuse a call rather than the
   coordinator counting after the fact.
 - `max_mcp_retries` and `mcp_call_timeout_seconds` were ours to enforce
-  while we owned the MCP client. With `McpToolset`, ADK owns it, so these
-  have to be expressed through its connection parameters or dropped in
-  favour of what it already provides. Deciding which is part of the
-  restructure, not of this document.
+  while we owned the MCP client. With `McpToolset`, ADK owns it, and the
+  restructure decided both:
+  - `mcp_call_timeout_seconds` is **re-expressed** through the toolset's
+    connection parameters, whose `timeout` and `sse_read_timeout` are what
+    now bound a call. Both are set explicitly beside the connection, so
+    ADK's own defaults — five seconds to connect and five minutes to read —
+    cannot apply by accident to a bound stated as thirty seconds. Reading
+    them from config is slice 12's wiring.
+  - `max_mcp_retries` is **superseded**. ADK's toolset already rebuilds a
+    dead session and retries once, and there is no seam to make that count
+    configurable short of reimplementing the toolset. Slice 12 removes the
+    key rather than leaving an operator setting that does nothing.
 
 ## Config file
 

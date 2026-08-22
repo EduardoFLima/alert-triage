@@ -121,7 +121,7 @@ port deleted. See `design.md` — Migration Plan.
       that chose not to look is not a failure
 - [x] 7.5 A specialist that errors outright is still a failed investigation —
       test the existing failure path survives the restructure
-- [ ] 7.6 Confirm the retry arc is untouched: a failed investigation still
+- [x] 7.6 Confirm the retry arc is untouched: a failed investigation still
       spends one attempt and is retried on the next run
 
 ## 8. The report
@@ -173,17 +173,17 @@ port deleted. See `design.md` — Migration Plan.
 
 ## 12. Documentation
 
-- [ ] 12.1 Record the MCP circuit-breaker decision in `docs/vision.md`'s
+- [x] 12.1 Record the MCP circuit-breaker decision in `docs/vision.md`'s
       circuit-breaker section: `mcp_call_timeout_seconds` re-expressed through
       the connection params, `max_mcp_retries` superseded, both wired in slice
       12
-- [ ] 12.2 Rewrite the README's extension guide: a notification channel is a
+- [x] 12.2 Rewrite the README's extension guide: a notification channel is a
       port to implement, observability tooling is a specialist to declare, one
       specialist is a complete contribution, and nothing checks whether an
       instruction is good — that is slice 8
-- [ ] 12.3 Update the README's architecture diagram via the mermaid MCP tool so
+- [x] 12.3 Update the README's architecture diagram via the mermaid MCP tool so
       the investigation path shows the filtered toolset and the evidence
       callback rather than the retired port
-- [ ] 12.4 Note in the README that a run's model and tool spend rises with a
+- [x] 12.4 Note in the README that a run's model and tool spend rises with a
       specialist's tool count, and stays bounded only by the cooldown until
       slice 12

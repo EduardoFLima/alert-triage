@@ -1,7 +1,14 @@
 # Adding an adapter
 
-Plugging in your own observability or notification tooling is a first-class
-operation. Say you want to notify Slack instead of Teams:
+Plugging in your own tooling is a first-class operation. This guide covers the
+kind that is a port to implement: a notification channel, an alert source, a
+store.
+
+Observability tooling is the other kind, and it is not a port — you declare a
+specialist of your own, with its own tools and instruction, and
+[the README](../README.md#extending-it) is where that story is told.
+
+So: say you want to notify Slack instead of Teams.
 
 **1. Pick the port you are implementing.** Each port is one seam:
 
@@ -9,7 +16,6 @@ operation. Say you want to notify Slack instead of Teams:
 |---|---|
 | `AlertSource` | where alerts come from (Datadog, Prometheus, …) |
 | `Investigator` | how an alert group gets investigated |
-| `ObservabilityPlatform` | where the investigator queries logs, traces, and metrics for context (Datadog, …) |
 | `TriageLedger` | where dedup and cooldown state is kept |
 | `Notifier` | where the triage report is delivered |
 | `Config` | where configuration is read from |
