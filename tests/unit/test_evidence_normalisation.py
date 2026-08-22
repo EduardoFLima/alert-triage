@@ -112,3 +112,12 @@ def test_a_tool_result_that_is_prose_has_no_items() -> None:
     result = {"content": [{"type": "text", "text": "the service looks fine"}]}
 
     assert items_from(result, "call-1") == ()
+
+
+def test_entries_are_found_under_the_protocols_own_wrapper() -> None:
+    """A tool answering with a list has it wrapped, because content is an object."""
+    items = items_from(
+        {"structuredContent": {"result": [{"message": "first"}]}}, "call-1"
+    )
+
+    assert [item.summary for item in items] == ["first"]

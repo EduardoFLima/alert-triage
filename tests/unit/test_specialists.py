@@ -17,6 +17,13 @@ from alert_triage.adapters.adk.specialists import (
 from alert_triage.domain.findings import Signal
 
 
+class _NamedTool:
+    """A stand-in for the ADK tool the callback is told about."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
 class _Reported(BaseModel):
     findings: list[str] = []
 
@@ -208,10 +215,27 @@ def test_the_registered_callback_records_into_this_investigations_evidence() -> 
 
     kept: Any = agent.after_tool_callback
     kept(
-        tool=None,
+        tool=_NamedTool("search_logs"),
         args={},
         tool_context=None,
         tool_response={"logs": [{"message": "OOMKilled"}]},
     )
 
     assert retrieved.resolve("call-1/item-1") is not None
+
+
+def test_the_callback_admits_only_the_tools_the_declaration_named() -> None:
+    """A framework's own tools go through the same callback and are not evidence."""
+    retrieved = Retrieved()
+    agent = build_agent(_specialist(), _deployment(), retrieved)
+
+    kept: Any = agent.after_tool_callback
+    passed_through = kept(
+        tool=_NamedTool("set_model_response"),
+        args={},
+        tool_context=None,
+        tool_response={"logs": [{"message": "not evidence"}]},
+    )
+
+    assert passed_through is None
+    assert retrieved.retrievals == 0

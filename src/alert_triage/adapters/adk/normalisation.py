@@ -20,8 +20,12 @@ from typing import Any
 
 from alert_triage.domain.findings import EvidenceItem
 
-ENVELOPE_KEYS = ("logs", "data", "results")
+ENVELOPE_KEYS = ("logs", "data", "results", "result")
 """Keys a platform is known to wrap its entries in.
+
+``result`` is the protocol's own rather than any platform's: a tool answering
+with a list has it wrapped under that key, because structured content is
+required to be an object.
 
 Widening this list is how a newly reached tool's entries become citable one by
 one; a result whose envelope is not here is still citable whole, so the cost of

@@ -176,6 +176,11 @@ def connection_for(
     )
 
 
+def _permitted(specialist: Specialist) -> frozenset[str]:
+    """Every tool this specialist declared, across all its toolsets."""
+    return frozenset(tool for toolset in specialist.toolsets for tool in toolset.tools)
+
+
 def build_agent(
     specialist: Specialist, deployment: Deployment, retrieved: Retrieved
 ) -> "LlmAgent":
@@ -207,5 +212,5 @@ def build_agent(
             for toolset in specialist.toolsets
         ],
         before_tool_callback=calls_logged(),
-        after_tool_callback=evidence_kept(retrieved),
+        after_tool_callback=evidence_kept(retrieved, _permitted(specialist)),
     )

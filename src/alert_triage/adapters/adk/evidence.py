@@ -40,7 +40,7 @@ _log = logging.getLogger(__name__)
 
 _CALL_PREFIX = "call-"
 
-AfterTool = Callable[..., dict[str, Any]]
+AfterTool = Callable[..., dict[str, Any] | None]
 """How ADK hands a tool result over before the model sees it.
 
 Loosely typed on purpose: the framework passes its own tool and context
@@ -157,7 +157,7 @@ class Retrieved:
         return offered
 
 
-def evidence_kept(retrieved: Retrieved) -> AfterTool:
+def evidence_kept(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
     """The callback that stands between a tool result and the model reading it.
 
     Registered on every specialist, closing over one investigation's
@@ -167,11 +167,19 @@ def evidence_kept(retrieved: Retrieved) -> AfterTool:
     citations to this incident.
 
     It covers tools nobody wrote a method for, which is the point: every result
-    is checked, whether or not this project has ever heard of the tool that
-    produced it.
+    from the platform is checked, whether or not this project has ever heard of
+    the tool that produced it.
+
+    Only from the platform, though. A framework passes its own tools through
+    the same callback — the one it uses to collect a structured answer, among
+    others — and their results are not evidence, are not citable, and cannot
+    fail a retrieval that was never made. What a specialist declared is the
+    line, which is the same line everything else in this slice draws.
 
     Args:
         retrieved: What this investigation has gathered so far.
+        permitted: The tools this specialist declared. A result from anything
+            else passes through untouched.
 
     Returns:
         The ``after_tool_callback`` to register on a specialist.
@@ -179,10 +187,13 @@ def evidence_kept(retrieved: Retrieved) -> AfterTool:
 
     def _kept(
         *, tool: Any, args: dict[str, Any], tool_context: Any, tool_response: Any
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
+        name = _named(tool)
+        if name not in permitted:
+            return None
         failure = _failure_in(tool_response)
         if failure is not None:
-            return retrieved.refuse(f"{_named(tool)} failed: {failure}")
+            return retrieved.refuse(f"{name} failed: {failure}")
         return retrieved.retain(tool_response)
 
     return _kept

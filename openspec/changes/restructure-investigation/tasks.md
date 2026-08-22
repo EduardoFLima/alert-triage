@@ -158,15 +158,15 @@ port deleted. See `design.md` — Migration Plan.
 
 ## 11. Integration and the live run
 
-- [ ] 11.1 A fake in-process MCP server the toolset connects to — test the
+- [x] 11.1 A fake in-process MCP server the toolset connects to — test the
       toolset build, the tool filter, and the callback over a real ADK tool
       path with no network and no model
-- [ ] 11.2 Test a failing tool on that fake server produces a retrieval failure
+- [x] 11.2 Test a failing tool on that fake server produces a retrieval failure
       and a refusal through the real ADK path, not only through the unit-level
       callback
-- [ ] 11.3 Confirm the end-to-end run still passes with its fake investigator
+- [x] 11.3 Confirm the end-to-end run still passes with its fake investigator
       and no new dependency
-- [ ] 11.4 A credential-gated live run against the real Datadog MCP server and
+- [x] 11.4 A credential-gated live run against the real Datadog MCP server and
       a real model, skipped without credentials, following
       `test_datadog_alert_source_live.py` — it proves the declared tool names
       exist, the filter admits them, and a model calls them

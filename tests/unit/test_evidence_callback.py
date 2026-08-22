@@ -28,8 +28,11 @@ def _result(*messages: str) -> dict[str, Any]:
     }
 
 
+PERMITTED = frozenset({"search_datadog_logs", "aggregate_datadog_logs"})
+
+
 def _after(retrieved: Retrieved, response: Any, tool: _Tool | None = None) -> Any:
-    return evidence_kept(retrieved)(
+    return evidence_kept(retrieved, PERMITTED)(
         tool=tool or _Tool(),
         args={"query": "service:checkout status:error"},
         tool_context=None,
@@ -175,3 +178,23 @@ def test_the_call_is_logged_before_it_is_made_and_nothing_else_happens(
 
     assert refused is None
     assert "search_datadog_logs" in caplog.text
+
+
+def test_a_tool_the_specialist_never_declared_passes_through_untouched() -> None:
+    """A framework's own tool is not the platform, so its result is not evidence."""
+    retrieved = Retrieved()
+
+    offered = _after(retrieved, {"result": "response set"}, _Tool("set_model_response"))
+
+    assert offered is None
+    assert retrieved.retrievals == 0
+    assert retrieved.failures == ()
+
+
+def test_a_framework_tool_that_fails_is_not_a_failed_retrieval() -> None:
+    """Nothing was retrieved, so nothing about the platform can be concluded."""
+    retrieved = Retrieved()
+
+    _after(retrieved, {"error": "transfer refused"}, _Tool("transfer_to_agent"))
+
+    assert retrieved.failures == ()
