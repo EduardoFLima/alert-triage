@@ -9,8 +9,10 @@ license = { file = "LICENSE" }
 # the dependency tree stays legible.
 dependencies = [
     "datadog-api-client>=2.30",
-    "google-adk>=2.7",
-    "mcp>=1.9",
+    # The MCP client is ADK's, not ours: a specialist reaches a platform's
+    # toolset through ADK, so the protocol library arrives as ADK's extra and
+    # at the version ADK supports.
+    "google-adk[mcp]>=2.7",
     "python-dotenv>=1.0",
     "pyyaml>=6.0",
 ]

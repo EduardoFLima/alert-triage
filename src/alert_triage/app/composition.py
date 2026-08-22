@@ -17,16 +17,19 @@ from collections.abc import Mapping
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from alert_triage.adapters.adk.credentials import resolve_model_access
+from alert_triage.adapters.adk.crew import crew_for
 from alert_triage.adapters.adk.investigator import AdkInvestigator, run_with_adk
 from alert_triage.adapters.adk.model import build_model
+from alert_triage.adapters.adk.specialists import Deployment
 from alert_triage.adapters.datadog.alert_source import build_alert_source
 from alert_triage.adapters.datadog.connection import (
     DatadogConnection,
     resolve_connection,
 )
-from alert_triage.adapters.datadog.datadog_mcp import DatadogMcpPlatform
+from alert_triage.adapters.datadog.datadog_mcp import mcp_endpoint, mcp_headers
 from alert_triage.adapters.fan_out.resolution import resolve_notifier
 from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.sqlite_ledger.location import resolve_ledger_path
@@ -35,6 +38,9 @@ from alert_triage.app.run import RunOutcome, run
 from alert_triage.domain.report import build_report
 from alert_triage.ports.config import Investigation
 from alert_triage.ports.investigator import Investigator
+
+if TYPE_CHECKING:
+    from google.adk.models import BaseLlm
 
 
 def execute(
@@ -98,6 +104,11 @@ def build_investigator(
     MCP server, exactly as it already substitutes the alert source and the
     notifier.
 
+    What is supplied here is a deployment: where the platform is, what
+    authenticates against it, and how a specialist reaches the model it
+    reasons on. No tool is named — which tools a specialist may reach is its
+    declaration's business, and adding one changes nothing here.
+
     The model's credential is checked here rather than beside the other
     startup checks because this is what needs it: a deployment that stops
     building an investigator stops needing a key, and a check kept somewhere
@@ -113,15 +124,28 @@ def build_investigator(
         The investigator a run is handed.
 
     Raises:
-        ConfigError: The model has no credential. Refused while the run is
-            still being assembled, so no alert is fetched and no attempt is
-            spent discovering it — and refused on the same value the model is
-            then built from, so the two cannot disagree.
+        ConfigError: The model has no credential, or a specialist was
+            configured that nobody declared. Refused while the run is still
+            being assembled, so no alert is fetched and no attempt is spent
+            discovering it — and refused on the same value the model is then
+            built from, so the two cannot disagree.
     """
-    reasoner = build_model(investigation.model, resolve_model_access(env))
+    access = resolve_model_access(env)
+    default = build_model(investigation.model, access)
+
+    def _model_for(named: str | None) -> "str | BaseLlm":
+        """The model a specialist reasons on, built where it named its own."""
+        return default if named is None else build_model(named, access)
+
     return AdkInvestigator(
-        platform=DatadogMcpPlatform(datadog_connection),
-        run_agent=run_with_adk(reasoner),
+        crew=crew_for(investigation.specialists),
+        run_specialist=run_with_adk(
+            Deployment(
+                endpoint=mcp_endpoint(datadog_connection),
+                headers=mcp_headers(datadog_connection),
+                model_for=_model_for,
+            )
+        ),
     )
 
 

@@ -31,6 +31,7 @@ from alert_triage.ports.config import (
     Ledger,
     ReNotify,
     Scope,
+    SpecialistModel,
 )
 
 DEFAULT_CONFIG_PATH = Path("config.yaml")
@@ -74,9 +75,7 @@ def load_config(
         ingestion=_section(Ingestion, ("ingestion",), document, environment),
         re_notify=_section(ReNotify, ("re_notify",), document, environment),
         ledger=_section(Ledger, ("ledger",), document, environment),
-        investigation=_section(
-            Investigation, ("investigation",), document, environment
-        ),
+        investigation=_investigation(document, environment),
         circuit_breakers=_section(
             CircuitBreakers, ("circuit_breakers",), document, environment
         ),
@@ -130,6 +129,51 @@ def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
     return Scope(**supplied)
 
 
+_SPECIALISTS = "specialists"
+
+
+def _investigation(
+    document: Mapping[str, Any], env: Mapping[str, str]
+) -> Investigation:
+    """Resolve the one section carrying both settings and a keyed sub-section."""
+    data = _section_data(document, "investigation")
+    return Investigation(
+        **_supplied(
+            Investigation, ("investigation",), data, env, except_for=(_SPECIALISTS,)
+        ),
+        specialists=_specialists(data.get(_SPECIALISTS), env),
+    )
+
+
+def _specialists(entries: Any, env: Mapping[str, str]) -> Mapping[str, SpecialistModel]:
+    """Read the per-specialist overrides. An absent section overrides nothing.
+
+    Which specialists exist is not this module's to know: a name nobody
+    declared is refused where the crew is assembled, which is the only place
+    that can tell.
+    """
+    if entries is None:
+        return {}
+    if not isinstance(entries, dict):
+        raise ConfigError(
+            "Config section 'investigation.specialists' must be a mapping of "
+            "specialist names"
+        )
+    return {name: _specialist(name, entry, env) for name, entry in entries.items()}
+
+
+def _specialist(name: str, entry: Any, env: Mapping[str, str]) -> SpecialistModel:
+    """Read one specialist's override, which is only worth writing to name a model."""
+    path = ("investigation", _SPECIALISTS, name)
+    supplied = _supplied(SpecialistModel, path, _entry(".".join(path), entry), env)
+    if "model" not in supplied:
+        raise ConfigError(
+            f"investigation.specialists.{name}.model is required: an entry that "
+            f"names no model overrides nothing"
+        )
+    return SpecialistModel(**supplied)
+
+
 def _critical_services(
     document: Mapping[str, Any], env: Mapping[str, str]
 ) -> Mapping[str, CriticalService]:
@@ -139,7 +183,7 @@ def _critical_services(
             **_supplied(
                 CriticalService,
                 ("critical_services", service),
-                _entry(service, entry),
+                _entry(f"critical_services.{service}", entry),
                 env,
             )
         )
@@ -147,14 +191,12 @@ def _critical_services(
     }
 
 
-def _entry(service: str, entry: Any) -> Mapping[str, Any]:
-    """Read one critical service's thresholds; listing it with none is enough."""
+def _entry(location: str, entry: Any) -> Mapping[str, Any]:
+    """Read one keyed entry's settings, tolerating an entry with none."""
     if entry is None:
         return {}
     if not isinstance(entry, dict):
-        raise ConfigError(
-            f"critical_services.{service} must be a mapping of threshold keys"
-        )
+        raise ConfigError(f"{location} must be a mapping of setting keys")
     return entry
 
 
@@ -163,18 +205,24 @@ def _supplied(
     path: tuple[str, ...],
     data: Mapping[str, Any],
     env: Mapping[str, str],
+    *,
+    except_for: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Collect the values an operator supplied, environment first.
 
     Keys nobody supplied are left out entirely, so the dataclass applies its
     own documented default rather than this function guessing one.
+
+    ``except_for`` names the keys of a section that are sections themselves,
+    resolved by the caller that knows their shape: a mapping has no
+    environment variable to read it from and no type to coerce it to.
     """
     hints = get_type_hints(cls)
     known = [field.name for field in fields(cls)]
     _reject_unknown(known, path, data)
 
     supplied: dict[str, Any] = {}
-    for name in known:
+    for name in (one for one in known if one not in except_for):
         override = env.get(_env_name((*path, name)))
         if override is not None:
             supplied[name] = _coerce(override, hints[name], (*path, name))

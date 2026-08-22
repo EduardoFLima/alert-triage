@@ -1,28 +1,36 @@
-"""The Logs specialist: one agent, one dimension, one tool.
+"""The Logs specialist, declared: its tools, its instruction, and its schema.
 
-The instruction is a module constant so that what the agent is asked for can be
-asserted by a unit test without constructing an agent or reaching a model. It
-names no platform: the tool it is given speaks this project's vocabulary, which
-is what lets slice 7 point the same agent at another observability platform
-without a word of it changing.
+The instruction names Datadog's log tools and Datadog's query dialect, and
+that is deliberate rather than a leak. The model composes the query, a query
+dialect is not translatable between platforms, and the boundary that pretended
+otherwise is what this slice removed. A second platform's logs specialist is a
+declaration of its own — a contribution, not a migration.
+
+Everything here is a module constant so that what the specialist asks for can
+be asserted by a unit test without constructing an agent or reaching a model.
 
 The output schema is the other half of the evidence discipline described in
-``evidence``. There is no field here an agent could write a log line into; it
-reports what it observed and cites the identifiers of the records it was shown.
+``evidence``. There is no field an agent could write a log line into: it
+reports what it observed and cites the identifiers of what it was shown, at
+either grain.
 """
 
-from collections.abc import Callable
-from typing import Any
-
-from google.adk.agents import LlmAgent
-from google.adk.models import BaseLlm
 from pydantic import BaseModel, Field
 
-from alert_triage.domain.findings import MAX_EXAMPLES_PER_FINDING
-from alert_triage.domain.incident import Incident
+from alert_triage.adapters.adk.specialists import Specialist, Toolset
+from alert_triage.domain.findings import MAX_EXAMPLES_PER_FINDING, Signal
 
-SearchLogs = Callable[[str, str, str, str], list[dict[str, Any]]]
-"""The one tool the Logs agent is given, as ADK will see it."""
+LOGS_TOOLSET = "core"
+"""The toolset on the platform's server holding its log tools."""
+
+LOG_SEARCH_TOOL = "search_datadog_logs"
+LOG_AGGREGATE_TOOL = "aggregate_datadog_logs"
+"""The log tools this specialist may reach, and the only ones.
+
+Widening this is a word in the declaration below. It is also the one thing a
+fake cannot verify — that these names exist and that the filter admits them is
+what the credential-gated live run is for.
+"""
 
 LOGS_INSTRUCTION = f"""
 You are a logs specialist doing the first-pass investigation a knowledgeable
@@ -32,19 +40,39 @@ You will be told a service and the window its alerts span. Search that
 service's logs over that window and report the error and warning patterns you
 find: what recurs, how often, and when it started relative to the alerts.
 
+The tools you have are Datadog's:
+
+- `{LOG_SEARCH_TOOL}` returns individual log events matching a query.
+- `{LOG_AGGREGATE_TOOL}` counts them, grouped, when you want the shape of a
+  pattern rather than its instances.
+
+Both take a Datadog log query. That syntax is `service:checkout status:error`
+— facets joined by spaces, `-` to negate, `*` to wildcard, `@` for attributes
+from structured logs (`@http.status_code:503`), and `AND`/`OR` where you need
+them explicit. Always scope the query to the service you were told about and
+the window you were given.
+
 Rules you must follow:
 
 - Search before you report. You may search more than once, narrowing your
   query as you learn what the service is logging.
-- Every observation must cite the records that show it, by the `id` field of
-  the records the search returned. Cite at most {MAX_EXAMPLES_PER_FINDING}
-  records per observation, choosing ones that represent the pattern.
-- Never write out a log line yourself. You cite records; you do not compose
-  them. An observation whose citations are not records the search returned
-  will be discarded.
+- Every result you are given back is identified. A retrieval is `call-N`, and
+  each individual entry within it is `call-N/item-M`. Cite what shows your
+  observation: `call-N/item-M` for a pattern you saw in particular entries,
+  and `call-N` for an aggregate, where there are no individual entries to
+  point at. Cite at most {MAX_EXAMPLES_PER_FINDING} per observation, choosing
+  ones that represent the pattern. An observation citing neither will be
+  discarded.
+- Never write out a log line yourself. You cite what you were shown; you do
+  not compose it. An observation citing something you were not shown will be
+  discarded.
+- If a retrieval comes back saying it failed, it means the search did not run.
+  It does not mean the service was quiet, and you must not report it as
+  quiet or conclude anything at all about the service from it. Try another
+  retrieval, and report only what the retrievals that succeeded show.
 - Report only patterns you actually observed in retrieved logs. If the logs
-  are quiet, report no findings at all — that is a useful answer, not a
-  failure.
+  are genuinely quiet, report no findings at all — that is a useful answer,
+  not a failure.
 - Do not name a root cause, offer a hypothesis, state a confidence level, or
   recommend an action. Another agent reasons across signals and concludes;
   your job is to say accurately what the logs show.
@@ -52,18 +80,19 @@ Rules you must follow:
 
 
 class LogsFinding(BaseModel):
-    """One pattern the agent observed, with the records it rests on."""
+    """One pattern the agent observed, with what it rests on."""
 
     observation: str = Field(
         description="What was observed: the pattern, its rate, and when it began."
     )
     occurrences: int = Field(
-        description="How many matching records were seen in total.", ge=0
+        description="How many matching entries were seen in total.", ge=0
     )
     cites: list[str] = Field(
         description=(
-            "The `id` values of the retrieved records that show this pattern, "
-            f"at most {MAX_EXAMPLES_PER_FINDING} of them."
+            "What shows this pattern, by the identifiers you were given: "
+            "`call-N/item-M` for individual entries, `call-N` for an aggregate. "
+            f"At most {MAX_EXAMPLES_PER_FINDING} of them."
         )
     )
 
@@ -77,37 +106,11 @@ class ReportedFindings(BaseModel):
     )
 
 
-def describe(incident: Incident) -> str:
-    """State the incident to the agent in the terms its tool takes.
-
-    The window comes from the alerts rather than from the run, so evidence is
-    gathered around the problem rather than around whichever run noticed it.
-    """
-    window = incident.window
-    return (
-        f"Service: {incident.service}\n"
-        f"Window start: {window.start.isoformat()}\n"
-        f"Window end: {window.end.isoformat()}\n"
-        f"Alerts in this incident: {len(incident.alerts)}"
-    )
-
-
-def build_logs_agent(*, model: str | BaseLlm, search_logs: SearchLogs) -> LlmAgent:
-    """Build the Logs specialist around the one tool it is allowed.
-
-    Args:
-        model: The model the agent reasons with — a name, or one already
-            built and told how to authenticate.
-        search_logs: The log search, already bound to the observability
-            platform and to this investigation's record keeping.
-
-    Returns:
-        The agent, with that tool and no other.
-    """
-    return LlmAgent(
-        name="logs_specialist",
-        model=model,
-        instruction=LOGS_INSTRUCTION,
-        tools=[search_logs],
-        output_schema=ReportedFindings,
-    )
+LOGS_SPECIALIST = Specialist(
+    name="logs_specialist",
+    signal=Signal.LOGS,
+    instruction=LOGS_INSTRUCTION,
+    output_schema=ReportedFindings,
+    toolsets=(Toolset(name=LOGS_TOOLSET, tools=(LOG_SEARCH_TOOL, LOG_AGGREGATE_TOOL)),),
+)
+"""The Logs specialist as the crew sees it: one declaration, nothing else."""

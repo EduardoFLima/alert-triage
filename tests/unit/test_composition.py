@@ -10,7 +10,7 @@ from alert_triage.adapters.adk.credentials import ApiKey
 from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.app import composition
 from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import Finding, Findings, LogRecord, Signal
+from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.config import ConfigError, Investigation
@@ -88,11 +88,11 @@ class FakeInvestigator:
                     observation="checkout is logging timeouts",
                     occurrences=3,
                     examples=(
-                        LogRecord(
-                            timestamp=NOON,
-                            level="ERROR",
-                            message="upstream timeout",
-                            service="checkout",
+                        EvidenceItem(
+                            id="call-1/item-1",
+                            instant=NOON,
+                            summary="upstream timeout",
+                            payload={"message": "upstream timeout"},
                         ),
                     ),
                 ),

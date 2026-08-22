@@ -11,7 +11,7 @@ from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.yaml_config.loader import ResolvedConfig, load_config
 from alert_triage.app.run import RunOutcome, run
 from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import Finding, Findings, LogRecord, Signal
+from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport, build_report
 from alert_triage.ports.investigator import InvestigatorError
@@ -139,11 +139,11 @@ def _findings(observation: str = "checkout is timing out") -> Findings:
                 observation=observation,
                 occurrences=3,
                 examples=(
-                    LogRecord(
-                        timestamp=NOON,
-                        level="ERROR",
-                        message=observation,
-                        service="checkout",
+                    EvidenceItem(
+                        id="call-1/item-1",
+                        instant=NOON,
+                        summary=observation,
+                        payload={"message": observation},
                     ),
                 ),
             ),
