@@ -19,16 +19,18 @@ So, the port kind first: say you want to notify Slack instead of Teams.
 | `Config` | where configuration is read from |
 
 **2. Create the subpackage.** One directory per integration, named for the
-vendor: `src/alert_triage/adapters/slack/`. Your vendor library is a dependency
-of that package and of nowhere else — add it to `[project] dependencies` in
-`pyproject.toml`, and add it to the `forbidden_modules` list of the vendor
-contract in the same file so it can never leak into the core.
+vendor, inside the context it serves:
+`src/alert_triage/notification/adapters/slack/`. Your vendor library is a
+dependency of that package and of nowhere else — add it to
+`[project] dependencies` in `pyproject.toml`, and add it to the
+`forbidden_modules` list of the vendor contract in the same file so it can
+never leak into the core.
 
 **3. Implement the port.** Translate at the boundary: the adapter converts
 between the vendor's payloads and the project's own domain types. If you find
-yourself wanting to import your SDK from `ports/` or `domain/`, the
-architecture test will stop you — that pull is the signal that a domain type is
-missing, not that the rule is inconvenient.
+yourself wanting to import your SDK from a context's `ports/` or `domain/`,
+the architecture test will stop you — that pull is the signal that a domain
+type is missing, not that the rule is inconvenient.
 
 **4. Write the tests it must carry.**
 
@@ -36,7 +38,8 @@ missing, not that the rule is inconvenient.
   client — no network. These are the tests that must exist.
 - An integration test in `tests/integration/` if the adapter has wiring worth
   exercising against a running fake.
-- No new architecture test: the contracts already cover your subpackage.
+- No new architecture test: the contracts already cover your subpackage,
+  because they name your context rather than your integration.
 
 **5. Wire it up in `app/`.** The composition root is the only place that names
 your adapter. Nothing else in the codebase learns it exists.
@@ -50,7 +53,7 @@ The two existing channels share a shape, and Slack would follow it. Each is
 three modules:
 
 ```
-adapters/slack/
+notification/adapters/slack/
 ├── notifier.py  renders a TriageReport and delivers it
 ├── slack.py     the vendor protocol, and the default way to speak it
 └── settings.py  resolves the channel from the environment
@@ -68,7 +71,7 @@ adapters/slack/
   supplying some of its settings and not the rest raises `ConfigError`. There
   is no `config.yaml` key for a destination or a token, by design — see
   [`configuration.md`](configuration.md).
-- *Register it in `resolve_notifier`.* `adapters/fan_out/resolution.py` is the
+- *Register it in `resolve_notifier`.* `app/composition.py` is the
   one place that decides which channels a deployment has. Add your channel
   there and the fan-out, the partial-failure rule, and the refusal to start
   with no channel all apply to it unchanged.
@@ -81,7 +84,10 @@ starts the re-notify cooldown on it.
 
 This one is not a port, and the steps above do not apply. There is nothing to
 implement and no set of methods to finish before anything runs: a specialist is
-one value in `adapters/adk/`, declared whole.
+one value, declared whole, under the platform it queries:
+`investigation/adapters/<platform>/specialists/`. A platform this project has
+never reached is a directory of your own beside `datadog/`, holding how its MCP
+server is addressed and every specialist declared against it.
 
 | Yours to declare | What it is |
 |---|---|
@@ -97,8 +103,9 @@ that authenticate against it, and the model every specialist reasons on unless
 it named its own. None of that is written into a declaration, so the same
 specialist runs against another account unchanged.
 
-Copy `adapters/adk/logs_agent.py`, swap its tool names and its instruction, and
-add it to the crew in `adapters/adk/crew.py`. Its tests are the ones that file
+Copy `investigation/adapters/datadog/specialists/logs.py`, swap its tool names
+and its instruction, and add it to the crew in
+`investigation/adapters/adk/crew.py`. Its tests are the ones that file
 already carries: the instruction asks for what you think it asks for, the
 declaration reaches no tool outside it, and its schema builds findings at both
 citation grains — all without constructing an agent or reaching a model.

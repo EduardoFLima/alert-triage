@@ -108,11 +108,11 @@ never failed has not been shown to enforce anything.
 
 ## 6. Documentation
 
-- [ ] 6.1 Regenerate the `README.md` architecture diagram via the mermaid MCP
+- [x] 6.1 Regenerate the `README.md` architecture diagram via the mermaid MCP
       tool to show the four contexts and their permitted edges
-- [ ] 6.2 Update the README's adapter-extension guide: adding a platform is
+- [x] 6.2 Update the README's adapter-extension guide: adding a platform is
       adding a directory under `investigation/adapters/`
-- [ ] 6.3 Update `AGENTS.md`'s hexagonal-architecture section to describe
+- [x] 6.3 Update `AGENTS.md`'s hexagonal-architecture section to describe
       per-context hexagons, the contract rule, and where a new runtime
       dependency is declared
-- [ ] 6.4 Final full gate green
+- [x] 6.4 Final full gate green
