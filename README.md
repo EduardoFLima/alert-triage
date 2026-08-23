@@ -227,11 +227,12 @@ tests/
 
 ## Extending it
 
-Two kinds of extension, and they have different shapes. **A notification
-channel is a port to implement.** **Observability tooling is a specialist to
-declare** — the platform's tools, and the instruction that uses them, are one
-value in `adapters/adk/`, and a single specialist is a complete contribution.
-Both guides are in [`docs/adapters.md`](docs/adapters.md).
+Two kinds of extension, and they have different shapes. **Most of it is a port
+to implement** — a notification channel, the triage ledger, an alert source.
+**Observability tooling is a specialist to declare** — the platform's tools,
+and the instruction that uses them, are one value in `adapters/adk/`, and a
+single specialist is a complete contribution. Both guides are in
+[`docs/adapters.md`](docs/adapters.md).
 
 ## License
 

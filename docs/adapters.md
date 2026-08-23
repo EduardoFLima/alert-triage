@@ -1,8 +1,8 @@
 # Adding an adapter
 
 Plugging in your own tooling is a first-class operation, and it comes in two
-shapes. Most of it is a port to implement: a notification channel, an alert
-source, a store. Observability tooling is the exception — there is no platform
+shapes. Most of it is a port to implement: a notification channel, the triage
+ledger, an alert source. Observability tooling is the exception — there is no platform
 port, and you declare [a specialist](#an-observability-specialist) of your own
 instead.
 
