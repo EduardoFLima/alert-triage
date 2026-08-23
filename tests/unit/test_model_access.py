@@ -11,7 +11,7 @@ from alert_triage.adapters.adk.credentials import (
     client_arguments,
     resolve_model_access,
 )
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 
 
 def test_an_api_key_deployment_resolves_to_the_key() -> None:

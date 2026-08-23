@@ -2,7 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from alert_triage.adapters.env_file import DEFAULT_ENV_FILE, resolve_environment
+from alert_triage.configuration.adapters.env_file import (
+    DEFAULT_ENV_FILE,
+    resolve_environment,
+)
 
 
 def _write(tmp_path: Path, body: str) -> Path:

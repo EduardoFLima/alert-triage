@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 
 from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
-from alert_triage.adapters.yaml_config.loader import ResolvedConfig, load_config
 from alert_triage.app.run import RunOutcome, Stage, run
+from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig, load_config
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.investigation_target import InvestigationTarget
@@ -261,7 +261,7 @@ def test_a_single_attempt_reports_without_findings_straight_away(
     """An operator who wants no retrying gets the old behavior back."""
     from dataclasses import replace as replace_dataclass
 
-    from alert_triage.ports.config import Investigation
+    from alert_triage.configuration.settings import Investigation
 
     bounded = replace_dataclass(config, investigation=Investigation(max_attempts=1))
     database = tmp_path / "alert_triage.db"

@@ -14,7 +14,8 @@ from dataclasses import replace
 
 from alert_triage.adapters.adk.logs_agent import LOGS_SPECIALIST
 from alert_triage.adapters.adk.specialists import Specialist
-from alert_triage.ports.config import ConfigError, SpecialistModel
+from alert_triage.configuration.port import ConfigError
+from alert_triage.configuration.settings import SpecialistModel
 
 CREW: tuple[Specialist, ...] = (LOGS_SPECIALIST,)
 """Every specialist declared. Slice 9 adds APM, traces, and infrastructure."""

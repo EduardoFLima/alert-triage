@@ -19,9 +19,9 @@ from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
 
 from alert_triage.adapters.datadog.connection import DatadogConnection
+from alert_triage.configuration.settings import Ingestion
 from alert_triage.domain.alert import Alert
 from alert_triage.ports.alert_source import AlertSourceError
-from alert_triage.ports.config import Ingestion
 
 SERVICE_TAG_PREFIX = "service:"
 

@@ -8,8 +8,9 @@ from alert_triage.adapters.sqlite_ledger import (
     DEFAULT_LEDGER_PATH,
     resolve_ledger_path,
 )
-from alert_triage.adapters.yaml_config import load_config
-from alert_triage.ports.config import Config, ConfigError, CriticalService
+from alert_triage.configuration.adapters.yaml import load_config
+from alert_triage.configuration.port import Config, ConfigError
+from alert_triage.configuration.settings import CriticalService
 
 SCOPED = """
 scope:

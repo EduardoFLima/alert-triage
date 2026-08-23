@@ -5,15 +5,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from alert_triage.app.run import RunOutcome, Stage, run
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.incident import Incident
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.alert_source import AlertSourceError
-from alert_triage.ports.config import (
+from alert_triage.configuration.port import Config
+from alert_triage.configuration.settings import (
     CircuitBreakers,
-    Config,
     CriticalService,
     Grouping,
     Ingestion,
@@ -22,6 +16,12 @@ from alert_triage.ports.config import (
     ReNotify,
     Scope,
 )
+from alert_triage.domain.alert import Alert
+from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
+from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
+from alert_triage.domain.report import TriageReport
+from alert_triage.ports.alert_source import AlertSourceError
 from alert_triage.ports.investigator import InvestigatorError
 from alert_triage.ports.notifier import NotifierError
 from alert_triage.ports.triage_ledger import TriageLedgerError

@@ -21,9 +21,9 @@ from typing import Any, get_type_hints
 
 import yaml
 
-from alert_triage.ports.config import (
+from alert_triage.configuration.port import ConfigError
+from alert_triage.configuration.settings import (
     CircuitBreakers,
-    ConfigError,
     CriticalService,
     Grouping,
     Ingestion,

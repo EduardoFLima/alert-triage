@@ -10,7 +10,7 @@ from pathlib import Path
 
 from alert_triage.adapters.adk.credentials import resolve_model_access
 from alert_triage.adapters.adk.model import build_model
-from alert_triage.adapters.env_file import resolve_environment
+from alert_triage.configuration.adapters.env_file import resolve_environment
 
 A_MODEL = "gemini-2.5-flash"
 

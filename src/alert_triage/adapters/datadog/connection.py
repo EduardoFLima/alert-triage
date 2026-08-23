@@ -15,7 +15,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 
 DEFAULT_SITE = "datadoghq.com"
 

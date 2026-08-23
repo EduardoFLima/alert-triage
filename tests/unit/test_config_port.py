@@ -3,9 +3,9 @@ from datetime import timedelta
 
 import pytest
 
-from alert_triage.ports.config import (
+from alert_triage.configuration.port import Config
+from alert_triage.configuration.settings import (
     CircuitBreakers,
-    Config,
     CriticalService,
     Grouping,
     Ingestion,

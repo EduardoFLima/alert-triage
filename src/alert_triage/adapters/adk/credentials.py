@@ -26,7 +26,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 
 API_KEY_VARIABLE = "GOOGLE_API_KEY"
 ALTERNATE_API_KEY_VARIABLE = "GEMINI_API_KEY"

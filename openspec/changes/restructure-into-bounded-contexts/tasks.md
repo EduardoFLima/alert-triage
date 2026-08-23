@@ -31,13 +31,13 @@ reviewable before any bulk move hides them.
 
 ## 2. Split the configuration model out of ports
 
-- [ ] 2.1 Create `configuration/` with `settings.py` holding the nine value
+- [x] 2.1 Create `configuration/` with `settings.py` holding the nine value
       objects from `ports/config.py`, `port.py` holding the `Config` protocol
       and `ConfigError`
-- [ ] 2.2 Move `adapters/yaml_config` and `adapters/env_file` to
+- [x] 2.2 Move `adapters/yaml_config` and `adapters/env_file` to
       `configuration/adapters/{yaml,env_file}`
-- [ ] 2.3 Delete `ports/config.py`; update every importer
-- [ ] 2.4 Full gate green
+- [x] 2.3 Delete `ports/config.py`; update every importer
+- [x] 2.4 Full gate green
 
 ## 3. Create the shared kernel and the context packages
 

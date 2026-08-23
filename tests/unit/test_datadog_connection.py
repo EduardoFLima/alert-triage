@@ -5,7 +5,7 @@ from alert_triage.adapters.datadog.connection import (
     DatadogConnection,
     resolve_connection,
 )
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 
 CREDENTIALS = {"DD_API_KEY": "api-key", "DD_APP_KEY": "app-key"}
 

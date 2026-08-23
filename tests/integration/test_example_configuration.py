@@ -31,11 +31,11 @@ from alert_triage.adapters.email.settings import (
     SMTP_PORT_VARIABLE,
     SMTP_USERNAME_VARIABLE,
 )
-from alert_triage.adapters.env_file import resolve_environment
 from alert_triage.adapters.sqlite_ledger import LEDGER_PATH_VARIABLE
 from alert_triage.adapters.teams.settings import TEAMS_WEBHOOK_URL_VARIABLE
-from alert_triage.adapters.yaml_config import load_config
-from alert_triage.ports.config import (
+from alert_triage.configuration.adapters.env_file import resolve_environment
+from alert_triage.configuration.adapters.yaml import load_config
+from alert_triage.configuration.settings import (
     CircuitBreakers,
     CriticalService,
     Grouping,

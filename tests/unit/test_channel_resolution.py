@@ -9,7 +9,7 @@ from alert_triage.adapters.email import (
 from alert_triage.adapters.fan_out import FanOutNotifier
 from alert_triage.adapters.teams import TEAMS_WEBHOOK_URL_VARIABLE, TeamsNotifier
 from alert_triage.app.composition import resolve_notifier
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 from alert_triage.ports.notifier import Notifier
 
 EMAIL_ENV = {

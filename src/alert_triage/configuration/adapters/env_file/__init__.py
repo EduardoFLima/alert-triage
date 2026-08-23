@@ -5,7 +5,7 @@ adapters already resolve their deployment facts from, so nothing below the
 composition root learns that a file was involved.
 """
 
-from alert_triage.adapters.env_file.environment import (
+from alert_triage.configuration.adapters.env_file.environment import (
     DEFAULT_ENV_FILE,
     resolve_environment,
 )

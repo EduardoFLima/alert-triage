@@ -38,10 +38,14 @@ from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.sqlite_ledger.location import resolve_ledger_path
 from alert_triage.adapters.teams.notifier import TeamsNotifier
 from alert_triage.adapters.teams.settings import resolve_teams_webhook_url
-from alert_triage.adapters.yaml_config.loader import DEFAULT_CONFIG_PATH, load_config
 from alert_triage.app.run import RunOutcome, run
+from alert_triage.configuration.adapters.yaml.loader import (
+    DEFAULT_CONFIG_PATH,
+    load_config,
+)
+from alert_triage.configuration.port import ConfigError
+from alert_triage.configuration.settings import Investigation
 from alert_triage.domain.report import build_report
-from alert_triage.ports.config import ConfigError, Investigation
 from alert_triage.ports.investigator import Investigator
 from alert_triage.ports.notifier import Notifier
 

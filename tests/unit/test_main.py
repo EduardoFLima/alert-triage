@@ -5,7 +5,7 @@ import pytest
 
 from alert_triage.app import main as entrypoint
 from alert_triage.app.run import RunFailure, RunOutcome, Stage
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 
 
 def _executes(outcome: RunOutcome) -> object:

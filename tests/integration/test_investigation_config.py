@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from alert_triage.adapters.yaml_config import load_config
-from alert_triage.ports.config import ConfigError, Investigation
+from alert_triage.configuration.adapters.yaml import load_config
+from alert_triage.configuration.port import ConfigError
+from alert_triage.configuration.settings import Investigation
 
 SCOPED = """
 scope:

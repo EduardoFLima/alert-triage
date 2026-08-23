@@ -34,9 +34,9 @@ from alert_triage.adapters.datadog.connection import (
     resolve_connection,
 )
 from alert_triage.adapters.datadog.datadog_mcp import mcp_endpoint, mcp_headers
+from alert_triage.configuration.settings import Investigation
 from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.window import Window
-from alert_triage.ports.config import Investigation
 
 pytestmark = pytest.mark.skipif(
     not (

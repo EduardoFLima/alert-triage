@@ -20,8 +20,8 @@ from alert_triage.adapters.datadog.alert_source import (
     build_configuration,
 )
 from alert_triage.adapters.datadog.connection import DatadogConnection
+from alert_triage.configuration.settings import Ingestion
 from alert_triage.ports.alert_source import AlertSourceError
-from alert_triage.ports.config import Ingestion
 
 SINCE = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 

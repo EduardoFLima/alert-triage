@@ -11,7 +11,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.port import ConfigError
 
 SMTP_HOST_VARIABLE = "ALERT_TRIAGE_SMTP_HOST"
 SMTP_PORT_VARIABLE = "ALERT_TRIAGE_SMTP_PORT"

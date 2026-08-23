@@ -2,7 +2,8 @@ import pytest
 
 from alert_triage.adapters.adk.crew import CREW, crew_for
 from alert_triage.adapters.adk.logs_agent import LOGS_SPECIALIST
-from alert_triage.ports.config import ConfigError, SpecialistModel
+from alert_triage.configuration.port import ConfigError
+from alert_triage.configuration.settings import SpecialistModel
 
 
 def test_a_crew_nobody_configured_reasons_on_the_deployments_model() -> None:

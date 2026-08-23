@@ -17,13 +17,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from alert_triage.configuration.port import Config
 from alert_triage.domain.findings import Findings
 from alert_triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 from alert_triage.domain.triage import TriageDecision, triage
 from alert_triage.ports.alert_source import AlertSource, AlertSourceError
-from alert_triage.ports.config import Config
 from alert_triage.ports.investigator import Investigator, InvestigatorError
 from alert_triage.ports.notifier import Notifier, NotifierError
 from alert_triage.ports.triage_ledger import TriageLedger, TriageLedgerError

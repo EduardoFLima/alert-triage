@@ -7,7 +7,7 @@ from alert_triage.adapters.teams import (
     TEAMS_WEBHOOK_URL_VARIABLE,
     resolve_teams_webhook_url,
 )
-from alert_triage.adapters.yaml_config.loader import ResolvedConfig
+from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig
 
 WEBHOOK_URL = "https://prod-1.westeurope.logic.azure.com/workflows/abc/triggers/manual"
 

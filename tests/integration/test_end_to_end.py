@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
-from alert_triage.adapters.yaml_config.loader import ResolvedConfig, load_config
 from alert_triage.app.run import RunOutcome, run
+from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig, load_config
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident

@@ -13,10 +13,10 @@ import logging
 import sys
 from datetime import UTC, datetime
 
-from alert_triage.adapters.env_file import resolve_environment
 from alert_triage.app.composition import execute
 from alert_triage.app.run import RunOutcome
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.adapters.env_file import resolve_environment
+from alert_triage.configuration.port import ConfigError
 
 SUCCESS = 0
 FAILURE = 1

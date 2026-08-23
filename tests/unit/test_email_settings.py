@@ -13,8 +13,8 @@ from alert_triage.adapters.email import (
     SMTP_USERNAME_VARIABLE,
     resolve_email_settings,
 )
-from alert_triage.adapters.yaml_config.loader import ResolvedConfig
-from alert_triage.ports.config import ConfigError
+from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig
+from alert_triage.configuration.port import ConfigError
 
 CONFIGURED = {
     SMTP_HOST_VARIABLE: "smtp.example.com",

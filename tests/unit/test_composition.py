@@ -9,11 +9,12 @@ import pytest
 from alert_triage.adapters.adk.credentials import ApiKey
 from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.app import composition
+from alert_triage.configuration.port import ConfigError
+from alert_triage.configuration.settings import Investigation
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.report import TriageReport
-from alert_triage.ports.config import ConfigError, Investigation
 from alert_triage.ports.investigator import Investigator
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
