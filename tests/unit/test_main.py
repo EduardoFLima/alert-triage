@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 import pytest
 
 from alert_triage.app import main as entrypoint
-from alert_triage.app.run import RunFailure, RunOutcome, Stage
+from alert_triage.app.pipeline import RunFailure, RunOutcome, Stage
 from alert_triage.configuration.port import ConfigError
 
 

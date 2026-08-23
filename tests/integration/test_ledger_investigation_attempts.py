@@ -3,9 +3,9 @@ from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.incident import Incident
+from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.incident import Incident
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 WINDOW = timedelta(minutes=30)

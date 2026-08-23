@@ -1,4 +1,4 @@
-from alert_triage.adapters.datadog.datadog_mcp import (
+from alert_triage.investigation.adapters.datadog.mcp import (
     API_KEY_HEADER,
     APP_KEY_HEADER,
     mcp_endpoint,

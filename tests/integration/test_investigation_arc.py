@@ -14,15 +14,21 @@ from pathlib import Path
 
 import pytest
 
-from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
-from alert_triage.app.run import RunOutcome, Stage, run
+from alert_triage.app.pipeline import RunOutcome, Stage, run
 from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig, load_config
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.report import TriageReport, build_report
-from alert_triage.ports.investigator import InvestigatorError
-from alert_triage.ports.triage_ledger import TriageLedger
+from alert_triage.investigation.contract import (
+    EvidenceItem,
+    Finding,
+    Findings,
+    InvestigationTarget,
+    Signal,
+)
+from alert_triage.notification.contract import TriageReport
+from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.report import build_report
+from alert_triage.triage.ports.investigation import InvestigatorError
+from alert_triage.triage.ports.ledger import TriageLedger
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

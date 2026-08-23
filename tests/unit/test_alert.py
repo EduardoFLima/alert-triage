@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from alert_triage.domain.alert import Alert
+from alert_triage.triage.domain.alert import Alert
 
 
 def test_alert_exposes_the_fields_grouping_reads() -> None:

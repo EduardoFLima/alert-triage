@@ -2,8 +2,8 @@ import inspect
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from alert_triage.domain.alert import Alert
-from alert_triage.ports.alert_source import AlertSource, AlertSourceError
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.ports.alert_source import AlertSource, AlertSourceError
 
 SINCE = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 

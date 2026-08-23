@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from alert_triage.adapters.sqlite_ledger import (
+from alert_triage.triage.adapters.sqlite import (
     DEFAULT_LEDGER_PATH,
     LEDGER_PATH_VARIABLE,
     resolve_ledger_path,

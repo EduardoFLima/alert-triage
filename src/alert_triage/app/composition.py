@@ -20,34 +20,37 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from alert_triage.adapters.adk.credentials import resolve_model_access
-from alert_triage.adapters.adk.crew import crew_for
-from alert_triage.adapters.adk.investigator import AdkInvestigator, run_with_adk
-from alert_triage.adapters.adk.model import build_model
-from alert_triage.adapters.adk.specialists import Deployment
-from alert_triage.adapters.datadog.alert_source import build_alert_source
-from alert_triage.adapters.datadog.connection import (
-    DatadogConnection,
-    resolve_connection,
-)
-from alert_triage.adapters.datadog.datadog_mcp import mcp_endpoint, mcp_headers
-from alert_triage.adapters.email.notifier import EmailNotifier
-from alert_triage.adapters.email.settings import resolve_email_settings
-from alert_triage.adapters.fan_out.notifier import FanOutNotifier
-from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
-from alert_triage.adapters.sqlite_ledger.location import resolve_ledger_path
-from alert_triage.adapters.teams.notifier import TeamsNotifier
-from alert_triage.adapters.teams.settings import resolve_teams_webhook_url
-from alert_triage.app.run import RunOutcome, run
+from alert_triage.app.pipeline import RunOutcome, run
 from alert_triage.configuration.adapters.yaml.loader import (
     DEFAULT_CONFIG_PATH,
     load_config,
 )
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
-from alert_triage.domain.report import build_report
-from alert_triage.ports.investigator import Investigator
-from alert_triage.ports.notifier import Notifier
+from alert_triage.investigation.adapters.adk.agent import Deployment
+from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
+from alert_triage.investigation.adapters.adk.crew import crew_for
+from alert_triage.investigation.adapters.adk.investigator import (
+    AdkInvestigator,
+    run_with_adk,
+)
+from alert_triage.investigation.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
+from alert_triage.notification.adapters.email.notifier import EmailNotifier
+from alert_triage.notification.adapters.email.settings import resolve_email_settings
+from alert_triage.notification.adapters.fan_out import FanOutNotifier
+from alert_triage.notification.adapters.teams.notifier import TeamsNotifier
+from alert_triage.notification.adapters.teams.settings import resolve_teams_webhook_url
+from alert_triage.notification.ports.notifier import Notifier
+from alert_triage.triage.adapters.datadog.alert_source import build_alert_source
+from alert_triage.triage.adapters.datadog.connection import (
+    DatadogConnection,
+    resolve_connection,
+)
+from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
+from alert_triage.triage.adapters.sqlite.location import resolve_ledger_path
+from alert_triage.triage.domain.report import build_report
+from alert_triage.triage.ports.investigation import Investigator
 
 if TYPE_CHECKING:
     from google.adk.models import BaseLlm

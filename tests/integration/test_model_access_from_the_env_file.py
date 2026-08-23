@@ -8,9 +8,9 @@ whether the operator exported it or wrote it in a file.
 
 from pathlib import Path
 
-from alert_triage.adapters.adk.credentials import resolve_model_access
-from alert_triage.adapters.adk.model import build_model
 from alert_triage.configuration.adapters.env_file import resolve_environment
+from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
+from alert_triage.investigation.adapters.adk.model import build_model
 
 A_MODEL = "gemini-2.5-flash"
 

@@ -4,13 +4,12 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from alert_triage.adapters.adk.evidence import Retrieved
-from alert_triage.adapters.adk.investigator import AdkInvestigator
-from alert_triage.adapters.adk.specialists import Specialist, Toolset
-from alert_triage.domain.findings import Signal
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.window import Window
-from alert_triage.ports.investigator import InvestigatorError
+from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
+from alert_triage.investigation.contract import InvestigationTarget, Signal
+from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.shared.window import Window
+from alert_triage.triage.ports.investigation import InvestigatorError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

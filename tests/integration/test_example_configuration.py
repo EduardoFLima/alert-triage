@@ -10,29 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from alert_triage.adapters.adk.credentials import (
-    API_KEY_VARIABLE as MODEL_API_KEY_VARIABLE,
-)
-from alert_triage.adapters.adk.credentials import (
-    ENTERPRISE_VARIABLE,
-    LOCATION_VARIABLE,
-    PROJECT_VARIABLE,
-)
-from alert_triage.adapters.datadog.connection import (
-    API_KEY_VARIABLE,
-    APP_KEY_VARIABLE,
-    SITE_VARIABLE,
-)
-from alert_triage.adapters.email.settings import (
-    EMAIL_FROM_VARIABLE,
-    EMAIL_TO_VARIABLE,
-    SMTP_HOST_VARIABLE,
-    SMTP_PASSWORD_VARIABLE,
-    SMTP_PORT_VARIABLE,
-    SMTP_USERNAME_VARIABLE,
-)
-from alert_triage.adapters.sqlite_ledger import LEDGER_PATH_VARIABLE
-from alert_triage.adapters.teams.settings import TEAMS_WEBHOOK_URL_VARIABLE
 from alert_triage.configuration.adapters.env_file import resolve_environment
 from alert_triage.configuration.adapters.yaml import load_config
 from alert_triage.configuration.settings import (
@@ -44,6 +21,29 @@ from alert_triage.configuration.settings import (
     ReNotify,
     Scope,
 )
+from alert_triage.investigation.adapters.adk.credentials import (
+    API_KEY_VARIABLE as MODEL_API_KEY_VARIABLE,
+)
+from alert_triage.investigation.adapters.adk.credentials import (
+    ENTERPRISE_VARIABLE,
+    LOCATION_VARIABLE,
+    PROJECT_VARIABLE,
+)
+from alert_triage.notification.adapters.email.settings import (
+    EMAIL_FROM_VARIABLE,
+    EMAIL_TO_VARIABLE,
+    SMTP_HOST_VARIABLE,
+    SMTP_PASSWORD_VARIABLE,
+    SMTP_PORT_VARIABLE,
+    SMTP_USERNAME_VARIABLE,
+)
+from alert_triage.notification.adapters.teams.settings import TEAMS_WEBHOOK_URL_VARIABLE
+from alert_triage.triage.adapters.datadog.connection import (
+    API_KEY_VARIABLE,
+    APP_KEY_VARIABLE,
+    SITE_VARIABLE,
+)
+from alert_triage.triage.adapters.sqlite import LEDGER_PATH_VARIABLE
 
 REPOSITORY_ROOT = Path(__file__).parents[2]
 CONFIG_EXAMPLE = REPOSITORY_ROOT / "config.example.yaml"

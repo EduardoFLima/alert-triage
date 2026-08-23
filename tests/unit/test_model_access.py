@@ -1,6 +1,7 @@
 import pytest
 
-from alert_triage.adapters.adk.credentials import (
+from alert_triage.configuration.port import ConfigError
+from alert_triage.investigation.adapters.adk.credentials import (
     ALTERNATE_API_KEY_VARIABLE,
     API_KEY_VARIABLE,
     ENTERPRISE_VARIABLE,
@@ -11,7 +12,6 @@ from alert_triage.adapters.adk.credentials import (
     client_arguments,
     resolve_model_access,
 )
-from alert_triage.configuration.port import ConfigError
 
 
 def test_an_api_key_deployment_resolves_to_the_key() -> None:

@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from alert_triage.adapters.fan_out import FanOutNotifier
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.notifier import Notifier, NotifierError
+from alert_triage.notification.adapters.fan_out import FanOutNotifier
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import Notifier, NotifierError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

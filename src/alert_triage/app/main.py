@@ -14,7 +14,7 @@ import sys
 from datetime import UTC, datetime
 
 from alert_triage.app.composition import execute
-from alert_triage.app.run import RunOutcome
+from alert_triage.app.pipeline import RunOutcome
 from alert_triage.configuration.adapters.env_file import resolve_environment
 from alert_triage.configuration.port import ConfigError
 

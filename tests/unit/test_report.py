@@ -3,13 +3,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.incident import Incident
-from alert_triage.domain.report import (
+from alert_triage.investigation.contract import EvidenceItem, Finding, Findings, Signal
+from alert_triage.notification.contract import TriageReport
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.incident import Incident
+from alert_triage.triage.domain.report import (
     EVIDENCE_INCOMPLETE,
     NOT_INVESTIGATED,
-    TriageReport,
     build_report,
 )
 

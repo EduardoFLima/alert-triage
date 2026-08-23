@@ -2,9 +2,9 @@ import inspect
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.incident import Incident
-from alert_triage.ports.triage_ledger import TriageLedger, TriageLedgerError
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.incident import Incident
+from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
 NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 

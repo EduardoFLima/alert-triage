@@ -2,8 +2,8 @@ import inspect
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.notifier import Notifier, NotifierError
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import Notifier, NotifierError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
@@ -45,7 +45,7 @@ def test_the_port_takes_one_report_at_a_time() -> None:
 def test_a_delivery_failure_has_one_error_type_to_catch() -> None:
     """A caller handles it without importing anything channel-specific."""
     assert issubclass(NotifierError, Exception)
-    assert NotifierError.__module__ == "alert_triage.ports.notifier"
+    assert NotifierError.__module__ == "alert_triage.notification.ports.notifier"
 
 
 def test_the_notifier_is_synchronous() -> None:

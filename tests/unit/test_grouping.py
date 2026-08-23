@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.grouping import group_alerts
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.grouping import group_alerts
 
 WINDOW = timedelta(minutes=5)
 NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)

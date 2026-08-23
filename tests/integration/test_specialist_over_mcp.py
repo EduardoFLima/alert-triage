@@ -28,19 +28,19 @@ from google.genai import types
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from alert_triage.adapters.adk.evidence import RETRIEVAL_FAILED
-from alert_triage.adapters.adk.investigator import AdkInvestigator, run_with_adk
-from alert_triage.adapters.adk.logs_agent import ReportedFindings
-from alert_triage.adapters.adk.specialists import (
-    Deployment,
-    Specialist,
-    Toolset,
-    connection_for,
+from alert_triage.investigation.adapters.adk.agent import Deployment, connection_for
+from alert_triage.investigation.adapters.adk.investigator import (
+    AdkInvestigator,
+    run_with_adk,
 )
-from alert_triage.domain.findings import Signal
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.window import Window
-from alert_triage.ports.investigator import InvestigatorError
+from alert_triage.investigation.adapters.datadog.specialists.logs import (
+    ReportedFindings,
+)
+from alert_triage.investigation.contract import InvestigationTarget, Signal
+from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
+from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.shared.window import Window
+from alert_triage.triage.ports.investigation import InvestigatorError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

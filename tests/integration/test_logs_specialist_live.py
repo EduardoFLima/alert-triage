@@ -17,26 +17,26 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
-from alert_triage.adapters.adk.credentials import (
+from alert_triage.configuration.settings import Investigation
+from alert_triage.investigation.adapters.adk.agent import Deployment, connection_for
+from alert_triage.investigation.adapters.adk.credentials import (
     API_KEY_VARIABLE,
     resolve_model_access,
 )
-from alert_triage.adapters.adk.evidence import Retrieved
-from alert_triage.adapters.adk.investigator import run_with_adk
-from alert_triage.adapters.adk.logs_agent import LOGS_SPECIALIST
-from alert_triage.adapters.adk.model import build_model
-from alert_triage.adapters.adk.specialists import Deployment, connection_for
-from alert_triage.adapters.datadog.connection import (
+from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.adapters.adk.investigator import run_with_adk
+from alert_triage.investigation.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
+from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SPECIALIST
+from alert_triage.investigation.contract import InvestigationTarget
+from alert_triage.shared.window import Window
+from alert_triage.triage.adapters.datadog.connection import (
     API_KEY_VARIABLE as DD_API_KEY_VARIABLE,
 )
-from alert_triage.adapters.datadog.connection import (
+from alert_triage.triage.adapters.datadog.connection import (
     APP_KEY_VARIABLE,
     resolve_connection,
 )
-from alert_triage.adapters.datadog.datadog_mcp import mcp_endpoint, mcp_headers
-from alert_triage.configuration.settings import Investigation
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.window import Window
 
 pytestmark = pytest.mark.skipif(
     not (

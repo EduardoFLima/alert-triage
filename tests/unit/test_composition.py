@@ -6,16 +6,21 @@ from uuid import UUID
 
 import pytest
 
-from alert_triage.adapters.adk.credentials import ApiKey
-from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.app import composition
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.investigator import Investigator
+from alert_triage.investigation.adapters.adk.credentials import ApiKey
+from alert_triage.investigation.contract import (
+    EvidenceItem,
+    Finding,
+    Findings,
+    InvestigationTarget,
+    Signal,
+)
+from alert_triage.notification.contract import TriageReport
+from alert_triage.triage.adapters.datadog.connection import DatadogConnection
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.ports.investigation import Investigator
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

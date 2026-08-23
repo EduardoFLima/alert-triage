@@ -3,14 +3,13 @@ from typing import Any
 
 import pytest
 
-from alert_triage.adapters.adk.evidence import (
-    RETRIEVAL_FAILED,
+from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
     calls_logged,
     evidence_kept,
-    findings_from,
 )
-from alert_triage.domain.findings import Signal
+from alert_triage.investigation.contract import Signal
+from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED, findings_from
 
 
 class _Tool:

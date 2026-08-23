@@ -4,17 +4,16 @@ import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from pydantic import BaseModel
 
-from alert_triage.adapters.adk.evidence import Retrieved
-from alert_triage.adapters.adk.specialists import (
+from alert_triage.investigation.adapters.adk.agent import (
     CONNECT_TIMEOUT_SECONDS,
     READ_TIMEOUT_SECONDS,
     Deployment,
-    Specialist,
-    Toolset,
     build_agent,
     connection_for,
 )
-from alert_triage.domain.findings import Signal
+from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.contract import Signal
+from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
 
 class _NamedTool:

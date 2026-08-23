@@ -8,9 +8,13 @@ from types import TracebackType
 
 import pytest
 
-from alert_triage.adapters.email import EmailNotifier, EmailSettings, render
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.notifier import Notifier, NotifierError
+from alert_triage.notification.adapters.email import (
+    EmailNotifier,
+    EmailSettings,
+    render,
+)
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import Notifier, NotifierError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
@@ -79,7 +83,9 @@ def test_the_adapter_builds_the_standard_library_s_message_type() -> None:
 
 def test_the_adapter_imports_the_standard_library_email_not_its_own_package() -> None:
     """Absolute imports save this, and a relative import would break it silently."""
-    notifier = importlib.import_module("alert_triage.adapters.email.notifier")
+    notifier = importlib.import_module(
+        "alert_triage.notification.adapters.email.notifier"
+    )
 
     assert notifier.EmailMessage.__module__ == "email.message"
     assert notifier.EmailMessage is EmailMessage

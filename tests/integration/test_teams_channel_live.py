@@ -14,9 +14,9 @@ from typing import Any, ClassVar
 
 import pytest
 
-from alert_triage.adapters.teams import TeamsNotifier
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.notifier import NotifierError
+from alert_triage.notification.adapters.teams import TeamsNotifier
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import NotifierError
 
 
 @dataclass

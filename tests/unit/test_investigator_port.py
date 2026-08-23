@@ -2,10 +2,9 @@ from datetime import UTC, datetime
 
 import pytest
 
-from alert_triage.domain.findings import Findings
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.window import Window
-from alert_triage.ports.investigator import Investigator, InvestigatorError
+from alert_triage.investigation.contract import Findings, InvestigationTarget
+from alert_triage.shared.window import Window
+from alert_triage.triage.ports.investigation import Investigator, InvestigatorError
 
 NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 

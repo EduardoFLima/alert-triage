@@ -5,12 +5,12 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from alert_triage.adapters.sqlite_ledger import SqliteTriageLedger
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.grouping import AlertGroup
-from alert_triage.domain.incident import Incident
-from alert_triage.domain.triage import triage
-from alert_triage.ports.triage_ledger import TriageLedgerError
+from alert_triage.triage.adapters.sqlite import SqliteTriageLedger
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.grouping import AlertGroup
+from alert_triage.triage.domain.incident import Incident
+from alert_triage.triage.domain.policy import triage
+from alert_triage.triage.ports.ledger import TriageLedgerError
 
 NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 WINDOW = timedelta(minutes=30)

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from alert_triage.domain.report import TriageReport
+from alert_triage.notification.contract import TriageReport
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

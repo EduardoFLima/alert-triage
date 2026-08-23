@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.window import Window
+from alert_triage.investigation.contract import InvestigationTarget
+from alert_triage.shared.window import Window
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.domain.findings import (
+from alert_triage.investigation.contract import (
     MAX_EXAMPLES_PER_FINDING,
     EvidenceItem,
     Finding,

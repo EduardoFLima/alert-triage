@@ -4,10 +4,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.grouping import AlertGroup, group_alerts
-from alert_triage.domain.incident import Incident
-from alert_triage.domain.triage import (
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.grouping import AlertGroup, group_alerts
+from alert_triage.triage.domain.incident import Incident
+from alert_triage.triage.domain.policy import (
     TriageDecision,
     continue_or_open,
     is_closed,

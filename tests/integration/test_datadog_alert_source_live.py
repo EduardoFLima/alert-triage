@@ -11,15 +11,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.adapters.datadog.alert_source import build_alert_source
-from alert_triage.adapters.datadog.connection import (
+from alert_triage.configuration.settings import Ingestion
+from alert_triage.triage.adapters.datadog.alert_source import build_alert_source
+from alert_triage.triage.adapters.datadog.connection import (
     API_KEY_VARIABLE,
     APP_KEY_VARIABLE,
     resolve_connection,
 )
-from alert_triage.configuration.settings import Ingestion
-from alert_triage.domain.alert import Alert
-from alert_triage.ports.alert_source import AlertSource
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.ports.alert_source import AlertSource
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get(API_KEY_VARIABLE) and os.environ.get(APP_KEY_VARIABLE)),

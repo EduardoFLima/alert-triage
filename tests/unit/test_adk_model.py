@@ -1,5 +1,8 @@
-from alert_triage.adapters.adk.credentials import ApiKey, EnterprisePlatform
-from alert_triage.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.adk.credentials import (
+    ApiKey,
+    EnterprisePlatform,
+)
+from alert_triage.investigation.adapters.adk.model import build_model
 
 
 def test_the_model_reasons_under_the_name_it_was_given() -> None:

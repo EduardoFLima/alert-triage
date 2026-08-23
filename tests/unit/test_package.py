@@ -7,6 +7,13 @@ def test_package_imports() -> None:
     assert module.__doc__ is not None
 
 
-def test_layer_packages_import() -> None:
-    for layer in ("domain", "ports", "adapters", "app"):
-        assert importlib.import_module(f"alert_triage.{layer}") is not None
+def test_every_context_package_imports() -> None:
+    for context in (
+        "shared",
+        "configuration",
+        "triage",
+        "investigation",
+        "notification",
+        "app",
+    ):
+        assert importlib.import_module(f"alert_triage.{context}") is not None

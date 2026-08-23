@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from alert_triage.adapters.teams import (
+from alert_triage.notification.adapters.teams import (
     ADAPTIVE_CARD_CONTENT_TYPE,
     CARD_VERSION,
     TIMEOUT_SECONDS,
@@ -17,8 +17,8 @@ from alert_triage.adapters.teams import (
     post_over_urllib,
     render,
 )
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.notifier import Notifier, NotifierError
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import Notifier, NotifierError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 WEBHOOK_URL = "https://prod-1.westeurope.logic.azure.com/workflows/abc/triggers/manual"

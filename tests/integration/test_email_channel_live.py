@@ -14,9 +14,9 @@ import pytest
 from aiosmtpd.controller import Controller
 from aiosmtpd.smtp import SMTP, Envelope, Session
 
-from alert_triage.adapters.email import EmailNotifier, EmailSettings
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.notifier import NotifierError
+from alert_triage.notification.adapters.email import EmailNotifier, EmailSettings
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import NotifierError
 
 
 class _Collector:

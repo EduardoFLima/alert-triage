@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from alert_triage.adapters.adk.normalisation import items_from
+from alert_triage.investigation.adapters.adk.normalisation import items_from
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

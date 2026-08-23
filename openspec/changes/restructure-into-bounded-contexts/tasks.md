@@ -41,34 +41,34 @@ reviewable before any bulk move hides them.
 
 ## 3. Create the shared kernel and the context packages
 
-- [ ] 3.1 `git mv` `domain/window.py` to `shared/window.py`; update importers
-- [ ] 3.2 Create `triage/{domain,ports,adapters}` and move `incident`,
+- [x] 3.1 `git mv` `domain/window.py` to `shared/window.py`; update importers
+- [x] 3.2 Create `triage/{domain,ports,adapters}` and move `incident`,
       `alert`, `grouping`, `report`, and `triage.py` (renamed `policy.py`)
       into `triage/domain`; `alert_source`, `triage_ledger` (renamed
       `ledger.py`), and `investigator` (renamed `investigation.py`) into
       `triage/ports`; `adapters/sqlite_ledger` into `triage/adapters/sqlite`
-- [ ] 3.3 Move `adapters/datadog/{connection,alert_source}.py` into
+- [x] 3.3 Move `adapters/datadog/{connection,alert_source}.py` into
       `triage/adapters/datadog/`
-- [ ] 3.4 Full gate green
-- [ ] 3.5 Create `investigation/` with `contract.py` holding
+- [x] 3.4 Full gate green
+- [x] 3.5 Create `investigation/` with `contract.py` holding
       `InvestigationTarget` plus `Findings`, `Finding`, `EvidenceItem`, and
       `Signal` moved out of `domain/findings.py`
-- [ ] 3.6 Move `adapters/adk/{crew,model,credentials,investigator,evidence,
+- [x] 3.6 Move `adapters/adk/{crew,model,credentials,investigator,evidence,
       normalisation}.py` into `investigation/adapters/adk/`; move the
       `Specialist` and `Toolset` declaration types into
       `investigation/domain/specialist.py` and the citation discipline into
       `investigation/domain/evidence.py`
-- [ ] 3.7 Move `adapters/datadog/datadog_mcp.py` to
+- [x] 3.7 Move `adapters/datadog/datadog_mcp.py` to
       `investigation/adapters/datadog/mcp.py` and `adapters/adk/logs_agent.py`
       to `investigation/adapters/datadog/specialists/logs.py`
-- [ ] 3.8 Full gate green
-- [ ] 3.9 Create `notification/` with `contract.py` holding `TriageReport`;
+- [x] 3.8 Full gate green
+- [x] 3.9 Create `notification/` with `contract.py` holding `TriageReport`;
       move `ports/notifier.py` to `notification/ports/`, and
       `adapters/{email,teams}` plus `fan_out/notifier.py` into
       `notification/adapters/`
-- [ ] 3.10 Rename `app/run.py` to `app/pipeline.py`; delete the now-empty
+- [x] 3.10 Rename `app/run.py` to `app/pipeline.py`; delete the now-empty
       `domain/`, `ports/`, and `adapters/` packages
-- [ ] 3.11 Full gate green
+- [x] 3.11 Full gate green
 
 ## 4. Rewrite the architecture contracts
 

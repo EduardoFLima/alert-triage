@@ -1,11 +1,11 @@
 import pytest
 
-from alert_triage.adapters.datadog.connection import (
+from alert_triage.configuration.port import ConfigError
+from alert_triage.triage.adapters.datadog.connection import (
     DEFAULT_SITE,
     DatadogConnection,
     resolve_connection,
 )
-from alert_triage.configuration.port import ConfigError
 
 CREDENTIALS = {"DD_API_KEY": "api-key", "DD_APP_KEY": "app-key"}
 

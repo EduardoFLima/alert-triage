@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.app.run import RunOutcome, Stage, run
+from alert_triage.app.pipeline import RunOutcome, Stage, run
 from alert_triage.configuration.port import Config
 from alert_triage.configuration.settings import (
     CircuitBreakers,
@@ -16,15 +16,20 @@ from alert_triage.configuration.settings import (
     ReNotify,
     Scope,
 )
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.incident import Incident
-from alert_triage.domain.investigation_target import InvestigationTarget
-from alert_triage.domain.report import TriageReport
-from alert_triage.ports.alert_source import AlertSourceError
-from alert_triage.ports.investigator import InvestigatorError
-from alert_triage.ports.notifier import NotifierError
-from alert_triage.ports.triage_ledger import TriageLedgerError
+from alert_triage.investigation.contract import (
+    EvidenceItem,
+    Finding,
+    Findings,
+    InvestigationTarget,
+    Signal,
+)
+from alert_triage.notification.contract import TriageReport
+from alert_triage.notification.ports.notifier import NotifierError
+from alert_triage.triage.domain.alert import Alert
+from alert_triage.triage.domain.incident import Incident
+from alert_triage.triage.ports.alert_source import AlertSourceError
+from alert_triage.triage.ports.investigation import InvestigatorError
+from alert_triage.triage.ports.ledger import TriageLedgerError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 NOT_INVESTIGATED = "nobody looked"

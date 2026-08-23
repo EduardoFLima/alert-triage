@@ -15,13 +15,13 @@ from datadog_api_client.v2.model.events_response_metadata_page import (
     EventsResponseMetadataPage,
 )
 
-from alert_triage.adapters.datadog.alert_source import (
+from alert_triage.configuration.settings import Ingestion
+from alert_triage.triage.adapters.datadog.alert_source import (
     DatadogAlertSource,
     build_configuration,
 )
-from alert_triage.adapters.datadog.connection import DatadogConnection
-from alert_triage.configuration.settings import Ingestion
-from alert_triage.ports.alert_source import AlertSourceError
+from alert_triage.triage.adapters.datadog.connection import DatadogConnection
+from alert_triage.triage.ports.alert_source import AlertSourceError
 
 SINCE = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
