@@ -4,9 +4,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import Finding, Findings, LogRecord, Signal
+from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import (
+    EVIDENCE_INCOMPLETE,
     NOT_INVESTIGATED,
     TriageReport,
     build_report,
@@ -161,22 +162,25 @@ def test_the_subject_survives_a_service_tag_that_spans_two_lines() -> None:
     assert "\n" not in _uninvestigated(incident).subject
 
 
-def _record(offset: timedelta = timedelta(), message: str = "OOMKilled") -> LogRecord:
-    return LogRecord(
-        timestamp=NOON + offset, level="ERROR", message=message, service="checkout"
+def _item(offset: timedelta = timedelta(), summary: str = "OOMKilled") -> EvidenceItem:
+    return EvidenceItem(
+        id="call-1/item-1",
+        instant=NOON + offset,
+        summary=summary,
+        payload={"message": summary},
     )
 
 
 def _finding(
     observation: str = "OOMKilled recurs every 40s",
     occurrences: int = 47,
-    examples: tuple[LogRecord, ...] = (),
+    examples: tuple[EvidenceItem, ...] = (),
 ) -> Finding:
     return Finding(
         signal=Signal.LOGS,
         observation=observation,
         occurrences=occurrences,
-        examples=examples or (_record(),),
+        examples=examples or (_item(),),
     )
 
 
@@ -196,7 +200,7 @@ def test_an_investigated_report_states_what_was_found() -> None:
 
 def test_an_investigated_report_carries_the_evidence_behind_each_finding() -> None:
     findings = Findings(
-        findings=(_finding(examples=(_record(message="container OOMKilled"),)),)
+        findings=(_finding(examples=(_item(summary="container OOMKilled"),)),)
     )
 
     body = _investigated(_incident(), findings).body
@@ -265,3 +269,60 @@ def test_no_findings_is_not_the_same_as_findings_that_are_empty() -> None:
     incident = _incident()
 
     assert build_report(incident, None).body != build_report(incident, Findings()).body
+
+
+def test_an_investigated_report_reads_an_aggregate_with_no_instant() -> None:
+    """A flame graph concerns a window, not a moment; it is still evidence."""
+    aggregate = EvidenceItem(
+        id="call-2",
+        instant=None,
+        summary="one handler holds 84% of the time",
+        payload={},
+    )
+
+    body = _investigated(
+        _incident(), Findings(findings=(_finding(examples=(aggregate,)),))
+    ).body
+
+    assert "one handler holds 84% of the time" in body
+
+
+def test_a_report_whose_investigation_could_not_see_everything_says_so() -> None:
+    findings = Findings(
+        findings=(_finding(observation="OOMKilled recurs every 40s"),),
+        retrieval_failures=("the log aggregation was refused",),
+    )
+
+    body = _investigated(_incident(), findings).body
+
+    assert EVIDENCE_INCOMPLETE in body
+    assert "OOMKilled recurs every 40s" in body
+
+
+def test_an_incomplete_investigation_that_found_nothing_still_says_so() -> None:
+    """The dangerous report: nothing found, and part of the looking never happened."""
+    findings = Findings(retrieval_failures=("the log search was refused",))
+
+    body = _investigated(_incident(), findings).body
+
+    assert EVIDENCE_INCOMPLETE in body
+
+
+def test_a_complete_investigation_carries_no_incompleteness_note() -> None:
+    notable = Findings(findings=(_finding(),))
+    quiet = Findings()
+
+    assert EVIDENCE_INCOMPLETE not in _investigated(_incident(), notable).body
+    assert EVIDENCE_INCOMPLETE not in _investigated(_incident(), quiet).body
+
+
+def test_incomplete_evidence_is_not_the_report_for_a_failed_investigation() -> None:
+    """One says part of the looking failed; the other says all of it did."""
+    incomplete = _investigated(
+        _incident(), Findings(retrieval_failures=("the log search was refused",))
+    ).body
+    uninvestigated = _uninvestigated(_incident()).body
+
+    assert NOT_INVESTIGATED not in incomplete
+    assert EVIDENCE_INCOMPLETE not in uninvestigated
+    assert NOT_INVESTIGATED in uninvestigated

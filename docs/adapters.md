@@ -1,7 +1,12 @@
 # Adding an adapter
 
-Plugging in your own observability or notification tooling is a first-class
-operation. Say you want to notify Slack instead of Teams:
+Plugging in your own tooling is a first-class operation, and it comes in two
+shapes. Most of it is a port to implement: a notification channel, the triage
+ledger, an alert source. Observability tooling is the exception — there is no platform
+port, and you declare [a specialist](#an-observability-specialist) of your own
+instead.
+
+So, the port kind first: say you want to notify Slack instead of Teams.
 
 **1. Pick the port you are implementing.** Each port is one seam:
 
@@ -9,7 +14,6 @@ operation. Say you want to notify Slack instead of Teams:
 |---|---|
 | `AlertSource` | where alerts come from (Datadog, Prometheus, …) |
 | `Investigator` | how an alert group gets investigated |
-| `ObservabilityPlatform` | where the investigator queries logs, traces, and metrics for context (Datadog, …) |
 | `TriageLedger` | where dedup and cooldown state is kept |
 | `Notifier` | where the triage report is delivered |
 | `Config` | where configuration is read from |
@@ -72,3 +76,44 @@ adapters/slack/
 Raise `NotifierError` for anything that means "not delivered", and never return
 quietly on a failure: the caller reads a return as "the team was told" and
 starts the re-notify cooldown on it.
+
+## An observability specialist
+
+This one is not a port, and the steps above do not apply. There is nothing to
+implement and no set of methods to finish before anything runs: a specialist is
+one value in `adapters/adk/`, declared whole.
+
+| Yours to declare | What it is |
+|---|---|
+| `name` | what the specialist is called, in the agent and in `config.yaml` |
+| `signal` | the dimension its findings are drawn from |
+| `instruction` | what it looks for, in your platform's own terms — including its query dialect, which is not translatable |
+| `output_schema` | the shape it reports in. It cites what it was shown; there is no field to write evidence into |
+| `toolsets` | the toolsets on your platform's MCP server, and the tool names within each that this specialist may reach |
+| `model` | optional, where this specialist needs a different model from its siblings |
+
+The deployment supplies the rest — the platform's endpoint, the credentials
+that authenticate against it, and the model every specialist reasons on unless
+it named its own. None of that is written into a declaration, so the same
+specialist runs against another account unchanged.
+
+Copy `adapters/adk/logs_agent.py`, swap its tool names and its instruction, and
+add it to the crew in `adapters/adk/crew.py`. Its tests are the ones that file
+already carries: the instruction asks for what you think it asks for, the
+declaration reaches no tool outside it, and its schema builds findings at both
+citation grains — all without constructing an agent or reaching a model.
+
+**One specialist is a complete contribution.** It runs, it gathers evidence,
+and its findings reach the report on their own; there is no set of four that
+must all exist before anything works.
+
+**Nothing here checks whether an instruction is any good.** The tests confirm
+what a specialist asks for and what it may reach, not whether asking that
+produces a useful investigation. Judging that is what the evaluation harness is
+for, and it does not exist yet — until it does, a new instruction is worth
+running against a real incident and reading the report yourself.
+
+A note on cost: a specialist's spend rises with the number of tools it may
+reach, because runtime discovery means the model decides how many calls to
+make. Until the circuit breakers are wired to configuration, the re-notify
+cooldown is the only thing bounding how often an investigation happens at all.

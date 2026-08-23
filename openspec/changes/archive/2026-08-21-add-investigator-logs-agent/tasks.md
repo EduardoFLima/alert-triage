@@ -159,7 +159,7 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 - [x] 10.1 Build the MCP platform and the ADK investigator in
       `app/composition.py` and inject them — test the run receives an
       investigator and that no adapter is named outside this module
-- [ ] 10.2 Refuse to start when the model credential is absent, naming it —
+- [x] 10.2 Refuse to start when the model credential is absent, naming it —
       test nothing is fetched and the run finishes unsuccessfully
 - [x] 10.3 Extend `tests/integration/test_end_to_end.py` with a fake
       investigator: a complete run producing an investigated report, and one
@@ -170,19 +170,30 @@ four CI commands from `AGENTS.md` must pass before any group is called done.
 - [x] 10.5 Integration test of the arc that never succeeds — fail, fail, fail —
       asserting silence, silence, then the alerts-only report, and that a
       fourth run investigates nothing and delivers nothing
-- [ ] 10.6 Credential-gated live integration test against the real Datadog MCP
-      server, following the pattern in `test_datadog_alert_source_live.py`
+**Won't do** — 10.6 is dropped, and so is all of section 11 below. The
+investigator architecture is being redesigned (whether `ObservabilityPlatform`
+earns itself, or agents are handed a Datadog MCP toolset directly), so a live
+test and a README written against today's adapter would be deprecated before
+they earned their keep. Both are re-planned with the redesign. Deliberately
+left as un-checkboxed items rather than deleted: the record of what was
+planned and consciously skipped is worth more than a tidy list.
 
-## 11. Documentation and close-out
+- ~~10.6 Credential-gated live integration test against the real Datadog MCP
+  server, following the pattern in `test_datadog_alert_source_live.py`~~
 
-- [ ] 11.1 README: the `investigation` config section including
-      `max_attempts`, the model credential in the environment table, and a
-      plain statement that a run now incurs model cost
-- [ ] 11.2 README: explain that a failed investigation is silent and retried,
-      so an operator understands why a firing service can be quiet for a few
-      runs and what the alerts-only report means when it does arrive
-- [ ] 11.3 README: update the architecture diagram via the mermaid MCP tool to
-      show the Investigator and ObservabilityPlatform ports
-- [ ] 11.4 Run all four CI commands clean, then answer the design's open
-      questions from a real investigation: the default model, and whether
-      evidence is structured records or prose
+## 11. Documentation and close-out — won't do
+
+- ~~11.1 README: the `investigation` config section including `max_attempts`,
+  the model credential in the environment table, and a plain statement that a
+  run now incurs model cost~~
+- ~~11.2 README: explain that a failed investigation is silent and retried, so
+  an operator understands why a firing service can be quiet for a few runs and
+  what the alerts-only report means when it does arrive~~
+- ~~11.3 README: update the architecture diagram via the mermaid MCP tool to
+  show the Investigator and ObservabilityPlatform ports~~
+- ~~11.4 Run all four CI commands clean, then answer the design's open
+  questions from a real investigation: the default model, and whether evidence
+  is structured records or prose~~
+
+The four CI commands from 11.4 are run against this change regardless — they
+gate every group, per the note at the top of this file.

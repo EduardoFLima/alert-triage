@@ -8,7 +8,7 @@ supplied on top of them.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import ClassVar, Protocol, runtime_checkable
 
@@ -129,6 +129,21 @@ class Ledger:
 
 
 @dataclass(frozen=True)
+class SpecialistModel:
+    """The model one specialist reasons on, where it differs from its siblings.
+
+    A section keyed by specialist name rather than a field per specialist: a
+    specialist is declared in the adapter that runs it, and the schema learns
+    nothing when one is added.
+
+    Attributes:
+        model: The model that specialist runs on.
+    """
+
+    model: str
+
+
+@dataclass(frozen=True)
 class Investigation:
     """How an investigation reasons, and how many times it is given the chance.
 
@@ -142,10 +157,13 @@ class Investigation:
     runs, and the two will be tuned against different evidence.
 
     Attributes:
-        model: The model an investigation's agents run on.
+        model: The model an investigation's agents run on, unless a specialist
+            names its own.
         max_attempts: How many investigations one incident may be given in
             total, the first included, before the system stops trying and
             reports what fired without findings. One disables retrying.
+        specialists: Per-specialist overrides, keyed by specialist name. Empty
+            means every specialist reasons on ``model``.
     """
 
     DEFAULT_MODEL: ClassVar[str] = "gemini-2.5-flash"
@@ -153,6 +171,7 @@ class Investigation:
 
     model: str = DEFAULT_MODEL
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
+    specialists: Mapping[str, SpecialistModel] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Reject a bound that would leave every incident uninvestigable."""

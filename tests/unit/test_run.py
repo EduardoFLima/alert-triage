@@ -6,7 +6,7 @@ import pytest
 
 from alert_triage.app.run import RunOutcome, Stage, run
 from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import Finding, Findings, LogRecord, Signal
+from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.alert_source import AlertSourceError
@@ -133,11 +133,11 @@ def _findings(observation: str = "OOMKilled recurs") -> Findings:
                 observation=observation,
                 occurrences=1,
                 examples=(
-                    LogRecord(
-                        timestamp=NOON,
-                        level="ERROR",
-                        message=observation,
-                        service="checkout",
+                    EvidenceItem(
+                        id="call-1/item-1",
+                        instant=NOON,
+                        summary=observation,
+                        payload={"message": observation},
                     ),
                 ),
             ),

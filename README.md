@@ -103,6 +103,9 @@ A run reads everything it needs from its environment:
   that may instead live in `config.yaml`.
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
   authenticates with. `DD_SITE` if the account is not on `datadoghq.com`.
+- `GOOGLE_API_KEY` — what the model an investigation reasons on costs to
+  reach. A deployment on the enterprise platform sets
+  `GOOGLE_GENAI_USE_ENTERPRISE=true` instead and needs no key.
 - At least one notification channel, or the run refuses to start rather than
   fetching alerts it could tell nobody about.
 - `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.
@@ -145,11 +148,15 @@ Engineering practices — TDD, clean code, the import rule — are in
 
 ## Architecture
 
-Hexagonal (ports and adapters). The domain does not know which observability
-tool, which agent framework, or which notification channel it is talking to —
-those are adapters behind ports. That is what makes the tool forkable for your
-own tooling, and what lets it run locally, in a container, or on Cloud Run
-without the core changing.
+Hexagonal (ports and adapters). The domain does not know which agent framework
+or which notification channel it is talking to — those are adapters behind
+ports. That is what makes the tool forkable for your own tooling, and what lets
+it run locally, in a container, or on Cloud Run without the core changing.
+
+The observability platform is the exception: there is no port over it, because
+MCP is already one — a specialist reaches the platform's MCP tools from inside
+the investigator adapter, and the reasoning is in
+[`docs/vision.md`](docs/vision.md#evidence-and-the-platform-boundary).
 
 ```mermaid
 flowchart TB
@@ -173,12 +180,12 @@ flowchart TB
 
     subgraph OutboundPorts["ports — outbound"]
         direction LR
-        Investigator["Investigator Agent"] ~~~ ObservabilityPlatform["Observability Platform"] ~~~ TriageLedger["Triage Ledger"] ~~~ Notifier["Report Notifier"] ~~~ Config["Config Reader"]
+        Investigator["Investigator Agent"] ~~~ TriageLedger["Triage Ledger"] ~~~ Notifier["Report Notifier"] ~~~ Config["Config Reader"]
     end
 
     subgraph OutboundAdapters["adapters — outbound"]
         direction LR
-        ADK["Investigator Adapter<br/>Google ADK"] ~~~ ObservabilityPlatformAdapter["Observability Platform Adapter<br/>Datadog MCP"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>SQLite"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>Yaml parser [TBD]"]
+        ADK["Investigator Adapter<br/>Google ADK crew<br/>Datadog MCP Server"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>SQLite"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>YAML"]
     end
 
     DatadogREST -. implements .-> AlertSource
@@ -218,13 +225,14 @@ tests/
 └── integration/ fakes and real I/O
 ```
 
-## Adding an adapter
+## Extending it
 
-Plugging in your own observability or notification tooling is a first-class
-operation: pick the port you are implementing, create a subpackage owning your
-vendor library, translate at the boundary, and wire it up in `app/`. The
-step-by-step guide — including the extra conventions a notification channel
-follows — is in [`docs/adapters.md`](docs/adapters.md).
+Two kinds of extension, and they have different shapes. **Most of it is a port
+to implement** — a notification channel, the triage ledger, an alert source.
+**Observability tooling is a specialist to declare** — the platform's tools,
+and the instruction that uses them, are one value in `adapters/adk/`, and a
+single specialist is a complete contribution. Both guides are in
+[`docs/adapters.md`](docs/adapters.md).
 
 ## License
 

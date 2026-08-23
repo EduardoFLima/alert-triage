@@ -1,18 +1,22 @@
-from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
+from alert_triage.adapters.adk.evidence import Retrieved
 from alert_triage.adapters.adk.investigator import AdkInvestigator
+from alert_triage.adapters.adk.specialists import Specialist, Toolset
 from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import LogRecord, Signal
+from alert_triage.domain.findings import Signal
 from alert_triage.domain.incident import Incident
-from alert_triage.domain.window import Window
 from alert_triage.ports.investigator import InvestigatorError
-from alert_triage.ports.observability_platform import ObservabilityPlatformError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+
+
+class _Reported(BaseModel):
+    findings: list[str] = []
 
 
 def _incident() -> Incident:
@@ -23,154 +27,194 @@ def _incident() -> Incident:
     )
 
 
-class _Platform:
-    """A platform that answers with canned records, or refuses."""
-
-    def __init__(
-        self, records: Sequence[LogRecord] = (), failure: str | None = None
-    ) -> None:
-        self.records = records
-        self.failure = failure
-        self.asked: list[tuple[str, Window, str]] = []
-
-    def search_logs(
-        self, service: str, window: Window, query: str
-    ) -> Sequence[LogRecord]:
-        self.asked.append((service, window, query))
-        if self.failure is not None:
-            raise ObservabilityPlatformError(self.failure)
-        return self.records
+def _specialist(name: str = "logs_specialist") -> Specialist:
+    return Specialist(
+        name=name,
+        signal=Signal.LOGS,
+        instruction="Look at the logs.",
+        output_schema=_Reported,
+        toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
+    )
 
 
-def _record(message: str = "container OOMKilled") -> LogRecord:
-    return LogRecord(timestamp=NOON, level="ERROR", message=message, service="checkout")
+def _logs(*messages: str) -> dict[str, Any]:
+    return {"logs": [{"message": message} for message in messages]}
 
 
-def _agent_that(
-    *, searches: bool = True, reports: list[dict[str, Any]] | None = None
+def _reports(
+    *,
+    retrieves: tuple[str, ...] = ("OOMKilled",),
+    fails: int = 0,
+    findings: list[dict[str, Any]] | None = None,
 ) -> Any:
-    """A stand-in for the model: it calls the tool, then reports what we say."""
+    """A stand-in for a specialist: it retrieves what we say, then reports."""
 
-    def _run(tool: Any, prompt: str) -> dict[str, Any]:
-        if searches:
-            tool("checkout", NOON.isoformat(), NOON.isoformat(), "status:error")
-        return {"findings": reports if reports is not None else []}
+    def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
+        for _ in range(fails):
+            retrieved.refuse(f"{specialist.name} could not reach the platform")
+        if retrieves:
+            retrieved.retain(_logs(*retrieves))
+        return {"findings": findings if findings is not None else []}
 
     return _run
 
 
-def test_findings_are_built_from_what_the_platform_returned() -> None:
-    platform = _Platform([_record()])
+def _cites(cites: list[str], observation: str = "errors recur") -> dict[str, Any]:
+    return {"observation": observation, "occurrences": 3, "cites": cites}
+
+
+def test_the_findings_are_built_from_what_the_platform_returned() -> None:
     investigator = AdkInvestigator(
-        platform=platform,
-        run_agent=_agent_that(
-            reports=[
-                {
-                    "observation": "OOMKilled recurs",
-                    "occurrences": 5,
-                    "cites": ["rec_1"],
-                }
-            ]
-        ),
+        crew=(_specialist(),),
+        run_specialist=_reports(findings=[_cites(["call-1/item-1"])]),
+    )
+
+    (finding,) = investigator.investigate(_incident()).findings
+
+    assert finding.signal is Signal.LOGS
+    assert finding.examples[0].summary == "OOMKilled"
+
+
+def test_every_specialist_in_the_crew_contributes_to_one_result() -> None:
+    crew = (_specialist("logs_specialist"), _specialist("apm_specialist"))
+    investigator = AdkInvestigator(
+        crew=crew, run_specialist=_reports(findings=[_cites(["call-1/item-1"])])
     )
 
     findings = investigator.investigate(_incident())
 
-    (finding,) = findings.findings
+    assert len(findings.findings) == 2
+    assert findings.complete
+
+
+def test_a_caller_cannot_tell_how_many_specialists_ran() -> None:
+    """The result has the same shape whoever contributed to it."""
+    one = AdkInvestigator(crew=(_specialist(),), run_specialist=_reports())
+    two = AdkInvestigator(
+        crew=(_specialist("logs_specialist"), _specialist("apm_specialist")),
+        run_specialist=_reports(),
+    )
+
+    assert type(one.investigate(_incident())) is type(two.investigate(_incident()))
+
+
+def test_each_finding_names_the_signal_its_specialist_reports_under() -> None:
+    investigator = AdkInvestigator(
+        crew=(_specialist(),),
+        run_specialist=_reports(findings=[_cites(["call-1/item-1"])]),
+    )
+
+    (finding,) = investigator.investigate(_incident()).findings
+
     assert finding.signal is Signal.LOGS
-    assert finding.examples == (_record(),)
-
-
-def test_the_search_is_asked_about_the_incidents_service_and_window() -> None:
-    platform = _Platform([_record()])
-    investigator = AdkInvestigator(platform=platform, run_agent=_agent_that())
-
-    investigator.investigate(_incident())
-
-    (service, window, _query) = platform.asked[0]
-    assert service == "checkout"
-    assert window == _incident().window
 
 
 def test_an_investigation_that_found_nothing_returns_empty_findings() -> None:
-    investigator = AdkInvestigator(platform=_Platform(), run_agent=_agent_that())
+    investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_reports())
 
     findings = investigator.investigate(_incident())
 
     assert findings.findings == ()
     assert not findings.anything_notable
+    assert findings.complete
 
 
-def test_a_platform_failure_becomes_an_investigator_failure() -> None:
-    """'We could not look' must never reach a caller as 'we looked and it is clean'."""
-    platform = _Platform(failure="the platform is unreachable")
-    investigator = AdkInvestigator(platform=platform, run_agent=_agent_that())
+def test_findings_are_returned_marked_incomplete_when_a_retrieval_failed() -> None:
+    investigator = AdkInvestigator(
+        crew=(_specialist(),),
+        run_specialist=_reports(fails=1, findings=[_cites(["call-1/item-1"])]),
+    )
 
-    with pytest.raises(InvestigatorError, match="unreachable"):
+    findings = investigator.investigate(_incident())
+
+    assert len(findings.findings) == 1
+    assert not findings.complete
+    assert "could not reach the platform" in findings.retrieval_failures[0]
+
+
+def test_an_investigation_whose_every_retrieval_failed_is_a_failure() -> None:
+    """However confidently the model reports having found nothing."""
+    investigator = AdkInvestigator(
+        crew=(_specialist(),),
+        run_specialist=_reports(
+            retrieves=(), fails=2, findings=[_cites(["call-1/item-1"])]
+        ),
+    )
+
+    with pytest.raises(InvestigatorError, match="could not reach the platform"):
         investigator.investigate(_incident())
 
 
-def test_a_model_failure_becomes_an_investigator_failure() -> None:
-    def _explodes(tool: Any, prompt: str) -> dict[str, Any]:
+def test_an_investigation_that_never_looked_is_not_a_failure() -> None:
+    """A model that chose not to search looked and saw nothing to say."""
+    investigator = AdkInvestigator(
+        crew=(_specialist(),), run_specialist=_reports(retrieves=())
+    )
+
+    findings = investigator.investigate(_incident())
+
+    assert findings.findings == ()
+    assert findings.complete
+
+
+def test_a_specialist_that_errors_outright_fails_the_investigation() -> None:
+    def _explodes(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
         raise RuntimeError("the model refused")
 
-    investigator = AdkInvestigator(platform=_Platform(), run_agent=_explodes)
+    investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_explodes)
 
     with pytest.raises(InvestigatorError, match="refused"):
         investigator.investigate(_incident())
 
 
-def test_a_fabricated_citation_does_not_reach_the_findings() -> None:
-    platform = _Platform([_record()])
-    investigator = AdkInvestigator(
-        platform=platform,
-        run_agent=_agent_that(
-            reports=[
-                {"observation": "invented", "occurrences": 9, "cites": ["rec_99"]},
-            ]
-        ),
-    )
+def test_a_specialist_is_told_about_the_incident_it_is_investigating() -> None:
+    prompts: list[str] = []
 
-    assert investigator.investigate(_incident()).findings == ()
-
-
-def test_a_search_the_model_never_made_leaves_nothing_citable() -> None:
-    platform = _Platform([_record()])
-    investigator = AdkInvestigator(
-        platform=platform,
-        run_agent=_agent_that(
-            searches=False,
-            reports=[{"observation": "guessed", "occurrences": 1, "cites": ["rec_1"]}],
-        ),
-    )
-
-    assert investigator.investigate(_incident()).findings == ()
-    assert platform.asked == []
-
-
-def test_the_records_offered_to_the_model_carry_citable_identifiers() -> None:
-    platform = _Platform([_record("first"), _record("second")])
-    offered: list[Any] = []
-
-    def _capture(tool: Any, prompt: str) -> dict[str, Any]:
-        offered.extend(tool("checkout", NOON.isoformat(), NOON.isoformat(), "*"))
+    def _capture(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
+        prompts.append(prompt)
         return {"findings": []}
 
-    AdkInvestigator(platform=platform, run_agent=_capture).investigate(_incident())
+    AdkInvestigator(crew=(_specialist(),), run_specialist=_capture).investigate(
+        _incident()
+    )
 
-    assert [one["id"] for one in offered] == ["rec_1", "rec_2"]
-    assert [one["message"] for one in offered] == ["first", "second"]
+    assert "checkout" in prompts[0]
+    assert NOON.isoformat() in prompts[0]
+
+
+def test_a_fabricated_citation_does_not_reach_the_findings() -> None:
+    investigator = AdkInvestigator(
+        crew=(_specialist(),),
+        run_specialist=_reports(findings=[_cites(["call-9/item-1"], "invented")]),
+    )
+
+    assert investigator.investigate(_incident()).findings == ()
 
 
 def test_each_investigation_starts_with_nothing_citable() -> None:
     """An identifier from an earlier incident must not resolve in a later one."""
-    platform = _Platform([_record()])
     investigator = AdkInvestigator(
-        platform=platform,
-        run_agent=_agent_that(
-            searches=False,
-            reports=[{"observation": "stale", "occurrences": 1, "cites": ["rec_1"]}],
-        ),
+        crew=(_specialist(),),
+        run_specialist=_reports(retrieves=(), findings=[_cites(["call-1/item-1"])]),
     )
 
     assert investigator.investigate(_incident()).findings == ()
+
+
+def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
+    """One investigation, one body of evidence: the crew shares what it gathered."""
+
+    def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
+        if specialist.name == "logs_specialist":
+            retrieved.retain(_logs("OOMKilled"))
+            return {"findings": []}
+        return {"findings": [_cites(["call-1/item-1"], "the logs show it too")]}
+
+    investigator = AdkInvestigator(
+        crew=(_specialist("logs_specialist"), _specialist("apm_specialist")),
+        run_specialist=_run,
+    )
+
+    (finding,) = investigator.investigate(_incident()).findings
+
+    assert finding.observation == "the logs show it too"

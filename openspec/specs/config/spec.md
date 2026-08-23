@@ -84,6 +84,36 @@ refuse to start if `scope` cannot be resolved from either source.
 - **THEN** the adapter translates it into that platform's own way of
   expressing ownership, and the config exposes no platform-specific form
 
+### Requirement: One resolved environment, read by everything
+A run SHALL resolve its environment once, from the process environment
+supplemented by an optional file beside the run, and every setting and
+credential the run uses SHALL be read from that resolved environment. A name
+the process exported SHALL win over the same name in the file, so a container
+or scheduler is never overridden by a file lying beside it. No part of the
+system SHALL read the process environment behind the resolved one: a name the
+file supplies SHALL behave exactly as though it had been exported, including
+where the setting is consumed by a vendor library rather than by this system's
+own code.
+
+#### Scenario: A value supplied only by the file
+- **WHEN** a setting or credential is declared in the file and not exported by
+  the process
+- **THEN** the run behaves exactly as it would had the operator exported that
+  name, whichever component consumes it
+
+#### Scenario: The process disagrees with the file
+- **WHEN** the same name is exported by the process and declared in the file
+- **THEN** the run uses the exported value
+
+#### Scenario: No file is present
+- **WHEN** the file is absent
+- **THEN** the run resolves entirely from the process environment and reports
+  no error for the missing file
+
+#### Scenario: A name the file only mentions
+- **WHEN** the file names a variable without giving it a value
+- **THEN** it does not shadow the same name exported by the process
+
 ### Requirement: Environment variable overrides for any config value
 The system SHALL allow any value normally set in `config.yaml` to instead be
 set via an environment variable, using a predictable naming convention
@@ -318,3 +348,52 @@ immediately rather than at the moment a report was due.
 - **WHEN** the system refuses to start for want of a channel
 - **THEN** it fails the same way it fails for a missing mandatory scope or a
   missing credential, rather than in a manner particular to notification
+
+### Requirement: Optional investigation section
+The system SHALL treat the `investigation` section of `config.yaml` as
+optional and SHALL apply documented defaults for every key it omits, so that a
+run investigates without any configuration for it. The section SHALL carry
+how an investigation reasons — the model it runs on — and how many attempts an
+incident's investigation gets before the system stops retrying it, defaulting
+to three. It SHALL NOT carry the location of, or credentials for, any platform
+or model provider: those are deployment facts read from the environment only.
+A key shaped like one written *into this section* SHALL be refused by name, as
+any key the schema has never heard of already is — an operator who typed it
+meant something by it, and silently ignoring it would leave them believing a
+credential had been supplied. A credential written as its own top-level section
+remains inert, exactly as it already is.
+
+The attempt bound SHALL be resolved independently of the `circuit_breakers`
+section, which bounds a single call inside one investigation rather than how
+many investigations an incident is given.
+
+#### Scenario: Config file omits investigation
+- **WHEN** `config.yaml` is present but does not include an `investigation`
+  section
+- **THEN** the system resolves the investigation settings to their documented
+  defaults and proceeds
+
+#### Scenario: The operator chooses a model
+- **WHEN** `config.yaml` sets the model under `investigation`
+- **THEN** investigations run on that model rather than the default
+
+#### Scenario: Attempts left unconfigured
+- **WHEN** the operator sets no attempt bound for investigations
+- **THEN** an incident's investigation is attempted up to three times in total
+
+#### Scenario: The operator bounds the attempts
+- **WHEN** `config.yaml` sets the attempt bound under `investigation`
+- **THEN** an incident's investigation is attempted that many times rather
+  than three
+
+#### Scenario: The environment overrides the file
+- **WHEN** `config.yaml` sets the model under `investigation` and the
+  corresponding environment variable is also set
+- **THEN** the environment variable's value wins, as it does for every other
+  behavior setting
+
+#### Scenario: A credential written into the section
+- **WHEN** `config.yaml` sets a key shaped like a model or platform credential
+  under `investigation`
+- **THEN** the system refuses to start and names the unrecognised key, rather
+  than starting as though a credential had been supplied

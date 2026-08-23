@@ -13,7 +13,7 @@ attaches an acknowledgement to.
 from dataclasses import dataclass
 
 from alert_triage.domain.alert import Alert
-from alert_triage.domain.findings import Finding, Findings, LogRecord
+from alert_triage.domain.findings import EvidenceItem, Finding, Findings
 from alert_triage.domain.incident import Incident
 
 NOT_INVESTIGATED = (
@@ -23,6 +23,12 @@ NOT_INVESTIGATED = (
 
 NOTHING_NOTABLE = (
     "The logs around these alerts were searched and nothing notable was found."
+)
+
+EVIDENCE_INCOMPLETE = (
+    "Part of the evidence this investigation asked for could not be gathered, so "
+    "what follows was drawn from less than the platform holds. Read it as "
+    "incomplete rather than as all there was to find."
 )
 
 NO_TITLE = "(no title reported)"
@@ -166,10 +172,16 @@ def _investigated_body(incident: Incident, findings: Findings) -> str:
 
 
 def _findings_lines(findings: Findings) -> list[str]:
-    """Every finding with its count and the records that show it."""
+    """Every finding with its count and the evidence that shows it.
+
+    Led by the incompleteness note where there is one: a reader deciding how
+    much weight to put on what follows needs to know before they read it, not
+    after.
+    """
+    lines = [] if findings.complete else [EVIDENCE_INCOMPLETE, ""]
     if not findings.anything_notable:
-        return [NOTHING_NOTABLE]
-    lines = ["What the investigation found:"]
+        return [*lines, NOTHING_NOTABLE]
+    lines.append("What the investigation found:")
     for finding in findings.findings:
         lines.extend(("", *_finding_lines(finding)))
     return lines
@@ -182,13 +194,19 @@ def _finding_lines(finding: Finding) -> list[str]:
     )
     return [
         f"- [{finding.signal}] {finding.observation} ({occurrences})",
-        *(f"    {_record_line(record)}" for record in finding.examples),
+        *(f"    {_evidence_line(item)}" for item in finding.examples),
     ]
 
 
-def _record_line(record: LogRecord) -> str:
-    """One log line, reproduced as the platform reported it."""
-    return f"{record.timestamp.isoformat()} {record.level} {record.message}"
+def _evidence_line(item: EvidenceItem) -> str:
+    """One piece of evidence, reproduced as the platform reported it.
+
+    An item with no instant is an aggregate — a graph, a map, a count over a
+    window — and reads as one rather than as a line missing its timestamp.
+    """
+    if item.instant is None:
+        return item.summary
+    return f"{item.instant.isoformat()} {item.summary}"
 
 
 def _subject(incident: Incident) -> str:
