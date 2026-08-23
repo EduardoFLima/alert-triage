@@ -143,11 +143,22 @@ def _rendered(payload: Any) -> str:
 
 
 def _shortened(line: str) -> str:
-    """Keep a summary to the length of something a human reads."""
+    """Keep a summary to the length of something a human reads.
+
+    Cut on a word boundary, never through one. A log line often ends in a link
+    back to the platform, and half a URL is worse than no URL: it still reads
+    as a link, and following it lands somewhere the evidence is not. A word
+    that does not fit is dropped whole — the payload still carries it — and the
+    ellipsis is kept clear of the last word by a space, so nothing rendering
+    this can linkify the ellipsis into the address beside it.
+    """
     collapsed = " ".join(line.split())
     if len(collapsed) <= MAX_SUMMARY_CHARS:
         return collapsed
-    return collapsed[:MAX_SUMMARY_CHARS] + "…"
+    kept = collapsed[:MAX_SUMMARY_CHARS]
+    if not collapsed[MAX_SUMMARY_CHARS].isspace():
+        kept = kept.rpartition(" ")[0] or kept
+    return f"{kept.rstrip()} …"
 
 
 def _parsed(text: str) -> Any:

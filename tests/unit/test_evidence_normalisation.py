@@ -90,6 +90,30 @@ def test_a_long_summary_is_shortened_to_stay_readable() -> None:
     assert len(item.summary) < 5000
 
 
+def test_shortening_never_cuts_a_word_in_half() -> None:
+    """A half a URL is worse than no URL: it reads as a link and is not one."""
+    link = "https://app.datadoghq.com/logs?query=" + "a" * 200
+    (item,) = items_from([{"message": f"{'padding ' * 20}{link}"}], "call-1")
+
+    assert link not in item.summary
+    assert "https://app.datadoghq.com/logs?query=a" not in item.summary
+
+
+def test_a_shortened_summary_ends_clear_of_its_last_word() -> None:
+    """Whitespace is what stops a client linkifying the ellipsis into the URL."""
+    (item,) = items_from([{"message": "word " * 200}], "call-1")
+
+    assert item.summary.endswith(" …")
+
+
+def test_a_single_word_too_long_to_keep_is_still_shortened() -> None:
+    """There is no word boundary to fall back to, and a summary cannot be empty."""
+    (item,) = items_from([{"message": "x" * 5000}], "call-1")
+
+    assert item.summary.strip("… ")
+    assert len(item.summary) < 5000
+
+
 def test_entries_are_found_inside_a_structured_tool_result() -> None:
     """The protocol's own wrapping is not evidence either."""
     items = items_from(
