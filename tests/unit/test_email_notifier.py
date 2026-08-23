@@ -9,8 +9,6 @@ from types import TracebackType
 import pytest
 
 from alert_triage.adapters.email import EmailNotifier, EmailSettings, render
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.notifier import Notifier, NotifierError
 
@@ -21,11 +19,8 @@ def _report(
     subject: str = "checkout is failing", body: str = "Two alerts in thirty minutes."
 ) -> TriageReport:
     return TriageReport(
-        incident=Incident(
-            id="incident-1",
-            service="checkout",
-            alerts=(Alert(service="checkout", fired_at=NOON, source_id="a"),),
-        ),
+        incident_id="incident-1",
+        service="checkout",
         subject=subject,
         body=body,
     )

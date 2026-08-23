@@ -11,7 +11,7 @@ from alert_triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.app import composition
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.config import ConfigError, Investigation
 from alert_triage.ports.investigator import Investigator
@@ -76,11 +76,11 @@ def source() -> FakeAlertSource:
 class FakeInvestigator:
     """Stands in for the agent crew, so no model or MCP server is involved."""
 
-    asked: list[Incident] = field(default_factory=list)
+    asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, incident: Incident) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Findings:
         """Answer with one finding, as a completed investigation would."""
-        self.asked.append(incident)
+        self.asked.append(target)
         return Findings(
             findings=(
                 Finding(

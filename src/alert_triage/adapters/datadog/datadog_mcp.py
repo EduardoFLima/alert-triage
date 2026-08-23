@@ -5,12 +5,12 @@ JSON-to-JSON translation behind it — is gone. A specialist reaches the
 platform's toolset directly through ADK now, so what a deployment needs from
 this file is an address and two headers.
 
-Both come from the same ``DatadogConnection`` the Events API adapter already
-resolves: this adapter adds no environment variable of its own, and a
-deployment that could fetch alerts can investigate them.
+It takes a site and two keys rather than the connection the Events API adapter
+resolves: investigation has no business knowing that type. The composition root
+resolves the connection once and hands the strings across, which is what keeps
+the guarantee that a deployment able to fetch alerts is able to investigate
+them without either side importing the other.
 """
-
-from alert_triage.adapters.datadog.connection import DatadogConnection
 
 API_KEY_HEADER = "DD_API_KEY"
 APP_KEY_HEADER = "DD_APPLICATION_KEY"
@@ -23,19 +23,33 @@ was wrong.
 """
 
 
-def mcp_endpoint(connection: DatadogConnection) -> str:
+def mcp_endpoint(site: str) -> str:
     """The MCP server's address for the account this deployment points at.
 
     Without the toolsets a caller wants: each specialist asks for its own,
     which is what keeps what one may reach in its declaration rather than
     here.
+
+    Args:
+        site: Datadog regional site, e.g. ``datadoghq.eu``.
+
+    Returns:
+        The MCP server's address for that site.
     """
-    return f"https://mcp.{connection.site}/v1/mcp"
+    return f"https://mcp.{site}/v1/mcp"
 
 
-def mcp_headers(connection: DatadogConnection) -> dict[str, str]:
-    """The credentials the MCP server authenticates a request with."""
+def mcp_headers(*, api_key: str, app_key: str) -> dict[str, str]:
+    """The credentials the MCP server authenticates a request with.
+
+    Args:
+        api_key: Datadog API key.
+        app_key: Datadog application key.
+
+    Returns:
+        The headers to send, under the names the server reads them by.
+    """
     return {
-        API_KEY_HEADER: connection.api_key,
-        APP_KEY_HEADER: connection.app_key,
+        API_KEY_HEADER: api_key,
+        APP_KEY_HEADER: app_key,
     }

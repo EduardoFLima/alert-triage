@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from alert_triage.adapters.adk.crew import CREW
@@ -9,25 +9,9 @@ from alert_triage.adapters.adk.logs_agent import (
     LogsFinding,
     ReportedFindings,
 )
-from alert_triage.adapters.adk.specialists import describe
-from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import MAX_EXAMPLES_PER_FINDING, Signal
-from alert_triage.domain.incident import Incident
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
-
-
-def _incident() -> Incident:
-    return Incident(
-        id="incident-1",
-        service="checkout",
-        alerts=(
-            Alert(service="checkout", fired_at=NOON, source_id="a"),
-            Alert(
-                service="checkout", fired_at=NOON + timedelta(minutes=7), source_id="b"
-            ),
-        ),
-    )
 
 
 def test_the_instruction_asks_for_errors_and_warnings() -> None:
@@ -153,11 +137,3 @@ def test_a_finding_citing_both_grains_is_built() -> None:
     ).findings
 
     assert [item.id for item in finding.examples] == ["call-1/item-1", "call-2"]
-
-
-def test_an_incident_is_described_by_its_service_and_window() -> None:
-    described = describe(_incident())
-
-    assert "checkout" in described
-    assert NOON.isoformat() in described
-    assert (NOON + timedelta(minutes=7)).isoformat() in described

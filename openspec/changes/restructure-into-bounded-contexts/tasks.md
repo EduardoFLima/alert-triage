@@ -3,30 +3,30 @@
 Behaviour-affecting edits first, each its own red/green cycle, so they are
 reviewable before any bulk move hides them.
 
-- [ ] 1.1 Red: assert `TriageReport` exposes `incident_id` and `service` as
+- [x] 1.1 Red: assert `TriageReport` exposes `incident_id` and `service` as
       fields and no longer carries an `Incident`
-- [ ] 1.2 Green: replace `TriageReport.incident` with `incident_id: str` and
+- [x] 1.2 Green: replace `TriageReport.incident` with `incident_id: str` and
       `service: str`; drop the two derived properties; update `build_report`
       and its helpers to pass them through
-- [ ] 1.3 Update `tests/unit/test_report.py` and
+- [x] 1.3 Update `tests/unit/test_report.py` and
       `tests/integration/test_end_to_end.py`, the only two places reading
       `report.incident`, to assert on `incident_id`
-- [ ] 1.4 Red: assert an investigation is requested with a target carrying
+- [x] 1.4 Red: assert an investigation is requested with a target carrying
       service, window, and alert count, and that a failed investigation still
       names the service it concerned
-- [ ] 1.5 Green: add `InvestigationTarget`; retype `Investigator.investigate`
+- [x] 1.5 Green: add `InvestigationTarget`; retype `Investigator.investigate`
       to take it; add the `Incident` → target translation on the triage side
-- [ ] 1.6 Move `describe()` onto `InvestigationTarget` in the adk adapter and
+- [x] 1.6 Move `describe()` onto `InvestigationTarget` in the adk adapter and
       drop the adapter's remaining `Incident` imports from `specialists.py`
       and `investigator.py`
-- [ ] 1.7 Red: assert the MCP endpoint and headers are derived from site and
+- [x] 1.7 Red: assert the MCP endpoint and headers are derived from site and
       key strings rather than from a `DatadogConnection`
-- [ ] 1.8 Green: retype `mcp_endpoint`/`mcp_headers` to take `site`,
+- [x] 1.8 Green: retype `mcp_endpoint`/`mcp_headers` to take `site`,
       `api_key`, `app_key`; move the `DatadogConnection` → `Deployment`
       translation into `app/composition.py`
-- [ ] 1.9 Move `resolve_notifier` from `adapters/fan_out/resolution.py` into
+- [x] 1.9 Move `resolve_notifier` from `adapters/fan_out/resolution.py` into
       `app/composition.py`, deleting the module; `FanOutNotifier` stays
-- [ ] 1.10 Full gate green: `ruff check`, `ruff format --check`, `mypy`,
+- [x] 1.10 Full gate green: `ruff check`, `ruff format --check`, `mypy`,
       `pytest`
 
 ## 2. Split the configuration model out of ports

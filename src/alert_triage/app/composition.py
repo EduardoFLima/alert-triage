@@ -11,6 +11,7 @@ channel, or the credential its investigations reason on stops here, rather
 than fetching alerts it could tell nobody about or investigate.
 """
 
+import os
 import sqlite3
 import uuid
 from collections.abc import Mapping
@@ -30,14 +31,19 @@ from alert_triage.adapters.datadog.connection import (
     resolve_connection,
 )
 from alert_triage.adapters.datadog.datadog_mcp import mcp_endpoint, mcp_headers
-from alert_triage.adapters.fan_out.resolution import resolve_notifier
+from alert_triage.adapters.email.notifier import EmailNotifier
+from alert_triage.adapters.email.settings import resolve_email_settings
+from alert_triage.adapters.fan_out.notifier import FanOutNotifier
 from alert_triage.adapters.sqlite_ledger.ledger import SqliteTriageLedger
 from alert_triage.adapters.sqlite_ledger.location import resolve_ledger_path
+from alert_triage.adapters.teams.notifier import TeamsNotifier
+from alert_triage.adapters.teams.settings import resolve_teams_webhook_url
 from alert_triage.adapters.yaml_config.loader import DEFAULT_CONFIG_PATH, load_config
 from alert_triage.app.run import RunOutcome, run
 from alert_triage.domain.report import build_report
-from alert_triage.ports.config import Investigation
+from alert_triage.ports.config import ConfigError, Investigation
 from alert_triage.ports.investigator import Investigator
+from alert_triage.ports.notifier import Notifier
 
 if TYPE_CHECKING:
     from google.adk.models import BaseLlm
@@ -92,6 +98,52 @@ def execute(
         )
 
 
+def resolve_notifier(env: Mapping[str, str] | None = None) -> FanOutNotifier:
+    """Assemble the notification channels the environment configured, or refuse.
+
+    Which channels exist is a consequence of what the environment configured,
+    so this is where the individual ``resolve_*`` functions meet. It belongs to
+    the composition root rather than to any channel: naming sibling adapters is
+    what a wiring layer is for, and no adapter should know which others a
+    deployment happens to have.
+
+    Args:
+        env: Environment to read from. Defaults to the process's.
+
+    Returns:
+        A notifier delivering to every configured channel. A deployment with
+        one channel gets a fan-out over one, so nothing downstream is shaped by
+        how many a deployment happens to have.
+
+    Raises:
+        ConfigError: No channel is configured, or one of them is configured
+            only in part. A run that can investigate but can tell nobody what
+            it found has no reason to start, and finding that out here beats
+            finding it out when the first report is due.
+    """
+    environment = os.environ if env is None else env
+    channels = _configured_channels(environment)
+    if not channels:
+        raise ConfigError(
+            "No notification channel is configured: set at least one "
+            "notification channel in the environment. A run that can tell "
+            "nobody what it found has no reason to start."
+        )
+    return FanOutNotifier(channels)
+
+
+def _configured_channels(env: Mapping[str, str]) -> list[Notifier]:
+    """Build a channel for each set of settings the environment supplied."""
+    channels: list[Notifier] = []
+    email = resolve_email_settings(env)
+    if email is not None:
+        channels.append(EmailNotifier(email))
+    webhook_url = resolve_teams_webhook_url(env)
+    if webhook_url is not None:
+        channels.append(TeamsNotifier(webhook_url))
+    return channels
+
+
 def build_investigator(
     env: Mapping[str, str] | None,
     datadog_connection: DatadogConnection,
@@ -141,8 +193,11 @@ def build_investigator(
         crew=crew_for(investigation.specialists),
         run_specialist=run_with_adk(
             Deployment(
-                endpoint=mcp_endpoint(datadog_connection),
-                headers=mcp_headers(datadog_connection),
+                endpoint=mcp_endpoint(datadog_connection.site),
+                headers=mcp_headers(
+                    api_key=datadog_connection.api_key,
+                    app_key=datadog_connection.app_key,
+                ),
                 model_for=_model_for,
             )
         ),

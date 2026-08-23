@@ -234,7 +234,7 @@ def _investigated(
     if not decision.should_investigate:
         return None, None
     try:
-        findings = investigator.investigate(incident)
+        findings = investigator.investigate(incident.investigation_target)
     except InvestigatorError as error:
         _log.error("Investigating %s failed: %s", incident.service, error)
         return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))

@@ -8,6 +8,7 @@ from alert_triage.app.run import RunOutcome, Stage, run
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.alert_source import AlertSourceError
 from alert_triage.ports.config import (
@@ -114,11 +115,11 @@ class FakeInvestigator:
     """
 
     outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
-    asked: list[Incident] = field(default_factory=list)
+    asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, incident: Incident) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Findings:
         """Answer with the next outcome, remembering what it was asked about."""
-        self.asked.append(incident)
+        self.asked.append(target)
         outcome = self.outcomes.pop(0) if self.outcomes else Findings()
         if isinstance(outcome, InvestigatorError):
             raise outcome
@@ -185,7 +186,8 @@ def _ids() -> Callable[[], str]:
 def _build_report(incident: Incident, findings: Findings | None) -> TriageReport:
     """A builder standing in for the one the composition root injects."""
     return TriageReport(
-        incident=incident,
+        incident_id=incident.id,
+        service=incident.service,
         subject=f"{incident.service}: {len(incident.alerts)} alert(s)",
         body=NOT_INVESTIGATED if findings is None else _found(findings),
     )

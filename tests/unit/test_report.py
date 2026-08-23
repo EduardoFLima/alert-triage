@@ -37,13 +37,28 @@ def _incident(incident_id: str = "incident-1", service: str = "checkout") -> Inc
 def _report(
     subject: str = "checkout is failing", body: str = "Two alerts."
 ) -> TriageReport:
-    return TriageReport(incident=_incident(), subject=subject, body=body)
-
-
-def test_a_report_concerns_one_incident() -> None:
     incident = _incident()
+    return TriageReport(
+        incident_id=incident.id,
+        service=incident.service,
+        subject=subject,
+        body=body,
+    )
 
-    assert TriageReport(incident=incident, subject="s", body="b").incident == incident
+
+def test_a_report_names_the_incident_it_concerns_without_carrying_it() -> None:
+    """Delivery needs an identifier and a service, not the aggregate behind them."""
+    report = TriageReport(
+        incident_id="incident-1", service="checkout", subject="s", body="b"
+    )
+
+    assert (report.incident_id, report.service) == ("incident-1", "checkout")
+    assert {field.name for field in fields(TriageReport)} == {
+        "incident_id",
+        "service",
+        "subject",
+        "body",
+    }
 
 
 def test_a_report_carries_the_identifier_of_the_incident_it_concerns() -> None:
@@ -78,10 +93,10 @@ def test_the_body_is_carried_verbatim_however_a_channel_would_have_to_escape_it(
 def test_a_report_renders_itself_for_no_channel() -> None:
     """Channel formatting lives in the adapter: a new channel changes nothing here."""
     carried = {field.name for field in fields(TriageReport)}
-    derived = {name for name in dir(TriageReport) if not name.startswith("_")}
+    exposed = {name for name in dir(TriageReport) if not name.startswith("_")}
 
-    assert carried == {"incident", "subject", "body"}
-    assert derived == {"incident_id", "service"}
+    assert carried == {"incident_id", "service", "subject", "body"}
+    assert exposed == set(), "a report is four values and no way of presenting them"
 
 
 def test_a_report_is_a_value_and_cannot_be_edited_after_the_fact() -> None:
@@ -126,10 +141,12 @@ def test_a_pass_through_report_lists_every_alert_with_its_time_and_link() -> Non
         assert alert.fired_at.isoformat() in body
 
 
-def test_a_pass_through_report_concerns_the_incident_it_was_built_from() -> None:
+def test_a_pass_through_report_names_the_incident_it_was_built_from() -> None:
     incident = _firing_incident(_fired(0, "Latency", "l/1"))
 
-    assert _uninvestigated(incident).incident == incident
+    report = _uninvestigated(incident)
+
+    assert (report.incident_id, report.service) == (incident.id, incident.service)
 
 
 def test_a_pass_through_report_says_investigation_could_not_complete() -> None:
@@ -248,12 +265,12 @@ def test_an_investigated_report_offers_no_conclusion() -> None:
     assert "hypothesis" not in body
 
 
-def test_an_investigated_report_concerns_the_incident_it_was_built_from() -> None:
+def test_an_investigated_report_names_the_incident_it_was_built_from() -> None:
     incident = _incident()
 
     report = _investigated(incident, Findings(findings=(_finding(),)))
 
-    assert report.incident == incident
+    assert (report.incident_id, report.service) == (incident.id, incident.service)
 
 
 def test_the_report_for_an_incident_is_chosen_by_whether_there_are_findings() -> None:

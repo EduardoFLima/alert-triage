@@ -19,7 +19,7 @@ from alert_triage.adapters.yaml_config.loader import ResolvedConfig, load_config
 from alert_triage.app.run import RunOutcome, Stage, run
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
-from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.report import TriageReport, build_report
 from alert_triage.ports.investigator import InvestigatorError
 from alert_triage.ports.triage_ledger import TriageLedger
@@ -50,11 +50,11 @@ class FakeInvestigator:
     """One outcome per run, so a test spells its arc out as a list."""
 
     outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
-    asked: list[Incident] = field(default_factory=list)
+    asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, incident: Incident) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Findings:
         """Answer with the next outcome in the arc this test spelled out."""
-        self.asked.append(incident)
+        self.asked.append(target)
         outcome = self.outcomes.pop(0) if self.outcomes else Findings()
         if isinstance(outcome, InvestigatorError):
             raise outcome

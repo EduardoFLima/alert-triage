@@ -5,8 +5,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
@@ -16,11 +14,8 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 def report() -> TriageReport:
     """One report to put over a real socket, the same for either channel."""
     return TriageReport(
-        incident=Incident(
-            id="incident-1",
-            service="checkout",
-            alerts=(Alert(service="checkout", fired_at=NOON, source_id="a"),),
-        ),
+        incident_id="incident-1",
+        service="checkout",
         subject="checkout is failing",
         body="Two alerts in thirty minutes.",
     )

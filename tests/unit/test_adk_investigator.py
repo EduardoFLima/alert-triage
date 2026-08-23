@@ -7,9 +7,9 @@ from pydantic import BaseModel
 from alert_triage.adapters.adk.evidence import Retrieved
 from alert_triage.adapters.adk.investigator import AdkInvestigator
 from alert_triage.adapters.adk.specialists import Specialist, Toolset
-from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import Signal
-from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
+from alert_triage.domain.window import Window
 from alert_triage.ports.investigator import InvestigatorError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
@@ -19,11 +19,11 @@ class _Reported(BaseModel):
     findings: list[str] = []
 
 
-def _incident() -> Incident:
-    return Incident(
-        id="incident-1",
+def _target() -> InvestigationTarget:
+    return InvestigationTarget(
         service="checkout",
-        alerts=(Alert(service="checkout", fired_at=NOON, source_id="a"),),
+        window=Window(start=NOON, end=NOON),
+        alert_count=1,
     )
 
 
@@ -69,7 +69,7 @@ def test_the_findings_are_built_from_what_the_platform_returned() -> None:
         run_specialist=_reports(findings=[_cites(["call-1/item-1"])]),
     )
 
-    (finding,) = investigator.investigate(_incident()).findings
+    (finding,) = investigator.investigate(_target()).findings
 
     assert finding.signal is Signal.LOGS
     assert finding.examples[0].summary == "OOMKilled"
@@ -81,7 +81,7 @@ def test_every_specialist_in_the_crew_contributes_to_one_result() -> None:
         crew=crew, run_specialist=_reports(findings=[_cites(["call-1/item-1"])])
     )
 
-    findings = investigator.investigate(_incident())
+    findings = investigator.investigate(_target())
 
     assert len(findings.findings) == 2
     assert findings.complete
@@ -95,7 +95,7 @@ def test_a_caller_cannot_tell_how_many_specialists_ran() -> None:
         run_specialist=_reports(),
     )
 
-    assert type(one.investigate(_incident())) is type(two.investigate(_incident()))
+    assert type(one.investigate(_target())) is type(two.investigate(_target()))
 
 
 def test_each_finding_names_the_signal_its_specialist_reports_under() -> None:
@@ -104,7 +104,7 @@ def test_each_finding_names_the_signal_its_specialist_reports_under() -> None:
         run_specialist=_reports(findings=[_cites(["call-1/item-1"])]),
     )
 
-    (finding,) = investigator.investigate(_incident()).findings
+    (finding,) = investigator.investigate(_target()).findings
 
     assert finding.signal is Signal.LOGS
 
@@ -112,7 +112,7 @@ def test_each_finding_names_the_signal_its_specialist_reports_under() -> None:
 def test_an_investigation_that_found_nothing_returns_empty_findings() -> None:
     investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_reports())
 
-    findings = investigator.investigate(_incident())
+    findings = investigator.investigate(_target())
 
     assert findings.findings == ()
     assert not findings.anything_notable
@@ -125,7 +125,7 @@ def test_findings_are_returned_marked_incomplete_when_a_retrieval_failed() -> No
         run_specialist=_reports(fails=1, findings=[_cites(["call-1/item-1"])]),
     )
 
-    findings = investigator.investigate(_incident())
+    findings = investigator.investigate(_target())
 
     assert len(findings.findings) == 1
     assert not findings.complete
@@ -142,7 +142,7 @@ def test_an_investigation_whose_every_retrieval_failed_is_a_failure() -> None:
     )
 
     with pytest.raises(InvestigatorError, match="could not reach the platform"):
-        investigator.investigate(_incident())
+        investigator.investigate(_target())
 
 
 def test_an_investigation_that_never_looked_is_not_a_failure() -> None:
@@ -151,7 +151,7 @@ def test_an_investigation_that_never_looked_is_not_a_failure() -> None:
         crew=(_specialist(),), run_specialist=_reports(retrieves=())
     )
 
-    findings = investigator.investigate(_incident())
+    findings = investigator.investigate(_target())
 
     assert findings.findings == ()
     assert findings.complete
@@ -164,10 +164,22 @@ def test_a_specialist_that_errors_outright_fails_the_investigation() -> None:
     investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_explodes)
 
     with pytest.raises(InvestigatorError, match="refused"):
-        investigator.investigate(_incident())
+        investigator.investigate(_target())
 
 
-def test_a_specialist_is_told_about_the_incident_it_is_investigating() -> None:
+def test_a_failed_investigation_names_the_service_it_concerned() -> None:
+    """The target is all a failure has left to say what it was about."""
+
+    def _explodes(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
+        raise RuntimeError("the model refused")
+
+    investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_explodes)
+
+    with pytest.raises(InvestigatorError, match="checkout"):
+        investigator.investigate(_target())
+
+
+def test_a_specialist_is_told_about_the_target_it_is_investigating() -> None:
     prompts: list[str] = []
 
     def _capture(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
@@ -175,7 +187,7 @@ def test_a_specialist_is_told_about_the_incident_it_is_investigating() -> None:
         return {"findings": []}
 
     AdkInvestigator(crew=(_specialist(),), run_specialist=_capture).investigate(
-        _incident()
+        _target()
     )
 
     assert "checkout" in prompts[0]
@@ -188,7 +200,7 @@ def test_a_fabricated_citation_does_not_reach_the_findings() -> None:
         run_specialist=_reports(findings=[_cites(["call-9/item-1"], "invented")]),
     )
 
-    assert investigator.investigate(_incident()).findings == ()
+    assert investigator.investigate(_target()).findings == ()
 
 
 def test_each_investigation_starts_with_nothing_citable() -> None:
@@ -198,7 +210,7 @@ def test_each_investigation_starts_with_nothing_citable() -> None:
         run_specialist=_reports(retrieves=(), findings=[_cites(["call-1/item-1"])]),
     )
 
-    assert investigator.investigate(_incident()).findings == ()
+    assert investigator.investigate(_target()).findings == ()
 
 
 def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
@@ -215,6 +227,6 @@ def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
         run_specialist=_run,
     )
 
-    (finding,) = investigator.investigate(_incident()).findings
+    (finding,) = investigator.investigate(_target()).findings
 
     assert finding.observation == "the logs show it too"

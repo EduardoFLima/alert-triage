@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Any
 
 from alert_triage.adapters.adk.evidence import Retrieved, calls_logged, evidence_kept
 from alert_triage.domain.findings import Signal
-from alert_triage.domain.incident import Incident
 
 if TYPE_CHECKING:
     from google.adk.agents import LlmAgent
@@ -135,21 +134,6 @@ class Deployment:
     endpoint: str
     headers: Mapping[str, str]
     model_for: ModelFor
-
-
-def describe(incident: Incident) -> str:
-    """State the incident to a specialist, in terms any of them can use.
-
-    The window comes from the alerts rather than from the run, so evidence is
-    gathered around the problem rather than around whichever run noticed it.
-    """
-    window = incident.window
-    return (
-        f"Service: {incident.service}\n"
-        f"Window start: {window.start.isoformat()}\n"
-        f"Window end: {window.end.isoformat()}\n"
-        f"Alerts in this incident: {len(incident.alerts)}"
-    )
 
 
 def connection_for(

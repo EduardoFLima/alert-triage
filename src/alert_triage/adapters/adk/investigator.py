@@ -16,7 +16,7 @@ service that had nothing to say.
 
 Three outcomes, and only three. Some retrievals failed and findings were
 produced: findings, marked incomplete. Every retrieval failed: a failure, so
-the incident is retried on the next run rather than reported as clean. No
+the caller retries on the next run rather than reporting a service as clean. No
 retrieval attempted: an ordinary result, because a model that chose not to
 look did look and found nothing to ask about.
 
@@ -35,10 +35,9 @@ from alert_triage.adapters.adk.specialists import (
     Deployment,
     Specialist,
     build_agent,
-    describe,
 )
 from alert_triage.domain.findings import Finding, Findings
-from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.ports.investigator import InvestigatorError
 
 _log = logging.getLogger(__name__)
@@ -63,20 +62,20 @@ class AdkInvestigator:
 
         Args:
             crew: The specialists to run, in the order to run them.
-            run_specialist: How one specialist is driven for one incident.
+            run_specialist: How one specialist is driven for one target.
         """
         self._crew = tuple(crew)
         self._run_specialist = run_specialist
 
-    def investigate(self, incident: Incident) -> Findings:
-        """Investigate one incident and report what was found.
+    def investigate(self, target: InvestigationTarget) -> Findings:
+        """Investigate one target and report what was found.
 
         A fresh ``Retrieved`` per call is what scopes citations to this
-        investigation: an identifier the model remembers from another incident
-        resolves to nothing and its finding is dropped.
+        investigation: an identifier the model remembers from another
+        investigation resolves to nothing and its finding is dropped.
 
         Args:
-            incident: The incident to investigate.
+            target: What to investigate.
 
         Returns:
             The findings whose evidence the platform actually returned, marked
@@ -87,26 +86,28 @@ class AdkInvestigator:
                 a specialist errored, or nothing could be retrieved at all.
         """
         retrieved = Retrieved()
-        found = self._report(incident, retrieved)
+        found = self._report(target, retrieved)
         if retrieved.failures and not retrieved.retrievals:
             raise InvestigatorError(
-                f"No evidence could be gathered for {incident.service}: "
+                f"No evidence could be gathered for {target.service}: "
                 f"{'; '.join(retrieved.failures)}"
             )
         return Findings(findings=found, retrieval_failures=retrieved.failures)
 
-    def _report(self, incident: Incident, retrieved: Retrieved) -> tuple[Finding, ...]:
-        """Run every specialist over one incident and collect what checks out."""
-        prompt = describe(incident)
+    def _report(
+        self, target: InvestigationTarget, retrieved: Retrieved
+    ) -> tuple[Finding, ...]:
+        """Run every specialist over one target and collect what checks out."""
+        prompt = target.describe()
         found: list[Finding] = []
         for specialist in self._crew:
-            found.extend(self._from(specialist, incident, retrieved, prompt))
+            found.extend(self._from(specialist, target, retrieved, prompt))
         return tuple(found)
 
     def _from(
         self,
         specialist: Specialist,
-        incident: Incident,
+        target: InvestigationTarget,
         retrieved: Retrieved,
         prompt: str,
     ) -> tuple[Finding, ...]:
@@ -115,8 +116,7 @@ class AdkInvestigator:
             reported = self._run_specialist(specialist, retrieved, prompt)
         except Exception as error:
             raise InvestigatorError(
-                f"The {specialist.name} investigating {incident.service} "
-                f"failed: {error}"
+                f"The {specialist.name} investigating {target.service} failed: {error}"
             ) from error
         return findings_from(
             _reported_findings(reported), retrieved, specialist.signal
@@ -142,8 +142,8 @@ def run_with_adk(deployment: Deployment) -> RunSpecialist:
             specialist reasons on when it names no model of its own.
 
     Returns:
-        A callable that runs one specialist for one incident and returns what
-        it reported.
+        A callable that runs one specialist for one target and returns what it
+        reported.
     """
 
     def _run(

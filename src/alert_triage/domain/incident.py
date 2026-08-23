@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 
 from alert_triage.domain.alert import Alert
+from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.window import Window
 
 
@@ -60,6 +61,21 @@ class Incident:
         them.
         """
         return Window(start=self.alerts[0].fired_at, end=self.alerts[-1].fired_at)
+
+    @property
+    def investigation_target(self) -> InvestigationTarget:
+        """This incident stated as something an investigation can be asked about.
+
+        The translation lives here because this is where an incident is in
+        hand. What crosses is a service, a window, and a volume — an
+        investigation has no use for the aggregate behind them, and knowing
+        about it would tie every specialist to this project's model.
+        """
+        return InvestigationTarget(
+            service=self.service,
+            window=self.window,
+            alert_count=len(self.alerts),
+        )
 
     def absorb(self, alerts: Iterable[Alert]) -> "Incident":
         """Take in the alerts of this incident that are not recorded yet.

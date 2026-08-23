@@ -5,8 +5,6 @@ from datetime import UTC, datetime
 import pytest
 
 from alert_triage.adapters.fan_out import FanOutNotifier
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.incident import Incident
 from alert_triage.domain.report import TriageReport
 from alert_triage.ports.notifier import Notifier, NotifierError
 
@@ -34,11 +32,8 @@ def _failing(name: str, reason: str) -> RecordingChannel:
 
 def _report() -> TriageReport:
     return TriageReport(
-        incident=Incident(
-            id="incident-1",
-            service="checkout",
-            alerts=(Alert(service="checkout", fired_at=NOON, source_id="a"),),
-        ),
+        incident_id="incident-1",
+        service="checkout",
         subject="checkout is failing",
         body="Two alerts in thirty minutes.",
     )

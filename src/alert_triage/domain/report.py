@@ -5,9 +5,10 @@ plain text are what every channel can carry, so rendering — a MIME message, a
 card, whatever comes next — stays the adapter's own work and adding a channel
 changes nothing about what a report *is*.
 
-The incident travels with the report rather than being flattened into the
-text: an identifier is what tells two reports apart, and what something later
-attaches an acknowledgement to.
+The incident is named rather than carried: an identifier is what tells two
+reports apart, and what something later attaches an acknowledgement to, and a
+report that held the aggregate would make delivering one depend on what an
+incident is.
 """
 
 from dataclasses import dataclass
@@ -40,14 +41,16 @@ class TriageReport:
     """What one incident is worth telling a team, before any channel sees it.
 
     Attributes:
-        incident: The incident the report concerns.
+        incident_id: Identifier of the incident the report concerns.
+        service: Service the incident is about.
         subject: One line announcing the report, as a subject or a heading.
         body: The report itself, as plain text. Opaque to delivery: a channel
             carries it unchanged, so changing what a report says never means
             adjusting a channel.
     """
 
-    incident: Incident
+    incident_id: str
+    service: str
     subject: str
     body: str
 
@@ -59,16 +62,6 @@ class TriageReport:
             raise ValueError(
                 "A report's subject is a single line: put the detail in the body"
             )
-
-    @property
-    def incident_id(self) -> str:
-        """Identifier of the incident this report concerns."""
-        return self.incident.id
-
-    @property
-    def service(self) -> str:
-        """Service the incident is about."""
-        return self.incident.service
 
 
 def _build_pass_through_report(incident: Incident) -> TriageReport:
@@ -90,7 +83,8 @@ def _build_pass_through_report(incident: Incident) -> TriageReport:
         A report naming the service and listing every alert on record for it.
     """
     return TriageReport(
-        incident=incident,
+        incident_id=incident.id,
+        service=incident.service,
         subject=_subject(incident),
         body=_body(incident),
     )
@@ -140,7 +134,8 @@ def _build_investigated_report(incident: Incident, findings: Findings) -> Triage
         and listing every alert on record.
     """
     return TriageReport(
-        incident=incident,
+        incident_id=incident.id,
+        service=incident.service,
         subject=_investigated_subject(incident, findings),
         body=_investigated_body(incident, findings),
     )

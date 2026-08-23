@@ -37,9 +37,9 @@ from alert_triage.adapters.adk.specialists import (
     Toolset,
     connection_for,
 )
-from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import Signal
-from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
+from alert_triage.domain.window import Window
 from alert_triage.ports.investigator import InvestigatorError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
@@ -106,11 +106,11 @@ def _specialist() -> Specialist:
     )
 
 
-def _incident() -> Incident:
-    return Incident(
-        id="incident-1",
+def _target() -> InvestigationTarget:
+    return InvestigationTarget(
         service="checkout",
-        alerts=(Alert(service="checkout", fired_at=NOON, source_id="a"),),
+        window=Window(start=NOON, end=NOON),
+        alert_count=1,
     )
 
 
@@ -163,7 +163,7 @@ def _investigate(platform: str, model: _ScriptedModel) -> Any:
         crew=(_specialist(),),
         run_specialist=run_with_adk(_deployment(platform, model)),
     )
-    return investigator.investigate(_incident())
+    return investigator.investigate(_target())
 
 
 def test_the_toolset_exposes_only_the_tools_the_declaration_named(

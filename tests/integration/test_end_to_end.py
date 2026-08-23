@@ -13,6 +13,7 @@ from alert_triage.app.run import RunOutcome, run
 from alert_triage.domain.alert import Alert
 from alert_triage.domain.findings import EvidenceItem, Finding, Findings, Signal
 from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
 from alert_triage.domain.report import TriageReport, build_report
 from alert_triage.ports.investigator import InvestigatorError
 from alert_triage.ports.notifier import NotifierError
@@ -120,11 +121,11 @@ class FakeInvestigator:
     """The agent crew, standing in so no model or MCP server is involved."""
 
     outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
-    asked: list[Incident] = field(default_factory=list)
+    asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, incident: Incident) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Findings:
         """Answer with the next outcome, so a test spells out a run-by-run arc."""
-        self.asked.append(incident)
+        self.asked.append(target)
         outcome = self.outcomes.pop(0) if self.outcomes else Findings()
         if isinstance(outcome, InvestigatorError):
             raise outcome
@@ -226,4 +227,6 @@ def test_a_report_that_could_not_be_delivered_goes_out_on_the_next_run(
     assert not first.successful
     assert second.delivered == 1, "the report the first run owed"
     assert recorded.last_reported_at == _at(6)
-    assert [alert.source_id for alert in report.incident.alerts] == ["a", "b"]
+    assert report.incident_id == recorded.id
+    assert "Checkout alert a" in report.body
+    assert "Checkout alert b" in report.body

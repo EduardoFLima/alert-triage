@@ -25,11 +25,7 @@ from alert_triage.adapters.adk.evidence import Retrieved
 from alert_triage.adapters.adk.investigator import run_with_adk
 from alert_triage.adapters.adk.logs_agent import LOGS_SPECIALIST
 from alert_triage.adapters.adk.model import build_model
-from alert_triage.adapters.adk.specialists import (
-    Deployment,
-    connection_for,
-    describe,
-)
+from alert_triage.adapters.adk.specialists import Deployment, connection_for
 from alert_triage.adapters.datadog.connection import (
     API_KEY_VARIABLE as DD_API_KEY_VARIABLE,
 )
@@ -38,8 +34,8 @@ from alert_triage.adapters.datadog.connection import (
     resolve_connection,
 )
 from alert_triage.adapters.datadog.datadog_mcp import mcp_endpoint, mcp_headers
-from alert_triage.domain.alert import Alert
-from alert_triage.domain.incident import Incident
+from alert_triage.domain.investigation_target import InvestigationTarget
+from alert_triage.domain.window import Window
 from alert_triage.ports.config import Investigation
 
 pytestmark = pytest.mark.skipif(
@@ -61,18 +57,18 @@ def _deployment() -> Deployment:
     connection = resolve_connection()
     model = build_model(Investigation.DEFAULT_MODEL, resolve_model_access())
     return Deployment(
-        endpoint=mcp_endpoint(connection),
-        headers=mcp_headers(connection),
+        endpoint=mcp_endpoint(connection.site),
+        headers=mcp_headers(api_key=connection.api_key, app_key=connection.app_key),
         model_for=lambda named: model,
     )
 
 
-def _incident() -> Incident:
+def _target() -> InvestigationTarget:
     fired_at = datetime.now(UTC) - timedelta(minutes=30)
-    return Incident(
-        id="incident-live",
+    return InvestigationTarget(
         service=SERVICE,
-        alerts=(Alert(service=SERVICE, fired_at=fired_at, source_id="live"),),
+        window=Window(start=fired_at, end=fired_at),
+        alert_count=1,
     )
 
 
@@ -93,7 +89,7 @@ def test_a_real_model_given_the_instruction_calls_them() -> None:
     """A quiet service is a valid answer; what must not happen is no retrieval."""
     retrieved = Retrieved()
 
-    run_with_adk(_deployment())(LOGS_SPECIALIST, retrieved, describe(_incident()))
+    run_with_adk(_deployment())(LOGS_SPECIALIST, retrieved, _target().describe())
 
     assert retrieved.retrievals >= 1
     assert retrieved.failures == ()

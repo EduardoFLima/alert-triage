@@ -41,6 +41,18 @@ def test_the_window_an_incident_spans_is_read_from_its_alerts() -> None:
     assert incident.window.end == last.fired_at
 
 
+def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() -> None:
+    """What crosses to investigation is a service, a window, and a volume."""
+    first = _alert()
+    last = _alert(timedelta(minutes=7))
+
+    target = _incident(last, first).investigation_target
+
+    assert target.service == "checkout"
+    assert target.window == _incident(last, first).window
+    assert target.alert_count == 2
+
+
 def test_there_is_no_incident_without_the_alerts_that_opened_it() -> None:
     with pytest.raises(ValueError, match="at least one alert"):
         _incident()
