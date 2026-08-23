@@ -1,10 +1,17 @@
+"""One run, from the alerts it fetched to the incidents it recorded.
+
+The happy path and the arithmetic around it: which window is asked for,
+which instant reaches the records, and what a second run over the same
+inputs decides.
+"""
+
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.app.pipeline import RunOutcome, Stage, run
+from alert_triage.app.pipeline import RunOutcome, run
 from alert_triage.configuration.port import Config
 from alert_triage.configuration.settings import (
     CircuitBreakers,
@@ -17,22 +24,19 @@ from alert_triage.configuration.settings import (
     Scope,
 )
 from alert_triage.investigation.contract import (
-    EvidenceItem,
-    Finding,
     Findings,
     InvestigationTarget,
-    Signal,
+    InvestigatorError,
 )
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import NotifierError
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
+from alert_triage.triage.domain.report import NOT_INVESTIGATED
 from alert_triage.triage.ports.alert_source import AlertSourceError
-from alert_triage.triage.ports.investigation import InvestigatorError
 from alert_triage.triage.ports.ledger import TriageLedgerError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
-NOT_INVESTIGATED = "nobody looked"
 CLEAN = "looked, nothing notable"
 
 
@@ -129,26 +133,6 @@ class FakeInvestigator:
         if isinstance(outcome, InvestigatorError):
             raise outcome
         return outcome
-
-
-def _findings(observation: str = "OOMKilled recurs") -> Findings:
-    return Findings(
-        findings=(
-            Finding(
-                signal=Signal.LOGS,
-                observation=observation,
-                occurrences=1,
-                examples=(
-                    EvidenceItem(
-                        id="call-1/item-1",
-                        instant=NOON,
-                        summary=observation,
-                        payload={"message": observation},
-                    ),
-                ),
-            ),
-        )
-    )
 
 
 @pytest.fixture
@@ -375,285 +359,3 @@ def test_two_runs_over_the_same_inputs_reach_the_same_decisions(
         return outcome, ledger.incidents, [r.subject for r in notifier.delivered]
 
     assert once() == once()
-
-
-def _three_services() -> list[Alert]:
-    return [
-        _alert("a"),
-        _alert("b", timedelta(minutes=1), service="payments"),
-        _alert("c", timedelta(minutes=2), service="search"),
-    ]
-
-
-def test_a_failed_fetch_ends_the_run_without_delivering_or_recording(
-    config: SuppliedConfig,
-) -> None:
-    """A failed fetch is not a quiet period: there is nothing to work on."""
-    ledger = FakeLedger()
-    notifier = FakeNotifier()
-
-    outcome = _run(FakeAlertSource(failure="Datadog is down"), ledger, notifier, config)
-
-    assert ledger.recorded == []
-    assert notifier.delivered == []
-    assert not outcome.successful
-    (failure,) = outcome.failures
-    assert failure.stage == Stage.FETCH
-    assert "Datadog is down" in failure.detail
-
-
-def test_one_groups_failed_delivery_leaves_the_others_reported(
-    config: SuppliedConfig,
-) -> None:
-    ledger = FakeLedger()
-    notifier = FakeNotifier(undeliverable=frozenset({"payments"}))
-
-    outcome = _run(FakeAlertSource(_three_services()), ledger, notifier, config)
-
-    assert [report.service for report in notifier.delivered] == ["checkout", "search"]
-    assert {incident.service for incident in ledger.incidents} == {
-        "checkout",
-        "payments",
-        "search",
-    }
-    assert outcome.groups == 3
-    assert outcome.delivered == 2
-    assert not outcome.successful
-
-
-def test_a_group_whose_ledger_read_fails_is_skipped_and_the_others_handled(
-    config: SuppliedConfig,
-) -> None:
-    ledger = FakeLedger(unreadable=frozenset({"payments"}))
-    notifier = FakeNotifier()
-
-    outcome = _run(FakeAlertSource(_three_services()), ledger, notifier, config)
-
-    assert [report.service for report in notifier.delivered] == ["checkout", "search"]
-    assert [incident.service for incident in ledger.incidents] == [
-        "checkout",
-        "search",
-    ]
-    assert not outcome.successful
-
-
-def test_a_group_whose_record_fails_costs_the_others_nothing(
-    config: SuppliedConfig,
-) -> None:
-    ledger = FakeLedger(unwritable=frozenset({"payments"}))
-    notifier = FakeNotifier()
-
-    outcome = _run(FakeAlertSource(_three_services()), ledger, notifier, config)
-
-    assert [incident.service for incident in ledger.incidents] == [
-        "checkout",
-        "search",
-    ]
-    assert outcome.delivered == 3, "the report got out before the record failed"
-    assert not outcome.successful
-
-
-def test_a_run_in_which_every_group_succeeds_finishes_successfully(
-    config: SuppliedConfig,
-) -> None:
-    outcome = _run(
-        FakeAlertSource(_three_services()), FakeLedger(), FakeNotifier(), config
-    )
-
-    assert outcome.failures == ()
-    assert outcome.successful
-
-
-def test_a_failure_names_the_stage_and_the_service_it_concerns(
-    config: SuppliedConfig,
-) -> None:
-    """What a human needs to know from the outcome alone, without the logs."""
-    ledger = FakeLedger(unreadable=frozenset({"search"}))
-    notifier = FakeNotifier(undeliverable=frozenset({"payments"}))
-
-    outcome = _run(FakeAlertSource(_three_services()), ledger, notifier, config)
-
-    assert [(failure.stage, failure.service) for failure in outcome.failures] == [
-        (Stage.DELIVER, "payments"),
-        (Stage.READ, "search"),
-    ]
-
-
-def test_a_due_incident_is_investigated_and_its_findings_reported(
-    config: SuppliedConfig,
-) -> None:
-    source = FakeAlertSource([_alert("a")])
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator([_findings("OOMKilled recurs")])
-
-    _run(source, FakeLedger(), notifier, config, investigator=investigator)
-
-    assert len(investigator.asked) == 1
-    (report,) = notifier.delivered
-    assert "OOMKilled recurs" in report.body
-
-
-def test_an_incident_inside_its_cooldown_is_never_investigated(
-    config: SuppliedConfig,
-) -> None:
-    """A suppressed report costs no model spend."""
-    quietened = _on_record(_alert("a"))
-    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
-    investigator = FakeInvestigator()
-
-    _run(
-        source,
-        FakeLedger([quietened]),
-        FakeNotifier(),
-        config,
-        investigator=investigator,
-    )
-
-    assert investigator.asked == []
-
-
-def test_a_failed_investigation_delivers_nothing_and_spends_an_attempt(
-    config: SuppliedConfig,
-) -> None:
-    source = FakeAlertSource([_alert("a")])
-    ledger = FakeLedger()
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator([InvestigatorError("the platform is down")])
-
-    outcome = _run(source, ledger, notifier, config, investigator=investigator)
-
-    assert notifier.delivered == []
-    (recorded,) = ledger.incidents
-    assert recorded.investigation_attempts == 1
-    assert recorded.last_reported_at is None
-    assert not outcome.successful
-    assert outcome.failures[0].stage is Stage.INVESTIGATE
-    assert outcome.failures[0].service == "checkout"
-
-
-def test_a_retry_that_fails_again_still_delivers_nothing(
-    config: SuppliedConfig,
-) -> None:
-    already = replace(
-        _on_record(_alert("a"), last_reported_at=None), investigation_attempts=1
-    )
-    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
-    ledger = FakeLedger([already])
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator([InvestigatorError("still down")])
-
-    outcome = _run(source, ledger, notifier, config, investigator=investigator)
-
-    assert notifier.delivered == []
-    assert ledger.incidents[0].investigation_attempts == 2
-    assert not outcome.successful
-
-
-def test_a_retry_that_succeeds_reports_and_clears_the_attempts(
-    config: SuppliedConfig,
-) -> None:
-    already = replace(
-        _on_record(_alert("a"), last_reported_at=None), investigation_attempts=2
-    )
-    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
-    ledger = FakeLedger([already])
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator([_findings("found it")])
-
-    outcome = _run(source, ledger, notifier, config, investigator=investigator)
-
-    (report,) = notifier.delivered
-    assert "found it" in report.body
-    assert ledger.incidents[0].investigation_attempts == 0
-    assert ledger.incidents[0].last_reported_at == NOON
-    assert outcome.successful
-
-
-def test_a_successful_investigation_whose_delivery_fails_keeps_its_attempts(
-    config: SuppliedConfig,
-) -> None:
-    """Clearing the counter here would strand findings nobody received."""
-    already = replace(
-        _on_record(_alert("a"), last_reported_at=None), investigation_attempts=2
-    )
-    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
-    ledger = FakeLedger([already])
-    notifier = FakeNotifier(undeliverable=frozenset({"checkout"}))
-    investigator = FakeInvestigator([_findings("found it")])
-
-    _run(source, ledger, notifier, config, investigator=investigator)
-
-    assert ledger.incidents[0].investigation_attempts == 2
-    assert ledger.incidents[0].last_reported_at is None
-
-
-def test_an_investigation_that_found_nothing_notable_is_still_delivered(
-    config: SuppliedConfig,
-) -> None:
-    """'We looked and it is clean' is a result, not a failure."""
-    source = FakeAlertSource([_alert("a")])
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator([Findings()])
-
-    outcome = _run(source, FakeLedger(), notifier, config, investigator=investigator)
-
-    (report,) = notifier.delivered
-    assert report.body == CLEAN
-    assert outcome.successful
-
-
-def test_the_last_attempt_failing_delivers_the_alerts_without_findings(
-    config: SuppliedConfig,
-) -> None:
-    already = replace(
-        _on_record(_alert("a"), last_reported_at=None), investigation_attempts=2
-    )
-    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
-    ledger = FakeLedger([already])
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator([InvestigatorError("still down")])
-
-    outcome = _run(source, ledger, notifier, config, investigator=investigator)
-
-    (report,) = notifier.delivered
-    assert report.body == NOT_INVESTIGATED
-    assert ledger.incidents[0].last_reported_at == NOON
-    assert ledger.incidents[0].investigation_attempts == 0
-    assert not outcome.successful, "the investigation still failed"
-
-
-def test_an_incident_with_attempts_spent_is_not_investigated_again(
-    config: SuppliedConfig,
-) -> None:
-    """A failed delivery is retried without spending another investigation."""
-    spent = replace(
-        _on_record(_alert("a"), last_reported_at=None), investigation_attempts=3
-    )
-    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
-    ledger = FakeLedger([spent])
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator()
-
-    _run(source, ledger, notifier, config, investigator=investigator)
-
-    assert investigator.asked == []
-    (report,) = notifier.delivered
-    assert report.body == NOT_INVESTIGATED
-
-
-def test_one_groups_investigation_failure_leaves_the_others_their_reports(
-    config: SuppliedConfig,
-) -> None:
-    source = FakeAlertSource(
-        [_alert("a"), _alert("b", service="payments"), _alert("c", service="search")]
-    )
-    notifier = FakeNotifier()
-    investigator = FakeInvestigator(
-        [_findings("first"), InvestigatorError("down"), _findings("third")]
-    )
-
-    outcome = _run(source, FakeLedger(), notifier, config, investigator=investigator)
-
-    assert len(notifier.delivered) == 2
-    assert outcome.delivered == 2
-    assert not outcome.successful

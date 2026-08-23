@@ -1,3 +1,9 @@
+"""Reading discrete, citable items out of whatever a tool happened to return.
+
+No per-tool knowledge: a result is a list, a list in an envelope, or one thing,
+and the third degrades to something citable whole rather than to an error.
+"""
+
 from datetime import UTC, datetime
 
 from alert_triage.investigation.adapters.adk.normalisation import items_from

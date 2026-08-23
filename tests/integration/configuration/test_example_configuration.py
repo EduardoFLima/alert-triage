@@ -45,10 +45,6 @@ from alert_triage.triage.adapters.datadog.connection import (
 )
 from alert_triage.triage.adapters.sqlite import LEDGER_PATH_VARIABLE
 
-REPOSITORY_ROOT = Path(__file__).parents[2]
-CONFIG_EXAMPLE = REPOSITORY_ROOT / "config.example.yaml"
-ENV_EXAMPLE = REPOSITORY_ROOT / ".env.example"
-
 SECTIONS = {
     "scope": Scope,
     "grouping": Grouping,
@@ -82,16 +78,20 @@ def _override_names(section: str, cls: type[object]) -> list[str]:
     return [f"{section}_{field.name}".upper() for field in fields(cls)]  # type: ignore[arg-type]
 
 
-def test_the_example_config_is_a_config_the_loader_accepts() -> None:
+def test_the_example_config_is_a_config_the_loader_accepts(
+    config_example: Path,
+) -> None:
     """Copied to config.yaml unedited, it has to start a run rather than fail one."""
-    config = load_config(CONFIG_EXAMPLE, env={})
+    config = load_config(config_example, env={})
 
     assert config.scope.owner
     assert config.critical_services == {}
 
 
-def test_the_example_config_states_the_defaults_it_documents() -> None:
-    config = load_config(CONFIG_EXAMPLE, env={})
+def test_the_example_config_states_the_defaults_it_documents(
+    config_example: Path,
+) -> None:
+    config = load_config(config_example, env={})
 
     assert config.grouping == Grouping()
     assert config.ingestion == Ingestion()
@@ -102,17 +102,19 @@ def test_the_example_config_states_the_defaults_it_documents() -> None:
 
 @pytest.mark.parametrize(("section", "cls"), sorted(SECTIONS.items()))
 def test_the_example_config_shows_every_key_of_every_section(
-    section: str, cls: type[object]
+    section: str, cls: type[object], config_example: Path
 ) -> None:
-    example = CONFIG_EXAMPLE.read_text()
+    example = config_example.read_text()
 
     assert f"{section}:" in example
     for field in fields(cls):  # type: ignore[arg-type]
         assert f"{field.name}:" in example
 
 
-def test_the_example_config_shows_every_threshold_of_a_critical_service() -> None:
-    example = CONFIG_EXAMPLE.read_text()
+def test_the_example_config_shows_every_threshold_of_a_critical_service(
+    config_example: Path,
+) -> None:
+    example = config_example.read_text()
 
     assert "critical_services:" in example
     for field in fields(CriticalService):
@@ -120,23 +122,27 @@ def test_the_example_config_shows_every_threshold_of_a_critical_service() -> Non
 
 
 @pytest.mark.parametrize("variable", CONNECTION_VARIABLES)
-def test_the_example_env_file_names_every_connection_variable(variable: str) -> None:
-    assert variable in ENV_EXAMPLE.read_text()
+def test_the_example_env_file_names_every_connection_variable(
+    variable: str, env_example: Path
+) -> None:
+    assert variable in env_example.read_text()
 
 
 @pytest.mark.parametrize(("section", "cls"), sorted(SECTIONS.items()))
 def test_the_example_env_file_names_every_behavior_override(
-    section: str, cls: type[object]
+    section: str, cls: type[object], env_example: Path
 ) -> None:
-    example = ENV_EXAMPLE.read_text()
+    example = env_example.read_text()
 
     for name in _override_names(section, cls):
         assert name in example
 
 
-def test_the_example_env_file_supplies_nothing_by_being_copied_unedited() -> None:
+def test_the_example_env_file_supplies_nothing_by_being_copied_unedited(
+    env_example: Path,
+) -> None:
     """Every optional name stays commented out, so defaults remain the defaults."""
-    environment = resolve_environment(ENV_EXAMPLE, {})
+    environment = resolve_environment(env_example, {})
 
     assert set(environment) == {
         API_KEY_VARIABLE,

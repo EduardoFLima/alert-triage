@@ -1,3 +1,10 @@
+"""The callback standing between a tool result and the model about to read it.
+
+A result from a declared tool is kept and replaced with its citable form; one
+that failed is refused in terms nothing can misread; anything the specialist
+never declared passes through untouched.
+"""
+
 import logging
 from typing import Any
 

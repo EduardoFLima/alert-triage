@@ -75,35 +75,35 @@ reviewable before any bulk move hides them.
 Each contract is shown to fail before it is shown to pass — a contract that has
 never failed has not been shown to enforce anything.
 
-- [ ] 4.1 Replace the single layers contract with one per context
+- [x] 4.1 Replace the single layers contract with one per context
       (`adapters` → `ports` → `domain`), demonstrating a red against a
       deliberate inward-pointing violation in each
-- [ ] 4.2 Add the forbidden contract stopping a context reaching past another's
+- [x] 4.2 Add the forbidden contract stopping a context reaching past another's
       contract into its `domain` or `adapters`; demonstrate red
-- [ ] 4.3 Add the independence contract between `investigation` and
+- [x] 4.3 Add the independence contract between `investigation` and
       `notification`; demonstrate red
-- [ ] 4.4 Add the forbidden contract stopping `shared` importing any context;
+- [x] 4.4 Add the forbidden contract stopping `shared` importing any context;
       demonstrate red
-- [ ] 4.5 Re-point `forbidden_modules` in the vendor-library contract and the
+- [x] 4.5 Re-point `forbidden_modules` in the vendor-library contract and the
       `app.pipeline` contract at the new module paths; confirm both still go
       red on a deliberate violation
-- [ ] 4.6 Full gate green with every deliberate violation reverted
+- [x] 4.6 Full gate green with every deliberate violation reverted
 
 ## 5. Mirror the test tree
 
-- [ ] 5.1 Create the per-context packages under `tests/unit/` and
+- [x] 5.1 Create the per-context packages under `tests/unit/` and
       `tests/integration/`; confirm `tests/conftest.py` still derives scope
       markers from the top-level directory
-- [ ] 5.2 Move the triage, configuration, and shared tests into their packages
-- [ ] 5.3 Move the investigation tests, resolving the three-way overlap between
+- [x] 5.2 Move the triage, configuration, and shared tests into their packages
+- [x] 5.3 Move the investigation tests, resolving the three-way overlap between
       `test_adk_evidence.py`, `test_evidence_callback.py`, and
       `test_evidence_normalisation.py` into files named for the behaviour each
       establishes
-- [ ] 5.4 Move the notification tests; split `test_run.py` into
+- [x] 5.4 Move the notification tests; split `test_run.py` into
       `tests/unit/app/` files named for the arcs they cover
-- [ ] 5.5 Push shared fixtures down into the nearest `conftest.py` within each
+- [x] 5.5 Push shared fixtures down into the nearest `conftest.py` within each
       context's test package
-- [ ] 5.6 Full gate green, and confirm `pytest tests/unit/investigation` runs
+- [x] 5.6 Full gate green, and confirm `pytest tests/unit/investigation` runs
       that context's tests alone
 
 ## 6. Documentation

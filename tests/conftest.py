@@ -7,6 +7,20 @@ import pytest
 _SCOPE_MARKERS = frozenset({"unit", "integration"})
 
 
+@pytest.fixture(scope="session")
+def repository_root() -> Path:
+    """The checkout a test reads a shipped file out of.
+
+    Found by its marker rather than by counting parent directories, so moving
+    a test deeper into the mirrored tree does not silently point it at the
+    wrong place.
+    """
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise AssertionError("No repository root above the test suite")
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:

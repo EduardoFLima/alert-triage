@@ -1,7 +1,11 @@
-from dataclasses import FrozenInstanceError, fields
-from datetime import UTC, datetime, timedelta
+"""What an incident is worth saying, given what was learned about it.
 
-import pytest
+Which report an incident earns is decided by whether findings exist, and the
+wording of each is asserted here: the pass-through report explains its own
+emptiness, and the investigated one leads with what was found.
+"""
+
+from datetime import UTC, datetime, timedelta
 
 from alert_triage.investigation.contract import EvidenceItem, Finding, Findings, Signal
 from alert_triage.notification.contract import TriageReport
@@ -44,66 +48,6 @@ def _report(
         subject=subject,
         body=body,
     )
-
-
-def test_a_report_names_the_incident_it_concerns_without_carrying_it() -> None:
-    """Delivery needs an identifier and a service, not the aggregate behind them."""
-    report = TriageReport(
-        incident_id="incident-1", service="checkout", subject="s", body="b"
-    )
-
-    assert (report.incident_id, report.service) == ("incident-1", "checkout")
-    assert {field.name for field in fields(TriageReport)} == {
-        "incident_id",
-        "service",
-        "subject",
-        "body",
-    }
-
-
-def test_a_report_carries_the_identifier_of_the_incident_it_concerns() -> None:
-    """Two reports about different incidents are told apart without the alerts."""
-    assert _report().incident_id == "incident-1"
-
-
-def test_a_report_carries_the_service_the_incident_is_about() -> None:
-    assert _report().service == "checkout"
-
-
-def test_a_subject_spanning_two_lines_is_refused() -> None:
-    """A subject is one line: an email header cannot carry a second one."""
-    with pytest.raises(ValueError, match="single line"):
-        _report(subject="checkout is failing\nand has been for an hour")
-
-
-def test_a_report_needs_a_subject_to_announce_it() -> None:
-    with pytest.raises(ValueError, match="subject"):
-        _report(subject="   ")
-
-
-def test_the_body_is_carried_verbatim_however_a_channel_would_have_to_escape_it() -> (
-    None
-):
-    """The body is plain text; escaping it is the channel's problem, not this."""
-    body = 'Latency > 2s & rising: {"p99": 4.1}\n<not markup>'
-
-    assert _report(body=body).body == body
-
-
-def test_a_report_renders_itself_for_no_channel() -> None:
-    """Channel formatting lives in the adapter: a new channel changes nothing here."""
-    carried = {field.name for field in fields(TriageReport)}
-    exposed = {name for name in dir(TriageReport) if not name.startswith("_")}
-
-    assert carried == {"incident_id", "service", "subject", "body"}
-    assert exposed == set(), "a report is four values and no way of presenting them"
-
-
-def test_a_report_is_a_value_and_cannot_be_edited_after_the_fact() -> None:
-    report = _report()
-
-    with pytest.raises(FrozenInstanceError):
-        report.subject = "something else"  # type: ignore[misc]
 
 
 def _fired(minutes: int, title: str, link: str) -> Alert:
