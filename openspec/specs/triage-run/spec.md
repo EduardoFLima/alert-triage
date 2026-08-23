@@ -234,6 +234,12 @@ and its body SHALL carry both what the investigation found, with the evidence
 behind it, and the alerts absorbed into the incident — when they fired, their
 titles, and the links back to the platform that reported them.
 
+When the investigation behind a report could not gather all the evidence it
+asked for, the report SHALL say so, so that a reader can tell findings drawn
+from everything the platform holds from findings drawn from part of it. A
+report SHALL NOT present a partially evidenced investigation as a complete
+one.
+
 When no findings are available because every investigation of the incident
 failed, the report SHALL carry the alerts as above and SHALL state plainly
 that investigation was attempted and could not complete, rather than
@@ -259,6 +265,18 @@ cause, or a confidence level, none of which an investigation produces yet.
 - **WHEN** a report is built for an incident whose investigations all failed
 - **THEN** its body says investigation was attempted and could not complete,
   rather than presenting itself as a triage conclusion
+
+#### Scenario: The report does not pretend to be complete
+- **WHEN** a report is built from findings whose investigation could not
+  gather part of its evidence
+- **THEN** its body says the evidence gathered was incomplete, alongside the
+  findings it did produce
+
+#### Scenario: A complete investigation reads as one
+- **WHEN** a report is built from findings whose investigation gathered
+  everything it asked for
+- **THEN** its body carries no incompleteness note, whether or not the
+  findings were notable
 
 #### Scenario: Report content is replaceable
 - **WHEN** the way a report's body is produced changes
