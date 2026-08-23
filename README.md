@@ -185,24 +185,21 @@ flowchart TB
 
     subgraph OutboundAdapters["adapters — outbound"]
         direction LR
-        ADK["Investigator Adapter<br/>Google ADK crew"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>SQLite"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>YAML"]
+        ADK["Investigator Adapter<br/>Google ADK crew<br/>Datadog MCP Server"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>SQLite"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>YAML"]
     end
 
     DatadogREST -. implements .-> AlertSource
     AlertSource --> Domain
     Domain ---> OutboundPorts
     OutboundPorts ---> OutboundAdapters
-    ADK --> PlatformMCP[("Platform MCP server<br/>Datadog")]
 
     classDef domainClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
     classDef portsClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
     classDef adaptersClass fill:#eaf6ec,stroke:#3f9142,color:#123a17
-    classDef platformClass fill:#f6ecec,stroke:#a23f3f,color:#3a1212
 
     class Domain domainClass
     class InboundPorts,OutboundPorts portsClass
     class InboundAdapters,OutboundAdapters adaptersClass
-    class PlatformMCP platformClass
 ```
 
 Dependencies point inward only — `adapters` → `ports` → `domain` — and that
