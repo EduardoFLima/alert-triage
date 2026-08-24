@@ -26,8 +26,8 @@ from alert_triage.configuration.settings import (
 from alert_triage.investigation.contract import (
     Findings,
     InvestigationTarget,
-    InvestigatorError,
 )
+from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import NotifierError
 from alert_triage.triage.domain.alert import Alert

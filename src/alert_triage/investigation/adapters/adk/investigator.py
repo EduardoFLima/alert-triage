@@ -36,10 +36,10 @@ from alert_triage.investigation.contract import (
     Finding,
     Findings,
     InvestigationTarget,
-    InvestigatorError,
 )
 from alert_triage.investigation.domain.evidence import findings_from
 from alert_triage.investigation.domain.specialist import Specialist
+from alert_triage.investigation.ports.investigator import InvestigatorError
 
 _log = logging.getLogger(__name__)
 

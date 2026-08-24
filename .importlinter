@@ -35,6 +35,7 @@ name = Investigation's layers point inward
 type = layers
 layers =
     alert_triage.investigation.adapters
+    alert_triage.investigation.ports
     alert_triage.investigation.domain
     alert_triage.investigation.contract
 
@@ -77,6 +78,7 @@ forbidden_modules =
     alert_triage.triage.ports
     alert_triage.triage.adapters
     alert_triage.investigation.domain
+    alert_triage.investigation.ports
     alert_triage.investigation.adapters
     alert_triage.notification.ports
     alert_triage.notification.adapters
@@ -142,6 +144,7 @@ source_modules =
     alert_triage.triage.ports
     alert_triage.investigation.contract
     alert_triage.investigation.domain
+    alert_triage.investigation.ports
     alert_triage.notification.contract
     alert_triage.notification.ports
     alert_triage.configuration.settings

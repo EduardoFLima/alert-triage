@@ -36,6 +36,7 @@ from alert_triage.investigation.adapters.adk.investigator import (
 )
 from alert_triage.investigation.adapters.adk.model import build_model
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
+from alert_triage.investigation.ports.investigator import Investigator
 from alert_triage.notification.adapters.email.notifier import EmailNotifier
 from alert_triage.notification.adapters.email.settings import resolve_email_settings
 from alert_triage.notification.adapters.fan_out import FanOutNotifier
@@ -50,7 +51,6 @@ from alert_triage.triage.adapters.datadog.connection import (
 from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
 from alert_triage.triage.adapters.sqlite.location import resolve_ledger_path
 from alert_triage.triage.domain.report import build_report
-from alert_triage.triage.ports.investigation import Investigator
 
 if TYPE_CHECKING:
     from google.adk.models import BaseLlm

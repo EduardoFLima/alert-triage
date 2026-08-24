@@ -16,13 +16,13 @@ from alert_triage.investigation.contract import (
     InvestigationTarget,
     Signal,
 )
+from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import NotifierError
 from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
 from alert_triage.triage.domain.report import build_report
-from alert_triage.triage.ports.investigation import InvestigatorError
 from alert_triage.triage.ports.ledger import TriageLedger
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)

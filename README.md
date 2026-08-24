@@ -175,7 +175,7 @@ flowchart LR
         subgraph Triage["triage — the core context"]
             direction TB
             TriageAdapters["adapters<br/>Datadog REST · SQLite"]
-            TriagePorts["ports<br/>AlertSource · Ledger · Investigation"]
+            TriagePorts["ports<br/>AlertSource · Ledger"]
             TriageDomain["domain<br/>Alert · Grouping · Incident<br/>Policy · Report"]
             TriageAdapters --> TriagePorts --> TriageDomain
         end
@@ -184,8 +184,9 @@ flowchart LR
             direction TB
             InvContract["contract<br/>InvestigationTarget · Findings"]
             InvDomain["domain<br/>Specialist · citation discipline"]
+            InvPorts["ports<br/>Investigator"]
             InvAdapters["adapters<br/>adk (framework)<br/>datadog (platform)"]
-            InvAdapters --> InvDomain --> InvContract
+            InvAdapters --> InvPorts --> InvDomain --> InvContract
         end
 
         subgraph Notification["notification — supporting"]
@@ -228,6 +229,7 @@ src/alert_triage/
 │   └── adapters/   datadog (alerts) · sqlite (ledger)
 ├── investigation/  contract.py, and everything private behind it
 │   ├── domain/     what a specialist is; what may be cited
+│   ├── ports/      Investigator: the one question this context answers
 │   └── adapters/   adk (the framework) · datadog (the platform)
 ├── notification/   contract.py, the Notifier port, and the channels
 │   └── adapters/   email · teams · fan-out over every configured channel

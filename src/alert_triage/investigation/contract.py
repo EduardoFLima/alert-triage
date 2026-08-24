@@ -31,18 +31,6 @@ from typing import Any
 
 from alert_triage.shared.window import Window
 
-
-class InvestigatorError(Exception):
-    """An investigation could not be completed, so its silence proves nothing.
-
-    Published rather than raised out of an adapter's own module, and the
-    distinction it draws is the important one: empty findings mean the platform
-    answered and there was nothing notable, while this means nobody looked.
-    Reporting the first as the second would tell a team its logs are clean on
-    the strength of a failed request.
-    """
-
-
 MAX_EXAMPLES_PER_FINDING = 10
 """How many pieces of evidence a finding illustrates its pattern with.
 

@@ -39,8 +39,8 @@ from alert_triage.investigation.adapters.datadog.specialists.logs import (
 from alert_triage.investigation.contract import InvestigationTarget, Signal
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.shared.window import Window
-from alert_triage.triage.ports.investigation import InvestigatorError
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

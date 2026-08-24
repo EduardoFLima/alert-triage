@@ -49,6 +49,8 @@ app  ->  <context>.adapters  ->  <context>.ports  ->  <context>.domain
   supporting contexts.
 - `investigation/` — findings and the agent crew, behind `contract.py`. Its
   adapters split by axis: `adk/` is the framework, `datadog/` is the platform.
+  Its `Investigator` port is declared here, not beside the caller: a port
+  belongs to the context whose adapter implements it.
 - `notification/` — delivering a report, behind `contract.py`. Genuinely
   standalone: it knows nothing of incidents or investigations.
 - `configuration/` — the settings a deployment behaves by. A generic subdomain

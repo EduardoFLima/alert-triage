@@ -17,10 +17,10 @@ from alert_triage.investigation.contract import (
     InvestigationTarget,
     Signal,
 )
+from alert_triage.investigation.ports.investigator import Investigator
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.triage.domain.alert import Alert
-from alert_triage.triage.ports.investigation import Investigator
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 

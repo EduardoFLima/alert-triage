@@ -19,13 +19,16 @@ from enum import StrEnum
 
 from alert_triage.configuration.port import Config
 from alert_triage.investigation.contract import Findings
+from alert_triage.investigation.ports.investigator import (
+    Investigator,
+    InvestigatorError,
+)
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import Notifier, NotifierError
 from alert_triage.triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.triage.domain.incident import Incident
 from alert_triage.triage.domain.policy import TriageDecision, triage
 from alert_triage.triage.ports.alert_source import AlertSource, AlertSourceError
-from alert_triage.triage.ports.investigation import Investigator, InvestigatorError
 from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
 _log = logging.getLogger(__name__)
