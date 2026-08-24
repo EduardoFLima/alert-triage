@@ -153,7 +153,8 @@ owns the incident, decides what is owed about it, and is the customer of the
 other two. **Investigation** and **notification** are supporting contexts, each
 reached only through the contract it publishes — a target goes into one and
 findings come out; a report goes into the other and is delivered.
-**Configuration** is a generic subdomain every context may depend on.
+**Configuration** is not a peer of the three: it is what they all run on, which
+is why the diagram draws it around them rather than beside them.
 
 Inside each context the domain does not know which agent framework or which
 notification channel it is talking to — those are adapters behind ports. That
@@ -166,62 +167,49 @@ the investigator adapter, and the reasoning is in
 [`docs/vision.md`](docs/vision.md#evidence-and-the-platform-boundary).
 
 ```mermaid
-flowchart TB
-    subgraph Triage["triage — the core context"]
-        direction TB
-        TriageAdapters["adapters<br/>Datadog REST · SQLite"]
-        TriagePorts["ports<br/>AlertSource · Ledger · Investigation"]
-        TriageDomain["domain<br/>Alert · Grouping · Incident · Policy · Report"]
-        TriageAdapters --> TriagePorts --> TriageDomain
+flowchart LR
+    subgraph Configured["everything here is configured by <b>configuration</b> — YAML file, then the environment over it"]
+        direction LR
+        App["app<br/>composition root<br/>the only place<br/>adapters are named"]
+
+        subgraph Triage["triage — the core context"]
+            direction TB
+            TriageAdapters["adapters<br/>Datadog REST · SQLite"]
+            TriagePorts["ports<br/>AlertSource · Ledger · Investigation"]
+            TriageDomain["domain<br/>Alert · Grouping · Incident<br/>Policy · Report"]
+            TriageAdapters --> TriagePorts --> TriageDomain
+        end
+
+        subgraph Investigation["investigation — supporting"]
+            direction TB
+            InvContract["contract<br/>InvestigationTarget · Findings"]
+            InvDomain["domain<br/>Specialist · citation discipline"]
+            InvAdapters["adapters<br/>adk (framework)<br/>datadog (platform)"]
+            InvAdapters --> InvDomain --> InvContract
+        end
+
+        subgraph Notification["notification — supporting"]
+            direction TB
+            NotContract["contract<br/>TriageReport"]
+            NotPorts["ports<br/>Notifier"]
+            NotAdapters["adapters<br/>Email · Teams · fan-out"]
+            NotAdapters --> NotPorts --> NotContract
+        end
+
+        App --> Triage
+        TriageDomain -- "asks" --> InvContract
+        TriageDomain -- "publishes" --> NotContract
     end
-
-    subgraph Investigation["investigation — supporting"]
-        direction TB
-        InvContract["contract<br/>InvestigationTarget · Findings"]
-        InvDomain["domain<br/>Specialist · citation discipline"]
-        InvAdapters["adapters<br/>adk (framework) · datadog (platform)"]
-        InvAdapters --> InvDomain --> InvContract
-    end
-
-    subgraph Notification["notification — supporting"]
-        direction TB
-        NotContract["contract<br/>TriageReport"]
-        NotPorts["ports<br/>Notifier"]
-        NotAdapters["adapters<br/>Email · Teams · fan-out"]
-        NotAdapters --> NotPorts --> NotContract
-    end
-
-    subgraph Configuration["configuration — generic subdomain"]
-        direction TB
-        ConfPort["port + settings"]
-        ConfAdapters["adapters<br/>YAML · .env"]
-        ConfAdapters --> ConfPort
-    end
-
-    Shared["shared kernel<br/>Window"]
-    App["app — composition root<br/>the only place adapters are named"]
-
-    TriageDomain -- asks --> InvContract
-    TriageDomain -- publishes --> NotContract
-    Triage -.-> Shared
-    Investigation -.-> Shared
-    Triage -.-> Configuration
-    Investigation -.-> Configuration
-    Notification -.-> Configuration
-    App --> Triage
-    App --> Investigation
-    App --> Notification
-    App --> Configuration
 
     classDef coreClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
     classDef supportingClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
-    classDef genericClass fill:#eaf6ec,stroke:#3f9142,color:#123a17
-    classDef plainClass fill:#f4f4f5,stroke:#71717a,color:#27272a
+    classDef configuredClass fill:#f6fbf7,stroke:#3f9142,color:#123a17
+    classDef appClass fill:#f4f4f5,stroke:#71717a,color:#27272a
 
     class Triage coreClass
     class Investigation,Notification supportingClass
-    class Configuration genericClass
-    class Shared,App plainClass
+    class Configured configuredClass
+    class App appClass
 ```
 
 Dependencies point inward only — `adapters` → `ports` → `domain` — inside every

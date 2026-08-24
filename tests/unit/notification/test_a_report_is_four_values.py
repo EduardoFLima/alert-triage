@@ -23,21 +23,6 @@ def _report(
     )
 
 
-def test_a_report_names_the_incident_it_concerns_without_carrying_it() -> None:
-    """Delivery needs an identifier and a service, not the aggregate behind them."""
-    report = TriageReport(
-        incident_id="incident-1", service="checkout", subject="s", body="b"
-    )
-
-    assert (report.incident_id, report.service) == ("incident-1", "checkout")
-    assert {field.name for field in fields(TriageReport)} == {
-        "incident_id",
-        "service",
-        "subject",
-        "body",
-    }
-
-
 def test_a_report_carries_the_identifier_of_the_incident_it_concerns() -> None:
     """Two reports about different incidents are told apart without the alerts."""
     assert _report().incident_id == "incident-1"
@@ -68,7 +53,13 @@ def test_the_body_is_carried_verbatim_however_a_channel_would_have_to_escape_it(
 
 
 def test_a_report_renders_itself_for_no_channel() -> None:
-    """Channel formatting lives in the adapter: a new channel changes nothing here."""
+    """Channel formatting lives in the adapter: a new channel changes nothing here.
+
+    Four values and no method: delivery needs an identifier and a service, not
+    the aggregate behind them, and the day a ``render`` or ``as_email`` lands
+    here is the day a channel's work started leaking into the contract. This is
+    what fails on that day.
+    """
     carried = {field.name for field in fields(TriageReport)}
     exposed = {name for name in dir(TriageReport) if not name.startswith("_")}
 

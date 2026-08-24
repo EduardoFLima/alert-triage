@@ -23,7 +23,7 @@ vendor, inside the context it serves:
 `src/alert_triage/notification/adapters/slack/`. Your vendor library is a
 dependency of that package and of nowhere else — add it to
 `[project] dependencies` in `pyproject.toml`, and add it to the
-`forbidden_modules` list of the vendor contract in the same file so it can
+`forbidden_modules` list of the vendor contract in `.importlinter` so it can
 never leak into the core.
 
 **3. Implement the port.** Translate at the boundary: the adapter converts

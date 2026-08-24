@@ -22,8 +22,8 @@ def _lint_imports() -> str:
 def test_hexagonal_import_contracts_hold() -> None:
     """Dependencies point inward, and no vendor library reaches the core.
 
-    The contracts live in ``pyproject.toml``; running them from a test means
-    a boundary violation fails the same command as any other regression.
+    The contracts live in ``.importlinter``; running them from a test means a
+    boundary violation fails the same command as any other regression.
     """
     result = subprocess.run(
         [_lint_imports()],

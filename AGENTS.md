@@ -70,13 +70,13 @@ context may import the other or reach back into `triage`; every context may
 import `shared` and `configuration`; `shared` imports nothing.
 
 This is enforced, not reviewed: `tests/unit/test_architecture.py` runs the
-import-linter contracts declared in `pyproject.toml` and fails with the
+import-linter contracts declared in `.importlinter` and fails with the
 offending module and import named. The contracts walk the *transitive* import
 graph, so an indirect route into another context's internals fails too.
 
 **When you add a runtime dependency**, add it to the `forbidden_modules` list
 of the "Domain and ports are free of vendor libraries" contract in
-`pyproject.toml`, and add its own package to the `source_modules` of that
+`.importlinter`, and add its own package to the `source_modules` of that
 contract if you have added a context. That list is what keeps a new SDK out of
 the core.
 

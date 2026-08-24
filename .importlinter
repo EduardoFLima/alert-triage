@@ -1,0 +1,161 @@
+# The architecture, stated as contracts import-linter can fail a build over.
+#
+# In a file of its own rather than in pyproject.toml: this is the one place the
+# shape of the codebase is written down, and it earns a document a contributor
+# can read start to finish. `lint-imports` finds it here with no arguments, and
+# `tests/unit/test_architecture.py` runs it as an ordinary test.
+#
+# Two rules, expressed by everything below. Inside a context, dependencies point
+# inward. Between contexts, what one offers another is a published contract, and
+# everything behind it is private.
+
+[importlinter]
+root_packages =
+    alert_triage
+include_external_packages = True
+
+
+# One hexagon per bounded context: inside each, dependencies point inward only.
+# Layers are listed outermost first, so the last entry is the innermost — the
+# one nothing else in the context may depend on and that depends on nothing in
+# it. For triage that is its domain; for a supporting context it is the contract
+# it publishes, because the vocabulary it hands out cannot be built on the
+# machinery hidden behind it.
+
+[importlinter:contract:triage-layers]
+name = Triage's layers point inward
+type = layers
+layers =
+    alert_triage.triage.adapters
+    alert_triage.triage.ports
+    alert_triage.triage.domain
+
+[importlinter:contract:investigation-layers]
+name = Investigation's layers point inward
+type = layers
+layers =
+    alert_triage.investigation.adapters
+    alert_triage.investigation.domain
+    alert_triage.investigation.contract
+
+[importlinter:contract:notification-layers]
+name = Notification's layers point inward
+type = layers
+layers =
+    alert_triage.notification.adapters
+    alert_triage.notification.ports
+    alert_triage.notification.contract
+
+[importlinter:contract:configuration-layers]
+name = Configuration's layers point inward
+type = layers
+layers =
+    alert_triage.configuration.adapters
+    alert_triage.configuration.port
+    alert_triage.configuration.settings
+
+
+# What one context offers another is its published contract; everything behind
+# it is private. Each context may reach the others' `contract` modules — those
+# are absent from `forbidden_modules` — and nothing deeper. The `ignore_imports`
+# lines exempt each context from itself: a context reaching its own internals is
+# the layers contracts' business, above, and would otherwise be reported here as
+# a violation of a boundary it is on the inside of.
+#
+# `app` is exempt by not being a source module: naming concrete adapters is the
+# one thing a composition root exists to do.
+
+[importlinter:contract:context-boundaries]
+name = Contexts do not reach past each other's contracts
+type = forbidden
+source_modules =
+    alert_triage.triage
+    alert_triage.investigation
+    alert_triage.notification
+forbidden_modules =
+    alert_triage.triage.domain
+    alert_triage.triage.ports
+    alert_triage.triage.adapters
+    alert_triage.investigation.domain
+    alert_triage.investigation.adapters
+    alert_triage.notification.ports
+    alert_triage.notification.adapters
+ignore_imports =
+    alert_triage.triage.** -> alert_triage.triage.**
+    alert_triage.investigation.** -> alert_triage.investigation.**
+    alert_triage.notification.** -> alert_triage.notification.**
+
+
+# Neither supporting context is the other's supplier, so they never meet — not
+# even through each other's contracts. Triage is the customer of both, and the
+# only place their work is brought together.
+
+[importlinter:contract:supporting-independence]
+name = The supporting contexts are independent of each other
+type = independence
+modules =
+    alert_triage.investigation
+    alert_triage.notification
+
+
+# Shared vocabulary that depends on one context is that context's, not shared.
+# The guard is this contract rather than discipline: anything with a
+# context-specific dependency cannot be added to the shared kernel.
+
+[importlinter:contract:shared-kernel]
+name = The shared kernel depends on no context
+type = forbidden
+source_modules =
+    alert_triage.shared
+forbidden_modules =
+    alert_triage.triage
+    alert_triage.investigation
+    alert_triage.notification
+    alert_triage.configuration
+    alert_triage.app
+
+
+# The layers contracts let all of `app` reach every adapter; only the
+# composition root should. This keeps the pipeline itself injectable.
+
+[importlinter:contract:pipeline-takes-adapters]
+name = The run takes adapters, it does not name them
+type = forbidden
+source_modules =
+    alert_triage.app.pipeline
+forbidden_modules =
+    alert_triage.triage.adapters
+    alert_triage.investigation.adapters
+    alert_triage.notification.adapters
+    alert_triage.configuration.adapters
+
+
+# The layers contracts cannot see vendor SDKs; this one keeps them out of the
+# core. A new runtime dependency belongs in `forbidden_modules` below.
+
+[importlinter:contract:vendor-free-core]
+name = Domain and ports are free of vendor libraries
+type = forbidden
+source_modules =
+    alert_triage.shared
+    alert_triage.triage.domain
+    alert_triage.triage.ports
+    alert_triage.investigation.contract
+    alert_triage.investigation.domain
+    alert_triage.notification.contract
+    alert_triage.notification.ports
+    alert_triage.configuration.settings
+    alert_triage.configuration.port
+forbidden_modules =
+    datadog
+    datadog_api_client
+    google
+    mcp
+    pydantic
+    requests
+    httpx
+    smtplib
+    urllib
+    msal
+    yaml
+    dotenv
