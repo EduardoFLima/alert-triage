@@ -655,6 +655,28 @@ testable, building only on the slices before it.
    a failed search demonstrably cannot be read as a quiet service, the
    restructure is not done. Testable with a stubbed model and a fake MCP
    server, plus the first credential-gated live run.
+
+   Then a second restructure, of the tree rather than of the investigation:
+   the four bounded contexts described under [Architecture](#architecture).
+   It belongs to this slice because this slice is what made it necessary.
+   Retiring the port grew the ADK adapter to a third of all adapter code, and
+   a flat `adapters/` that groups by "this is an integration" was then filing
+   an agent subsystem beside a sixty-line dotenv wrapper. Slice 8's harness is
+   not an adapter and had nowhere to go; slices 9 and 10 take investigation
+   from one specialist to six. Doing it here rather than later meant moving a
+   third of the code that a later cut would have had to move.
+
+   Two anticorruption layers keep the contexts acyclic: `InvestigationTarget`
+   replaces the incident at the investigation boundary, and `TriageReport`
+   trades the whole incident it used to carry for the identifier and service
+   that were all production had ever read off it. Both were cheap only because
+   the call sites were still few, and neither gets cheaper from here.
+   The rules are enforced rather than reviewed — one layers contract per
+   context, plus contracts for cross-context privacy, supporting-context
+   independence, and a shared kernel that depends on nothing. Each was shown
+   red against a deliberate violation before being trusted green, and the
+   architecture test names them so that a contract going missing fails a
+   build rather than passing one.
 8. **Evaluation harness** — canned incidents with expected findings, scored
    per specialist, so instruction quality is measurable rather than felt.
    Ordered before the remaining specialists deliberately: the restructure
