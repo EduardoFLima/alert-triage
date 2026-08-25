@@ -6,17 +6,17 @@ written failing and watched fail before the code that satisfies it exists.
 Done first because the infrastructure specialist cannot be trusted until it is,
 and because a test that has never failed has not been shown to test anything.
 
-- [ ] 1.1 Write a failing unit test in
+- [x] 1.1 Write a failing unit test in
       `tests/unit/investigation/adapters/adk/` asserting that a tool result
       carrying an empty collection is retained as a retrieval that succeeded
       with no items, and records no failure.
-- [ ] 1.2 Write a failing unit test asserting the empty result does not mark the
+- [x] 1.2 Write a failing unit test asserting the empty result does not mark the
       investigation incomplete — `Findings.complete` stays true.
-- [ ] 1.3 Watch both fail against today's `_failure_in`, which reads an empty
+- [x] 1.3 Watch both fail against today's `_failure_in`, which reads an empty
       answer as unreadable. Record what the failure says.
-- [ ] 1.4 Narrow `_failure_in` so only a result with nothing readable at all
+- [x] 1.4 Narrow `_failure_in` so only a result with nothing readable at all
       fails. Both tests green.
-- [ ] 1.5 Confirm the opposite direction still holds: the existing tests for a
+- [x] 1.5 Confirm the opposite direction still holds: the existing tests for a
       refused call, an error result, and an unreadable answer stay green. Add
       the missing case if `None` and `[]` are not both covered.
 
