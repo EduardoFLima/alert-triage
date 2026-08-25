@@ -168,12 +168,42 @@ The crew:
 - **Logs agent** — error/warning patterns around the alert window
 - **Infrastructure agent** — CPU/memory/disk/network around the alert
   window
-- **Diagnostician agent** — reasons across all the above, produces a
-  hypothesis with an explicit confidence level. Kept separate from Report
-  so that reasoning quality and message formatting can be tuned
-  independently.
+- **Diagnostician agent** — decides which of the above an incident actually
+  needs, reasons across what they report, and produces a hypothesis with an
+  explicit confidence level. Kept separate from Report so that reasoning
+  quality and message formatting can be tuned independently.
 - **Report agent** — formats the Diagnostician's hypothesis + evidence into
   the actual email/Teams message
+
+#### Which specialists run is decided per incident
+
+Not every incident needs every signal. An alert that plainly concerns
+infrastructure saturation does not need a trace waterfall, and paying four
+models to answer a question one could answer is how a first-pass triage
+becomes too expensive to run every hour. So the crew is a set of specialists
+that *may* be consulted rather than a list walked in order, and the
+Diagnostician picks from it.
+
+That makes the Diagnostician the crew's manager as well as its reasoner, and
+it reaches each specialist as a tool it may call. Calling one, reading what
+came back, and choosing the next from it is the whole point; handing control
+off to a specialist instead would cost the Diagnostician the thread it is
+reasoning on. The bound on a manager that keeps asking is therefore
+`max_tool_calls_per_agent` applied to it, not `max_agent_hops` — see [Circuit
+breakers](#circuit-breakers).
+
+A specialist that was never called is not a specialist that found nothing.
+This is the same distinction [Evidence and the platform
+boundary](#evidence-and-the-platform-boundary) draws about a failed search,
+one level up: an investigation records which signals it consulted, so that a
+report saying the logs were clean cannot be read as one where nobody looked at
+the logs. Findings carry that alongside the retrieval failures they already
+carry.
+
+It is also what makes the routing gradeable. "Did it consult the right
+specialists for this incident" is a question with a right answer on a recorded
+incident, and it is the first thing the evaluation harness asks — which is why
+that harness now comes after the Diagnostician rather than before it.
 
 Deploy-version comparisons (item: "did this start after a deploy") need no
 separate version-control integration for v1. Datadog answers the question
@@ -293,9 +323,9 @@ Datadog's shape.
 What is lost is the completeness contract. A type checker could tell a
 contributor when a port was fully implemented; nothing tells them whether
 their instruction is any good. The answer to that is an evaluation harness,
-not a port — canned incidents with expected findings, scored per
-specialist. It is owed to the Datadog specialists just as much, which is
-why it is now a slice of its own rather than a nicety.
+not a port — recorded incidents with expected findings, replayed against a
+whole investigation. It is owed to the Datadog specialists just as much,
+which is why it is a slice of its own rather than a nicety.
 
 ### Re-notification
 
@@ -361,8 +391,8 @@ A tripped breaker does not silently truncate: it produces a report marked
 routes through the escalation path — an incomplete automated triage is
 itself a signal a human should look sooner.
 
-Two of these defaults were set when a specialist had exactly one tool, and
-the move to MCP toolsets changes what they mean:
+Three of these defaults were set against a crew that had one specialist, one
+tool, and no manager. What they now bound has moved:
 
 - `max_tool_calls_per_agent` stops being a safety net and becomes a live
   constraint. A specialist with one tool could hardly loop; one with six
@@ -371,6 +401,17 @@ the move to MCP toolsets changes what they mean:
   belongs in `before_tool_callback`, which is a better seat than the old
   design had for it — the callback can refuse a call rather than the
   coordinator counting after the fact.
+
+  It is also what bounds the Diagnostician, since a specialist reaches it as
+  a tool: the same key answers "how many searches may one specialist run" and
+  "how many specialists may one incident cost", which are different questions
+  and may want different values. Whether one key can serve both is a decision
+  the harness's numbers should settle rather than one to guess at now.
+- `max_agent_hops` was written for a crew that handed off. Specialists called
+  as tools do not hand off, so the depth it bounds is the manager's own, and a
+  default of 2 admits a specialist and nothing beneath it — the right shape
+  while no specialist calls another. It becomes load-bearing again the day
+  multi-hop dependency traversal lands, which is a roadmap item.
 - `max_mcp_retries` and `mcp_call_timeout_seconds` were ours to enforce
   while we owned the MCP client. With `McpToolset`, ADK owns it, and the
   restructure decided both:
@@ -661,8 +702,8 @@ testable, building only on the slices before it.
    It belongs to this slice because this slice is what made it necessary.
    Retiring the port grew the ADK adapter to a third of all adapter code, and
    a flat `adapters/` that groups by "this is an integration" was then filing
-   an agent subsystem beside a sixty-line dotenv wrapper. Slice 8's harness is
-   not an adapter and had nowhere to go; slices 9 and 10 take investigation
+   an agent subsystem beside a sixty-line dotenv wrapper. Slice 10's harness is
+   not an adapter and had nowhere to go; slices 8 and 9 take investigation
    from one specialist to six. Doing it here rather than later meant moving a
    third of the code that a later cut would have had to move.
 
@@ -677,19 +718,36 @@ testable, building only on the slices before it.
    red against a deliberate violation before being trusted green, and the
    architecture test names them so that a contract going missing fails a
    build rather than passing one.
-8. **Evaluation harness** — canned incidents with expected findings, scored
-   per specialist, so instruction quality is measurable rather than felt.
-   Ordered before the remaining specialists deliberately: the restructure
-   makes the instruction the main variable, and writing three more of them
-   blind is how you end up with three that need rewriting. It also settles
-   the questions slice 6 left open — which model to default to, and how
-   many examples a finding should carry. Testable as a scoring run over
-   fixtures.
-9. **Remaining specialist agents** (APM incl. single-hop dependency
+8. **Remaining specialist agents** (APM incl. single-hop dependency
    evidence, Trace, Infrastructure) — one declaration each, added
-   independently, scored by slice 8.
-10. **Diagnostician + Report agent** — cross-signal reasoning to hypothesis
-    + confidence, then formatting. Testable against canned findings.
+   independently. First of the three because a manager choosing between
+   specialists needs specialists to choose between, and because a grader
+   worth trusting is one held against a whole investigation rather than
+   against the single specialist that happens to exist.
+9. **Diagnostician + Report agent** — the Diagnostician decides which
+   specialists this incident needs, calling each as a tool, then reasons
+   across what they report into a hypothesis with an explicit confidence
+   level; the Report agent formats it. Findings gain the record of which
+   signals were consulted, so a signal nobody looked at is never read as a
+   signal that was clean. Testable against canned findings, with the routing
+   testable by asserting which specialists a stubbed manager was offered and
+   which it called.
+10. **Evaluation harness** — recorded incidents replayed against a whole
+    investigation, so quality is measurable rather than felt. A case is
+    captured once from the live platform — every tool declaration, call, and
+    result — and replayed from disk thereafter, so the platform's answer is
+    fixed and a change in the score is a change in the instruction, the
+    routing, or the model rather than in Datadog.
+
+    Ordered after the crew rather than before it. The judgements most worth
+    grading are which specialists an incident needed and what the
+    Diagnostician concluded from them, and neither exists until slice 9;
+    grading a lone specialist first would mean inventing a standard for a
+    whole investigation and then revising it once the manager arrived. It
+    settles the questions slice 6 left open — which model to default to, and
+    how many examples a finding should carry — and gives slice 12 evidence
+    where it currently has guesses. Testable as a scoring run over recorded
+    cases.
 11. **Escalation path** — severity/threshold rule + critical-services
     overrides, bypassing batching. Testable as rule-engine unit tests.
 12. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
@@ -710,7 +768,7 @@ testable, building only on the slices before it.
     restructure left behind states the shape correctly and reads poorly: four
     nested subgraphs, an enclosing box for configuration, and a rung per layer
     inside each context, all competing for the same glance. Deliberately last,
-    because every slice before it changes what the picture has to say. Slice 10
+    because every slice before it changes what the picture has to say. Slice 9
     moves report formatting into an agent, which dissolves triage's deep read
     of investigation's vocabulary and so redraws one of the two cross-context
     edges. Slice 11 adds a path that bypasses batching entirely, which the
