@@ -72,15 +72,15 @@ and because a test that has never failed has not been shown to test anything.
 
 ## 6. The crew
 
-- [ ] 6.1 Write a failing test that `CREW` contains all four specialists, still
+- [x] 6.1 Write a failing test that `CREW` contains all four specialists, still
       names each once, and that `crew_for` applies a configured model to any of
       them by name.
-- [ ] 6.2 Add the three declarations to `CREW`.
-- [ ] 6.3 Write a failing test that an investigation over a crew of four returns
+- [x] 6.2 Add the three declarations to `CREW`.
+- [x] 6.3 Write a failing test that an investigation over a crew of four returns
       findings from each, each naming its own signal, with the result the same
       shape a single specialist's is. Drive it through `AdkInvestigator` with a
       stubbed `run_specialist`, no model and no network.
-- [ ] 6.4 Confirm nothing in `AdkInvestigator`, `Retrieved`, the port or the
+- [x] 6.4 Confirm nothing in `AdkInvestigator`, `Retrieved`, the port or the
       contract needed editing beyond the `Signal` members. If something did,
       stop and record why in design.md before continuing — that is slice 7's
       claim failing.

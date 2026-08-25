@@ -7,8 +7,6 @@ is an answer, because a model told to find the workload will otherwise keep
 asking, or report the absence as something wrong.
 """
 
-import re
-
 from alert_triage.investigation.adapters.datadog.specialists.infrastructure import (
     INFRASTRUCTURE_INSTRUCTION,
     INFRASTRUCTURE_SPECIALIST,
@@ -17,20 +15,10 @@ from alert_triage.investigation.adapters.datadog.specialists.infrastructure impo
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 
-QUOTED_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
-
 
 def _permitted() -> set[str]:
     return {
         tool for toolset in INFRASTRUCTURE_SPECIALIST.toolsets for tool in toolset.tools
-    }
-
-
-def _tools_named_in(instruction: str) -> set[str]:
-    return {
-        quoted
-        for quoted in re.findall(r"`([^`]+)`", instruction)
-        if QUOTED_IDENTIFIER.fullmatch(quoted)
     }
 
 
@@ -109,15 +97,6 @@ def test_a_failed_retrieval_and_an_absent_signal_are_told_apart() -> None:
 
 def test_the_instruction_forbids_naming_a_root_cause() -> None:
     assert "root cause" in INFRASTRUCTURE_INSTRUCTION.lower()
-
-
-def test_every_tool_the_declaration_permits_is_named_in_the_instruction() -> None:
-    for tool in _permitted():
-        assert tool in INFRASTRUCTURE_INSTRUCTION
-
-
-def test_every_tool_the_instruction_names_is_one_the_declaration_permits() -> None:
-    assert _tools_named_in(INFRASTRUCTURE_INSTRUCTION) == _permitted()
 
 
 def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:

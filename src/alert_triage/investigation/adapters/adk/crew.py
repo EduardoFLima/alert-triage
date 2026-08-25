@@ -14,11 +14,27 @@ from dataclasses import replace
 
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import SpecialistModel
+from alert_triage.investigation.adapters.datadog.specialists.apm import APM_SPECIALIST
+from alert_triage.investigation.adapters.datadog.specialists.infrastructure import (
+    INFRASTRUCTURE_SPECIALIST,
+)
 from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SPECIALIST
+from alert_triage.investigation.adapters.datadog.specialists.trace import (
+    TRACE_SPECIALIST,
+)
 from alert_triage.investigation.domain.specialist import Specialist
 
-CREW: tuple[Specialist, ...] = (LOGS_SPECIALIST,)
-"""Every specialist declared. Slice 9 adds APM, traces, and infrastructure."""
+CREW: tuple[Specialist, ...] = (
+    LOGS_SPECIALIST,
+    APM_SPECIALIST,
+    TRACE_SPECIALIST,
+    INFRASTRUCTURE_SPECIALIST,
+)
+"""Every specialist declared, in the order an investigation runs them.
+
+All four run on every investigation. Which ones an incident actually needs is
+the next slice's question, and answering it needs specialists to choose
+between."""
 
 
 def crew_for(configured: Mapping[str, SpecialistModel]) -> tuple[Specialist, ...]:

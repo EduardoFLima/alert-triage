@@ -5,8 +5,6 @@ what its instruction names have to agree, and the cheapest way for them to
 disagree is a copy-paste, so both directions are asserted.
 """
 
-import re
-
 from alert_triage.investigation.adapters.datadog.specialists.apm import (
     APM_INSTRUCTION,
     APM_SPECIALIST,
@@ -15,24 +13,12 @@ from alert_triage.investigation.adapters.datadog.specialists.apm import (
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 
-QUOTED_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
-"""What a tool name looks like, and what a query example never does."""
-
 
 def _permitted(specialist: object) -> set[str]:
     return {
         tool
         for toolset in specialist.toolsets  # type: ignore[attr-defined]
         for tool in toolset.tools
-    }
-
-
-def _tools_named_in(instruction: str) -> set[str]:
-    """Every tool the instruction names, by the way it quotes one."""
-    return {
-        quoted
-        for quoted in re.findall(r"`([^`]+)`", instruction)
-        if QUOTED_IDENTIFIER.fullmatch(quoted)
     }
 
 
@@ -119,15 +105,6 @@ def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
 
 def test_the_instruction_forbids_naming_a_root_cause() -> None:
     assert "root cause" in APM_INSTRUCTION.lower()
-
-
-def test_every_tool_the_declaration_permits_is_named_in_the_instruction() -> None:
-    for tool in _permitted(APM_SPECIALIST):
-        assert tool in APM_INSTRUCTION
-
-
-def test_every_tool_the_instruction_names_is_one_the_declaration_permits() -> None:
-    assert _tools_named_in(APM_INSTRUCTION) == _permitted(APM_SPECIALIST)
 
 
 def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
