@@ -148,10 +148,18 @@ Engineering practices — TDD, clean code, the import rule — are in
 
 ## Architecture
 
-Hexagonal (ports and adapters). The domain does not know which agent framework
-or which notification channel it is talking to — those are adapters behind
-ports. That is what makes the tool forkable for your own tooling, and what lets
-it run locally, in a container, or on Cloud Run without the core changing.
+Four bounded contexts, each a hexagon of its own. **Triage** is the core: it
+owns the incident, decides what is owed about it, and is the customer of the
+other two. **Investigation** and **notification** are supporting contexts, each
+reached only through the contract it publishes — a target goes into one and
+findings come out; a report goes into the other and is delivered.
+**Configuration** is not a peer of the three: it is what they all run on, which
+is why the diagram draws it around them rather than beside them.
+
+Inside each context the domain does not know which agent framework or which
+notification channel it is talking to — those are adapters behind ports. That
+is what makes the tool forkable for your own tooling, and what lets it run
+locally, in a container, or on Cloud Run without the core changing.
 
 The observability platform is the exception: there is no port over it, because
 MCP is already one — a specialist reaches the platform's MCP tools from inside
@@ -159,80 +167,92 @@ the investigator adapter, and the reasoning is in
 [`docs/vision.md`](docs/vision.md#evidence-and-the-platform-boundary).
 
 ```mermaid
-flowchart TB
-    subgraph InboundAdapters["adapters — inbound"]
-        direction TB
-        DatadogREST["AlertSource Adapter<br/>Datadog REST"]
-    end
-    subgraph InboundPorts["ports — inbound"]
-        direction TB
-        AlertSource["AlertSource"]
-    end
-    subgraph Domain["domain — entities and logic"]
+flowchart LR
+    subgraph Configured["everything here is configured by <b>configuration</b> — YAML file, then the environment over it"]
         direction LR
-        Alert["Alert"] --> Grouper["Grouper"]
-        Grouper --> Ledger["dedup / cooldown"]
-        Grouper --> Investigation["Investigation"]
-        Investigation --> Diagnosis["Hypothesis + confidence"]
-        Diagnosis --> Report["Triage report"]
-        Report --> Escalation["Escalation<br/>(side channel)"]
+        App["app<br/>composition root<br/>the only place<br/>adapters are named"]
+
+        subgraph Triage["triage — the core context"]
+            direction TB
+            TriageAdapters["adapters<br/>Datadog REST · SQLite"]
+            TriagePorts["ports<br/>AlertSource · Ledger"]
+            TriageDomain["domain<br/>Alert · Grouping · Incident<br/>Policy · Report"]
+            TriageAdapters --> TriagePorts --> TriageDomain
+        end
+
+        subgraph Investigation["investigation — supporting"]
+            direction TB
+            InvContract["contract<br/>InvestigationTarget · Findings"]
+            InvDomain["domain<br/>Specialist · citation discipline"]
+            InvPorts["ports<br/>Investigator"]
+            InvAdapters["adapters<br/>adk (framework)<br/>datadog (platform)"]
+            InvAdapters --> InvPorts --> InvDomain --> InvContract
+        end
+
+        subgraph Notification["notification — supporting"]
+            direction TB
+            NotContract["contract<br/>TriageReport"]
+            NotPorts["ports<br/>Notifier"]
+            NotAdapters["adapters<br/>Email · Teams · fan-out"]
+            NotAdapters --> NotPorts --> NotContract
+        end
+
+        App --> Triage
+        TriageDomain -- "asks" --> InvContract
+        TriageDomain -- "publishes" --> NotContract
     end
 
-    subgraph OutboundPorts["ports — outbound"]
-        direction LR
-        Investigator["Investigator Agent"] ~~~ TriageLedger["Triage Ledger"] ~~~ Notifier["Report Notifier"] ~~~ Config["Config Reader"]
-    end
+    classDef coreClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef supportingClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+    classDef configuredClass fill:#f6fbf7,stroke:#3f9142,color:#123a17
+    classDef appClass fill:#f4f4f5,stroke:#71717a,color:#27272a
 
-    subgraph OutboundAdapters["adapters — outbound"]
-        direction LR
-        ADK["Investigator Adapter<br/>Google ADK crew<br/>Datadog MCP Server"] ~~~ TriageLedgerAdapter["Triage Ledger Adapter<br/>SQLite"] ~~~ NotifierEmailAdapter["Notifier Adapter<br/>Email"] ~~~ NotifierTeamsAdapter["Notifier Adapter<br/>Teams"] ~~~ ConfigAdapter["Config Adapter<br/>YAML"]
-    end
-
-    DatadogREST -. implements .-> AlertSource
-    AlertSource --> Domain
-    Domain ---> OutboundPorts
-    OutboundPorts ---> OutboundAdapters
-
-    classDef domainClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
-    classDef portsClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
-    classDef adaptersClass fill:#eaf6ec,stroke:#3f9142,color:#123a17
-
-    class Domain domainClass
-    class InboundPorts,OutboundPorts portsClass
-    class InboundAdapters,OutboundAdapters adaptersClass
+    class Triage coreClass
+    class Investigation,Notification supportingClass
+    class Configured configuredClass
+    class App appClass
 ```
 
-Dependencies point inward only — `adapters` → `ports` → `domain` — and that
-direction is enforced by `tests/unit/test_architecture.py`, not by review. The
-composition root (`app/`) wires adapters into ports at startup; it has no
-runtime dependency edge of its own.
+Dependencies point inward only — `adapters` → `ports` → `domain` — inside every
+context, and a context never reaches past another's contract. Both rules are
+enforced by `tests/unit/test_architecture.py`, not by review. The composition
+root (`app/`) wires adapters into ports at startup; it is the only place
+concrete adapters are named.
 
 ```
 src/alert_triage/
-├── domain/      entities and logic; standard library only
-├── ports/       interfaces; imports domain only
-├── adapters/    one subpackage per integration, each owning its vendor library
-│   ├── datadog/
-│   ├── sqlite_ledger/
-│   ├── adk/
-│   ├── email/
-│   ├── teams/
-│   └── fan_out/ one Notifier standing for every configured channel
-└── app/         composition root: the only layer that names concrete adapters
+├── shared/         vocabulary more than one context speaks; depends on nothing
+├── configuration/  the settings a deployment behaves by, and where they are read
+├── triage/         the core: incidents, grouping, policy, what a report says
+│   ├── domain/     entities and logic; standard library only
+│   ├── ports/      interfaces; imports domain only
+│   └── adapters/   datadog (alerts) · sqlite (ledger)
+├── investigation/  contract.py, and everything private behind it
+│   ├── domain/     what a specialist is; what may be cited
+│   ├── ports/      Investigator: the one question this context answers
+│   └── adapters/   adk (the framework) · datadog (the platform)
+├── notification/   contract.py, the Notifier port, and the channels
+│   └── adapters/   email · teams · fan-out over every configured channel
+└── app/            composition root: the only place adapters are named
 
 tests/
 ├── unit/        no network, no external service
 └── integration/ fakes and real I/O
 ```
 
+Both scope directories mirror the package tree above, so a module's tests are
+found by the module's own path.
+
 ## Extending it
 
 Two kinds of extension, and they have different shapes. **Most of it is a port
-to implement** — a notification channel, the triage ledger, an alert source.
-**Observability tooling is a specialist to declare** — the platform's tools,
-and the instruction that uses them, are one value in `adapters/adk/`, and a
-single specialist is a complete contribution. Both guides are in
-[`docs/adapters.md`](docs/adapters.md).
+to implement** — a notification channel under `notification/adapters/`, the
+triage ledger or an alert source under `triage/adapters/`. **Observability
+tooling is a platform to add** — a directory under
+`investigation/adapters/`, holding how its MCP server is reached and the
+specialists declared against it. A specialist is one value: the platform's
+tools and the instruction that uses them, and a single one is a complete
+contribution. Both guides are in [`docs/adapters.md`](docs/adapters.md).
 
 ## License
 

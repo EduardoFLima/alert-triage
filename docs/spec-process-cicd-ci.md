@@ -100,7 +100,8 @@ pull_request: {}            # all target branches
 paths: []                   # no path filtering: the gate is cheap and total
 
 # Repository state consumed
-pyproject.toml   # tool config: ruff, mypy, pytest, coverage, import-linter
+pyproject.toml   # tool config: ruff, mypy, pytest, coverage
+.importlinter    # the architecture contracts, one file of their own
 uv.lock          # pinned resolution; the install is frozen against it
 .python-version  # interpreter version the package manager provisions
 src/, tests/     # the code under inspection

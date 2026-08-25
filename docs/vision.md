@@ -19,13 +19,31 @@ does the legwork and presents a hypothesis with its confidence, not a verdict.
 
 ## Architecture
 
-Hexagonal (ports & adapters). The domain doesn't know which alert source,
-which multi-agent framework, or which notification channel it's talking
-to — those are all adapters behind ports. This matters for two concrete
-reasons: the tool is meant to be shared publicly so others can plug in
-their own observability/notification tooling, and it needs to run in three
-different execution contexts (manual/local, container, GKE/Cloud Run)
-without the core changing.
+Four bounded contexts, each a hexagon of its own. Inside a context,
+dependencies point inward — adapters to ports to domain. Between contexts,
+what one offers another is a published contract and everything behind it is
+private. The domain doesn't know which alert source, which multi-agent
+framework, or which notification channel it's talking to — those are all
+adapters behind ports. This matters for two concrete reasons: the tool is
+meant to be shared publicly so others can plug in their own
+observability/notification tooling, and it needs to run in three different
+execution environments (manual/local, container, GKE/Cloud Run) without the
+core changing.
+
+**Triage** is the core: it owns the incident, groups the alerts, and decides
+what is owed about it. **Investigation** and **notification** are supporting
+contexts, each reached only through the contract it publishes — a target goes
+into one and findings come out; a report goes into the other and is delivered.
+**Configuration** is a generic subdomain every context may depend on directly.
+`shared/` holds vocabulary more than one context speaks and depends on no
+context, which is what stops it becoming a dumping ground.
+
+Triage is the customer of both supporting contexts and conforms to the
+language each publishes, rather than translating it: an `InvestigationTarget`
+is investigation's word for what it can be asked, and a `TriageReport` is
+notification's word for what it can deliver. Two anticorruption layers keep
+that one-directional — investigation never learns what an incident is, and
+notification knows nothing of incidents or investigations.
 
 One path is deliberately *not* a hand-written port: the evidence a
 specialist agent gathers while investigating. That boundary is MCP itself.
@@ -35,33 +53,42 @@ boundary](#evidence-and-the-platform-boundary) below, and it is a reversal
 cost.
 
 ```
-┌───────────────────────────────────────────────────────────────────┐
-│                          Core Domain                                │
-│                                                                     │
-│  Alert ──▶ Grouper ──▶ Investigator ──▶ Diagnostician ──▶ Report    │
-│              │              │                                │      │
-│              ▼              │                                ▼      │
-│        TriageLedger ◀───────┘                            Escalator  │
-│        (dedup/cooldown)                              (side-channel) │
-└───────────┬─────────────────┬───────────────────────────────┬──────┘
-            │                 │                                │
-    ┌───────▼──────┐  ┌───────▼────────┐               ┌──────▼──────┐
-    │ AlertSource  │  │ Investigator   │               │ Notifier    │
-    │ port         │  │ port           │               │ port        │
-    └───────┬──────┘  └───────┬────────┘               └──────┬──────┘
-    ┌───────▼──────┐  ┌───────▼────────┐               ┌──────▼──────┐
-    │ Datadog      │  │ ADK agent crew │               │ Email       │
-    │ REST adapter │  │ adapter        │               │ Teams       │
-    └──────────────┘  └───────┬────────┘               └─────────────┘
-                              │ MCP toolset, filtered per specialist,
-                              │ every result through the evidence callback
-                      ┌───────▼────────┐
-                      │ Observability  │
-                      │ MCP server     │
-                      └────────────────┘
+            app — composition root, the only place adapters are named
+                  │
+┌─────────────────▼────────────────────────────────────────────────────────┐
+│ TRIAGE — the core context                                                │
+│   domain    Alert ─▶ Grouping ─▶ Incident ─▶ Policy ─▶ Report            │
+│   ports     AlertSource · TriageLedger                                   │
+│   adapters  Datadog Events API · SQLite                                  │
+└─────────────────┬──────────────────────────────────────┬─────────────────┘
+                  │ asks                                 │ publishes
+┌─────────────────▼─────────────────┐  ┌─────────────────▼─────────────────┐
+│ INVESTIGATION — supporting        │  │ NOTIFICATION — supporting         │
+│   contract  InvestigationTarget   │  │   contract  TriageReport          │
+│             Findings              │  │                                   │
+│   ports     Investigator          │  │   ports     Notifier              │
+│   domain    Specialist · evidence │  │   adapters  Email · Teams         │
+│   adapters  adk · datadog         │  │                                   │
+└─────────────────┬─────────────────┘  └───────────────────────────────────┘
+                  │ MCP toolset, filtered per specialist,
+                  │ every result through the evidence callback
+          ┌───────▼────────┐
+          │ Observability  │
+          │ MCP server     │
+          └────────────────┘
+
+configuration  every context may depend on it — YAML, then env over it
+shared         Window; depends on no context
 ```
 
 ### Ports
+
+A port is declared in the context whose own adapter implements it, so a port
+and the things that answer it are found together. A context that sits on
+neither end of a port has no claim on it — which is why `Investigator` belongs
+to investigation even though only the composition root calls through it.
+
+In triage:
 
 - **AlertSource** — fetch recent alerts (Datadog REST adapter for v1, against
   the Events API). Ingestion asks one fixed question on a schedule and wants a
@@ -70,16 +97,33 @@ cost.
   chooses tools at runtime, which is the investigation path, not this one —
   and that path is reached through MCP directly rather than through a port
   of ours.
-- **Investigator** — given a group of related alerts, produce findings +
-  hypothesis (ADK multi-agent adapter for v1). This port stays: what the
-  domain wants is "investigate this incident, give me findings", and that
-  question is genuinely independent of who answers it.
-- **TriageLedger** — tracks which alert-groups have already been reported
+- **TriageLedger** — tracks which incidents have already been reported
   and when, to dedup and enforce re-notify cooldown
-- **Notifier** — deliver the triage report (Email + Teams adapters for v1)
-- **Config** — optional YAML, provides critical-services registry,
-  circuit-breaker thresholds, and room to grow other settings later.
-  Absence of the file means sensible defaults apply everywhere.
+
+In investigation:
+
+- **Investigator** — given a target, produce findings (ADK multi-agent adapter
+  for v1). This port stays: what a caller wants is "investigate this, give me
+  findings", and that question is genuinely independent of who answers it. It
+  takes an `InvestigationTarget` rather than an incident — a service, a window,
+  and how much fired in it — because an incident is triage's own aggregate and
+  a contributor writing a specialist should not have to meet it.
+
+In notification:
+
+- **Notifier** — deliver the triage report (Email + Teams adapters for v1).
+  One-way by design, which is what makes acknowledgement an architectural
+  question rather than a method — see the roadmap entry below.
+
+Configuration is a generic subdomain rather than a context with a contract, so
+its **Config** port is reachable from every context directly: optional YAML,
+providing the critical-services registry, circuit-breaker thresholds, and room
+to grow other settings later. Absence of the file means sensible defaults apply
+everywhere.
+
+The observability platform has no port at all — MCP is already one. The
+reasoning is under [Evidence and the platform
+boundary](#evidence-and-the-platform-boundary).
 
 ### Grouping
 
@@ -611,6 +655,28 @@ testable, building only on the slices before it.
    a failed search demonstrably cannot be read as a quiet service, the
    restructure is not done. Testable with a stubbed model and a fake MCP
    server, plus the first credential-gated live run.
+
+   Then a second restructure, of the tree rather than of the investigation:
+   the four bounded contexts described under [Architecture](#architecture).
+   It belongs to this slice because this slice is what made it necessary.
+   Retiring the port grew the ADK adapter to a third of all adapter code, and
+   a flat `adapters/` that groups by "this is an integration" was then filing
+   an agent subsystem beside a sixty-line dotenv wrapper. Slice 8's harness is
+   not an adapter and had nowhere to go; slices 9 and 10 take investigation
+   from one specialist to six. Doing it here rather than later meant moving a
+   third of the code that a later cut would have had to move.
+
+   Two anticorruption layers keep the contexts acyclic: `InvestigationTarget`
+   replaces the incident at the investigation boundary, and `TriageReport`
+   trades the whole incident it used to carry for the identifier and service
+   that were all production had ever read off it. Both were cheap only because
+   the call sites were still few, and neither gets cheaper from here.
+   The rules are enforced rather than reviewed — one layers contract per
+   context, plus contracts for cross-context privacy, supporting-context
+   independence, and a shared kernel that depends on nothing. Each was shown
+   red against a deliberate violation before being trusted green, and the
+   architecture test names them so that a contract going missing fails a
+   build rather than passing one.
 8. **Evaluation harness** — canned incidents with expected findings, scored
    per specialist, so instruction quality is measurable rather than felt.
    Ordered before the remaining specialists deliberately: the restructure
@@ -640,3 +706,24 @@ testable, building only on the slices before it.
     `docs/spec-process-cicd-ci.md`.
 14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.
+15. **README architecture diagram rework** — the diagram the bounded-context
+    restructure left behind states the shape correctly and reads poorly: four
+    nested subgraphs, an enclosing box for configuration, and a rung per layer
+    inside each context, all competing for the same glance. Deliberately last,
+    because every slice before it changes what the picture has to say. Slice 10
+    moves report formatting into an agent, which dissolves triage's deep read
+    of investigation's vocabulary and so redraws one of the two cross-context
+    edges. Slice 11 adds a path that bypasses batching entirely, which the
+    current picture has nowhere to put. Slice 14 introduces a deployment story
+    a reader will want to see and there is no version of that in it today.
+    Redrawing before those land is redrawing twice, and a diagram is the one
+    artefact where being out of date is worse than being ugly.
+
+    Likely more than one picture rather than a better single one: what the
+    contexts are and how they depend on each other is a different question from
+    what happens to one alert on its way to a report, and today's diagram
+    answers the first while most readers arrive wanting the second. Worth
+    settling then, not now. Regenerated through the mermaid MCP tool per the
+    conventions above; the acceptance is a reader who has not seen the codebase
+    reaching the right mental model unaided, which is a judgement rather than a
+    test, so it does not gate a green build.

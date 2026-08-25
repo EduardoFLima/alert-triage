@@ -29,33 +29,63 @@ demanding it, stop and write the test.
   (see `tests/conftest.py`); do not hand-annotate `@pytest.mark.unit`.
 - Shared fixtures go in the nearest `conftest.py`, not in a helper module that
   tests import.
+- Both scope directories mirror the package tree under `src/`, so a module's
+  tests are found by the module's own path. Within that structure a file is
+  named for the behaviour it establishes, not for the module it exercises — a
+  behaviour outlives the file that currently implements it.
 
-## Hexagonal architecture
+## Bounded contexts, each a hexagon
 
-The dependency direction is the one rule that must never bend:
+Two rules that must never bend. Inside a context, dependencies point inward.
+Between contexts, what one offers another is a published contract, and
+everything behind it is private.
 
 ```
-app  ->  adapters  ->  ports  ->  domain
+app  ->  <context>.adapters  ->  <context>.ports  ->  <context>.domain
 ```
 
-- `domain/` — entities and logic. Imports the standard library and nothing
-  else.
-- `ports/` — abstract interfaces, expressed in this project's vocabulary.
-  Imports `domain` only. A port never types itself against a vendor SDK's
-  model; translate at the adapter.
-- `adapters/` — one subpackage per integration, each implementing a port and
-  owning its vendor library.
+- `triage/` — the core context: alerts, grouping, the Incident aggregate, the
+  policy deciding what is owed, and what a report says. The customer of both
+  supporting contexts.
+- `investigation/` — findings and the agent crew, behind `contract.py`. Its
+  adapters split by axis: `adk/` is the framework, `datadog/` is the platform.
+  Its `Investigator` port is declared here, not beside the caller: a port
+  belongs to the context whose adapter implements it.
+- `notification/` — delivering a report, behind `contract.py`. Genuinely
+  standalone: it knows nothing of incidents or investigations.
+- `configuration/` — the settings a deployment behaves by. A generic subdomain
+  every context may depend on.
+- `shared/` — vocabulary more than one context speaks. Depends on no context,
+  which is what stops it becoming a dumping ground.
 - `app/` — the composition root. The only place concrete adapters are named
   and injected.
 
+Within each context: `domain/` imports the standard library, the shared kernel,
+configuration, and the contracts it is entitled to — nothing else. `ports/`
+holds abstract interfaces in this project's vocabulary and never types itself
+against a vendor SDK's model; translate at the adapter. `adapters/` is one
+subpackage per integration, each owning its vendor library.
+
+The permitted cross-context edges are exactly these: `triage` may import
+`investigation.contract` and `notification.contract`; neither supporting
+context may import the other or reach back into `triage`; every context may
+import `shared` and `configuration`; `shared` imports nothing.
+
 This is enforced, not reviewed: `tests/unit/test_architecture.py` runs the
-import-linter contracts declared in `pyproject.toml` and fails with the
+import-linter contracts declared in `.importlinter` and fails with the
 offending module and import named. The contracts walk the *transitive* import
-graph, so an indirect route into `adapters` fails too.
+graph, so an indirect route into another context's internals fails too.
 
 **When you add a runtime dependency**, add it to the `forbidden_modules` list
 of the "Domain and ports are free of vendor libraries" contract in
-`pyproject.toml`. That list is what keeps a new SDK out of the core.
+`.importlinter`, and add its own package to the `source_modules` of that
+contract if you have added a context. That list is what keeps a new SDK out of
+the core.
+
+**When you add a context**, it needs a layers contract of its own, an entry in
+the forbidden contract that keeps the others out of its internals, and its
+inner layers added to the vendor-library contract. A contract that has never
+been shown to fail has not been shown to enforce anything.
 
 ## Clean code
 
