@@ -640,3 +640,24 @@ testable, building only on the slices before it.
     `docs/spec-process-cicd-ci.md`.
 14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.
+15. **README architecture diagram rework** — the diagram the bounded-context
+    restructure left behind states the shape correctly and reads poorly: four
+    nested subgraphs, an enclosing box for configuration, and a rung per layer
+    inside each context, all competing for the same glance. Deliberately last,
+    because every slice before it changes what the picture has to say. Slice 10
+    moves report formatting into an agent, which dissolves triage's deep read
+    of investigation's vocabulary and so redraws one of the two cross-context
+    edges. Slice 11 adds a path that bypasses batching entirely, which the
+    current picture has nowhere to put. Slice 14 introduces a deployment story
+    a reader will want to see and there is no version of that in it today.
+    Redrawing before those land is redrawing twice, and a diagram is the one
+    artefact where being out of date is worse than being ugly.
+
+    Likely more than one picture rather than a better single one: what the
+    contexts are and how they depend on each other is a different question from
+    what happens to one alert on its way to a report, and today's diagram
+    answers the first while most readers arrive wanting the second. Worth
+    settling then, not now. Regenerated through the mermaid MCP tool per the
+    conventions above; the acceptance is a reader who has not seen the codebase
+    reaching the right mental model unaided, which is a judgement rather than a
+    test, so it does not gate a green build.
