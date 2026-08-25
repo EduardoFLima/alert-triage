@@ -57,6 +57,13 @@ fail an automated check, not rely on code review to catch them.
 - **THEN** the architecture check fails, because shared vocabulary that depends
   on one context is that context's, not shared
 
+#### Scenario: An enforced rule goes missing
+
+- **WHEN** a rule this project is held to is no longer among those the
+  architecture check runs
+- **THEN** the check fails and names the missing rule, because a rule nobody
+  runs is not a rule and a silently empty check reports success
+
 #### Scenario: Compliant layout
 
 - **WHEN** every module respects the inward dependency direction and every
@@ -64,6 +71,34 @@ fail an automated check, not rely on code review to catch them.
 - **THEN** the architecture check passes and reports no violations
 
 ## ADDED Requirements
+
+### Requirement: A port is declared by the context that answers it
+
+A port SHALL be declared in the context whose own adapter implements it, and
+the failure a caller must distinguish SHALL be defined beside that port rather
+than in the adapter that raises it or in the vocabulary the context publishes.
+A context SHALL NOT declare a port that it neither implements nor calls.
+
+#### Scenario: Locating what implements a port
+
+- **WHEN** a contributor reads a port and wants to know what answers it
+- **THEN** the implementation is an adapter of the same context, so the port
+  and its implementations are found together
+
+#### Scenario: A port's only caller is the composition root
+
+- **WHEN** no module of any context calls through a port, and only the
+  composition root does
+- **THEN** the port still belongs to the context that answers it, because a
+  composition root is entitled to name both ends and a context that sits on
+  neither end of a port has no claim on it
+
+#### Scenario: Catching the failure a port documents
+
+- **WHEN** a caller needs to tell "this could not be done" from "this was done
+  and there was nothing to report"
+- **THEN** the failure type is reachable from the port itself, without reaching
+  into the answering context's published vocabulary or its adapters
 
 ### Requirement: A module's tests are found where the module is
 
