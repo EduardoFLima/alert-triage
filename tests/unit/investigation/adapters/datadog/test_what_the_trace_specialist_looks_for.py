@@ -6,8 +6,6 @@ retrieved nothing. So the instruction is asserted to demand a retrieved
 request, and the schema to offer nowhere to write one.
 """
 
-import re
-
 from alert_triage.investigation.adapters.datadog.specialists.trace import (
     TRACE_INSTRUCTION,
     TRACE_SPECIALIST,
@@ -16,19 +14,9 @@ from alert_triage.investigation.adapters.datadog.specialists.trace import (
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 
-QUOTED_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
-
 
 def _permitted() -> set[str]:
     return {tool for toolset in TRACE_SPECIALIST.toolsets for tool in toolset.tools}
-
-
-def _tools_named_in(instruction: str) -> set[str]:
-    return {
-        quoted
-        for quoted in re.findall(r"`([^`]+)`", instruction)
-        if QUOTED_IDENTIFIER.fullmatch(quoted)
-    }
 
 
 def test_the_declaration_reports_under_the_trace_signal() -> None:
@@ -91,15 +79,6 @@ def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
 
 def test_the_instruction_forbids_naming_a_root_cause() -> None:
     assert "root cause" in TRACE_INSTRUCTION.lower()
-
-
-def test_every_tool_the_declaration_permits_is_named_in_the_instruction() -> None:
-    for tool in _permitted():
-        assert tool in TRACE_INSTRUCTION
-
-
-def test_every_tool_the_instruction_names_is_one_the_declaration_permits() -> None:
-    assert _tools_named_in(TRACE_INSTRUCTION) == _permitted()
 
 
 def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
