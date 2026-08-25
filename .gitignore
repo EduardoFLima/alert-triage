@@ -7,6 +7,9 @@ venv/
 .env.*
 !.env.example
 
+# Behaviour config
+config.yaml
+
 # Local run state: the default ledger lands here, and it is a run's history
 data/
 
