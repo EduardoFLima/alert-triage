@@ -80,6 +80,9 @@ class Signal(StrEnum):
     """
 
     LOGS = "logs"
+    APM = "apm"
+    TRACE = "trace"
+    INFRASTRUCTURE = "infrastructure"
 
 
 @dataclass(frozen=True)

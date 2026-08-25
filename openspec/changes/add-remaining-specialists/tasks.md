@@ -22,53 +22,53 @@ and because a test that has never failed has not been shown to test anything.
 
 ## 2. Signals
 
-- [ ] 2.1 Write a failing test for `Signal.APM`, `Signal.TRACE` and
+- [x] 2.1 Write a failing test for `Signal.APM`, `Signal.TRACE` and
       `Signal.INFRASTRUCTURE`, then add the three members to
       `investigation/contract.py`.
 
 ## 3. APM specialist
 
-- [ ] 3.1 Write failing unit tests in
+- [x] 3.1 Write failing unit tests in
       `tests/unit/investigation/adapters/datadog/` for the declaration: it
       reports under `Signal.APM`, names its two toolsets, permits exactly the
       four tools, and takes the deployment's model.
-- [ ] 3.2 Write failing unit tests for the instruction: it asks for latency,
+- [x] 3.2 Write failing unit tests for the instruction: it asks for latency,
       error rate and throughput; teaches the metric query dialect; asks for
       single-hop dependency evidence and forbids investigating the neighbour;
       asks about changes near the window without naming one as a cause; states
       both citation grains; bounds examples at `MAX_EXAMPLES_PER_FINDING`;
       forbids concluding from a failed retrieval; and forbids naming a root
       cause.
-- [ ] 3.3 Write a failing test asserting every tool the declaration permits is
+- [x] 3.3 Write a failing test asserting every tool the declaration permits is
       named in the instruction, and every tool the instruction names is
       permitted.
-- [ ] 3.4 Write the output schema and a failing test that it offers no field an
+- [x] 3.4 Write the output schema and a failing test that it offers no field an
       agent could write evidence into.
-- [ ] 3.5 Create `specialists/apm.py` satisfying the above.
+- [x] 3.5 Create `specialists/apm.py` satisfying the above.
 
 ## 4. Trace specialist
 
-- [ ] 4.1 Failing declaration tests: reports under `Signal.TRACE`, one toolset,
+- [x] 4.1 Failing declaration tests: reports under `Signal.TRACE`, one toolset,
       permits exactly its two tools, takes the deployment's model.
-- [ ] 4.2 Failing instruction tests: search spans before fetching a trace;
+- [x] 4.2 Failing instruction tests: search spans before fetching a trace;
       report where time went or where the request broke; report only about
       retrieved requests and never a typical one; the citation, example-bound,
       failed-retrieval and no-root-cause rules as above.
-- [ ] 4.3 Failing tool/instruction agreement test and output schema test, as
+- [x] 4.3 Failing tool/instruction agreement test and output schema test, as
       3.3 and 3.4.
-- [ ] 4.4 Create `specialists/trace.py`.
+- [x] 4.4 Create `specialists/trace.py`.
 
 ## 5. Infrastructure specialist
 
-- [ ] 5.1 Failing declaration tests: reports under `Signal.INFRASTRUCTURE`, two
+- [x] 5.1 Failing declaration tests: reports under `Signal.INFRASTRUCTURE`, two
       toolsets, permits exactly its four tools, takes the deployment's model.
-- [ ] 5.2 Failing instruction tests: asks for CPU, memory, disk and network;
+- [x] 5.2 Failing instruction tests: asks for CPU, memory, disk and network;
       asks for workload state including restarts where the platform has one;
       **states that a platform answering "none" means the deployment does not
       have that signal and is not a failure to report or work around**; plus the
       citation, example-bound, failed-retrieval and no-root-cause rules.
-- [ ] 5.3 Failing tool/instruction agreement test and output schema test.
-- [ ] 5.4 Create `specialists/infrastructure.py`.
+- [x] 5.3 Failing tool/instruction agreement test and output schema test.
+- [x] 5.4 Create `specialists/infrastructure.py`.
 
 ## 6. The crew
 
