@@ -1,5 +1,6 @@
 import inspect
 from datetime import UTC, datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from datadog_api_client.exceptions import ApiException, UnauthorizedException
@@ -49,11 +50,17 @@ def _event(
     tags: list[str] | None = None,
     title: str = "Latency above threshold",
     timestamp: datetime = SINCE,
+    monitor_id: int | None = 12345678,
 ) -> EventResponse:
+    inner = (
+        EventAttributes(title=title)
+        if monitor_id is None
+        else EventAttributes(title=title, monitor_id=monitor_id)
+    )
     attributes = EventResponseAttributes(
         timestamp=timestamp,
         tags=["team:sre"] if tags is None else tags,
-        attributes=EventAttributes(title=title),
+        attributes=inner,
     )
     return EventResponse(id=identifier, attributes=attributes)
 
@@ -84,7 +91,7 @@ def test_an_event_is_translated_into_an_alert() -> None:
     assert alert.fired_at == SINCE
     assert alert.source_id == "evt-1"
     assert alert.title == "Latency"
-    assert alert.link == "https://app.datadoghq.com/event/event?id=evt-1"
+    assert alert.link.startswith("https://app.datadoghq.com/monitors/12345678")
 
 
 def test_the_link_points_at_the_configured_site() -> None:
@@ -96,7 +103,54 @@ def test_the_link_points_at_the_configured_site() -> None:
 
     (alert,) = source.fetch_since(SINCE)
 
-    assert alert.link == "https://app.datadoghq.eu/event/event?id=evt-1"
+    assert urlparse(alert.link).netloc == "app.datadoghq.eu"
+
+
+def test_an_alert_links_to_the_monitor_that_raised_it() -> None:
+    """The event id v2 returns has no page; the monitor that fired has one."""
+    source = _source(
+        _page(_event("evt-1", tags=["service:checkout"], monitor_id=98765))
+    )
+
+    (alert,) = source.fetch_since(SINCE)
+
+    assert urlparse(alert.link).path == "/monitors/98765"
+    assert "event/event" not in alert.link
+
+
+def test_an_alerts_link_is_scoped_to_when_it_fired() -> None:
+    """A reader following it days later sees the firing, not the present."""
+    source = _source(_page(_event("evt-1", tags=["service:checkout"])))
+
+    (alert,) = source.fetch_since(SINCE)
+
+    parameters = parse_qs(urlparse(alert.link).query)
+    fired_at_ms = int(SINCE.timestamp() * 1000)
+    assert int(parameters["from_ts"][0]) <= fired_at_ms <= int(parameters["to_ts"][0])
+    assert parameters["live"] == ["false"]
+
+
+def test_an_event_with_no_monitor_falls_back_to_its_services_own_events() -> None:
+    """An address over the service beats one known not to open."""
+    source = _source(_page(_event("evt-1", tags=["service:checkout"], monitor_id=None)))
+
+    (alert,) = source.fetch_since(SINCE)
+
+    parameters = parse_qs(urlparse(alert.link).query)
+    assert urlparse(alert.link).path == "/event/explorer"
+    assert "service:checkout" in parameters["query"][0]
+    assert int(parameters["from_ts"][0]) <= int(SINCE.timestamp() * 1000)
+
+
+def test_an_event_nothing_can_be_built_from_keeps_the_empty_default() -> None:
+    """A link is a field nobody gave this event, and inventing one is the bug."""
+    source = _source(
+        _page(_event("evt-1", tags=["service:", "team:sre"], monitor_id=None))
+    )
+
+    (alert,) = source.fetch_since(SINCE)
+
+    assert alert.link == ""
 
 
 def test_a_fire_time_in_another_zone_is_expressed_in_utc() -> None:

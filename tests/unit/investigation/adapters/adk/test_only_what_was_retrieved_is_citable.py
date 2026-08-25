@@ -135,3 +135,75 @@ def test_failures_and_successes_accumulate_side_by_side() -> None:
     assert retrieved.retrievals == 2
     assert retrieved.resolve("call-1") is not None
     assert retrieved.resolve("call-2") is not None
+
+
+class _Links:
+    """A platform's addresses, standing in for the one bound to a real site."""
+
+    def to_retrieval(self, args: Any) -> str | None:
+        return f"https://platform/search?query={args.get('query', '')}"
+
+    def to_item(self, payload: Any, within: str | None) -> str | None:
+        entry = payload.get("id") if isinstance(payload, dict) else None
+        return f"https://platform/logs?event={entry}" if entry else within
+
+
+def _identified(*entries: str) -> dict[str, Any]:
+    return {
+        "logs": [
+            {"id": entry, "timestamp": NOON.isoformat(), "message": entry}
+            for entry in entries
+        ]
+    }
+
+
+def test_items_resolve_to_evidence_carrying_the_address_the_linker_built() -> None:
+    retrieved = Retrieved(link=_Links())
+
+    retrieved.retain(_identified("log-a", "log-b"))
+
+    assert [retrieved.resolve(f"call-1/item-{n}").url for n in (1, 2)] == [  # type: ignore[union-attr]
+        "https://platform/logs?event=log-a",
+        "https://platform/logs?event=log-b",
+    ]
+
+
+def test_a_retrieval_kept_without_a_linker_addresses_nothing() -> None:
+    """Evidence with no address is still evidence, which is what this describes."""
+    retrieved = Retrieved()
+
+    retrieved.retain(_logs("first"))
+
+    assert retrieved.resolve("call-1/item-1").url is None  # type: ignore[union-attr]
+    assert retrieved.resolve("call-1").url is None  # type: ignore[union-attr]
+
+
+def test_an_item_the_platform_cannot_address_falls_back_to_its_retrieval() -> None:
+    """A reader lands on the search that produced it rather than nowhere."""
+    retrieved = Retrieved(link=_Links())
+
+    retrieved.retain(_logs("first"), args={"query": "service:checkout"})
+
+    assert retrieved.resolve("call-1/item-1").url == (  # type: ignore[union-attr]
+        "https://platform/search?query=service:checkout"
+    )
+
+
+def test_the_call_an_aggregate_is_cited_by_carries_the_retrievals_address() -> None:
+    """An aggregate has no entry to point at, so the query is where to look."""
+    retrieved = Retrieved(link=_Links())
+
+    retrieved.retain(_aggregate(), args={"query": "service:checkout status:error"})
+
+    assert retrieved.resolve("call-1").url == (  # type: ignore[union-attr]
+        "https://platform/search?query=service:checkout status:error"
+    )
+
+
+def test_a_retrieval_kept_with_no_arguments_is_still_addressed_as_it_can_be() -> None:
+    """ADK hands over what the tool was called with; a caller need not."""
+    retrieved = Retrieved(link=_Links())
+
+    retrieved.retain(_aggregate())
+
+    assert retrieved.resolve("call-1").url == "https://platform/search?query="  # type: ignore[union-attr]

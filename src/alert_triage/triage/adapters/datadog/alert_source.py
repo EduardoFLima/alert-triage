@@ -6,8 +6,9 @@ leaves is a list of ``Alert``.
 """
 
 from collections.abc import Iterator, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
+from urllib.parse import urlencode
 
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.exceptions import ApiException
@@ -30,6 +31,14 @@ SERVICE_TAG_PREFIX = "service:"
 MONITOR_ALERT_QUERY = "source:alert"
 
 PAGE_LIMIT = 100
+
+LINK_MARGIN = timedelta(minutes=30)
+"""How much either side of a firing an alert's link shows.
+
+A page pinned to the instant an alert fired shows a reader the moment and none
+of its run-up. Half an hour each way is enough to see the shape of it without
+being a window a reader has to search within.
+"""
 
 
 class EventSearch(Protocol):
@@ -118,13 +127,34 @@ class DatadogAlertSource:
         service = _service_of(getattr(attributes, "tags", []))
         if service is None:
             return None
+        fired_at = _as_utc(attributes.timestamp)
         return Alert(
             service=service,
-            fired_at=_as_utc(attributes.timestamp),
+            fired_at=fired_at,
             source_id=event.id,
             title=getattr(getattr(attributes, "attributes", None), "title", ""),
-            link=f"https://app.{self._site}/event/event?id={event.id}",
+            link=self._link_to(attributes, service, fired_at),
         )
+
+    def _link_to(self, attributes: object, service: str, fired_at: datetime) -> str:
+        """Where a reader opens what fired, over the period it fired in.
+
+        The monitor that raised the alert where the event names one, and the
+        service's own events where it does not. Never the event itself: the v2
+        identifier this API returns has no page of its own, and a link built
+        from one reads as working until a human follows it.
+        """
+        window = _window_around(fired_at)
+        monitor = getattr(getattr(attributes, "attributes", None), "monitor_id", None)
+        if monitor is not None:
+            return f"https://app.{self._site}/monitors/{monitor}?{urlencode(window)}"
+        if not service:
+            return ""
+        over_the_service = {
+            "query": f"{MONITOR_ALERT_QUERY} {SERVICE_TAG_PREFIX}{service}",
+            **window,
+        }
+        return f"https://app.{self._site}/event/explorer?{urlencode(over_the_service)}"
 
 
 def build_configuration(
@@ -191,6 +221,15 @@ def _service_of(tags: Sequence[str]) -> str | None:
         if tag.startswith(SERVICE_TAG_PREFIX):
             return tag.removeprefix(SERVICE_TAG_PREFIX)
     return None
+
+
+def _window_around(fired_at: datetime) -> dict[str, str]:
+    """The period a link shows, pinned so it outlives the moment it was built."""
+    return {
+        "from_ts": str(int((fired_at - LINK_MARGIN).timestamp() * 1000)),
+        "to_ts": str(int((fired_at + LINK_MARGIN).timestamp() * 1000)),
+        "live": "false",
+    }
 
 
 def _as_utc(timestamp: datetime) -> datetime:

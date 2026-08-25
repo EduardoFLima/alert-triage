@@ -7,6 +7,7 @@ real credential and is skipped without one, so CI and a fresh clone stay green.
 """
 
 import os
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -27,6 +28,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 OWNER = os.environ.get("SCOPE_OWNER", "sre")
+
+LINKS_CHECKED = 3
+"""How many of a week's alerts have their address followed.
+
+Every link a run builds takes the same two forms, so following three of them
+establishes as much as following three hundred and costs a fraction of a
+quiet minute.
+"""
 
 
 def _source() -> AlertSource:
@@ -53,5 +62,24 @@ def test_every_translated_alert_carries_the_fields_the_unit_tests_assume() -> No
     for alert in alerts:
         assert alert.service
         assert alert.source_id
-        assert alert.link.endswith(alert.source_id)
+        assert alert.link
         assert alert.fired_at.tzinfo is UTC
+
+
+def test_a_translated_alerts_link_opens_rather_than_404s(
+    answers: Callable[[str], bool],
+) -> None:
+    """The check the link this replaced would have failed, and nothing else could.
+
+    A unit test can only assert the string it composed. Whether Datadog serves
+    a page at that address is a question only Datadog answers, and the previous
+    link — the v2 event id in the v1 event route — passed every unit test while
+    answering nobody.
+    """
+    alerts = _source().fetch_since(datetime.now(UTC) - timedelta(days=7))
+
+    if not alerts:
+        pytest.skip(f"no alerts fired for owner {OWNER!r} in the last week")
+
+    for alert in alerts[:LINKS_CHECKED]:
+        assert answers(alert.link), f"the platform serves nothing at {alert.link}"

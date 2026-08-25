@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import pytest
@@ -291,3 +292,22 @@ def test_the_model_is_built_from_the_credential_the_environment_resolved(
         "model": "gemini-from-the-config-file",
         "access": ApiKey("model-key"),
     }
+
+
+def test_the_investigator_addresses_evidence_on_the_site_it_gathers_it_from(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An account on one site addressed on another gets a page it cannot see."""
+    built: dict[str, Any] = {}
+    monkeypatch.setattr(
+        composition, "AdkInvestigator", lambda **kwargs: built.update(kwargs)
+    )
+
+    composition.build_investigator(
+        {"GOOGLE_API_KEY": "model-key"},
+        DatadogConnection(site="datadoghq.eu", api_key="api", app_key="app"),
+        Investigation(),
+    )
+
+    address = built["links"].to_retrieval({"query": "service:checkout"})
+    assert address.startswith("https://app.datadoghq.eu/")

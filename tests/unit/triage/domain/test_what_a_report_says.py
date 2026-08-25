@@ -123,12 +123,17 @@ def test_the_subject_survives_a_service_tag_that_spans_two_lines() -> None:
     assert "\n" not in _uninvestigated(incident).subject
 
 
-def _item(offset: timedelta = timedelta(), summary: str = "OOMKilled") -> EvidenceItem:
+def _item(
+    offset: timedelta = timedelta(),
+    summary: str = "OOMKilled",
+    url: str | None = None,
+) -> EvidenceItem:
     return EvidenceItem(
         id="call-1/item-1",
         instant=NOON + offset,
         summary=summary,
         payload={"message": summary},
+        url=url,
     )
 
 
@@ -287,3 +292,63 @@ def test_incomplete_evidence_is_not_the_report_for_a_failed_investigation() -> N
     assert NOT_INVESTIGATED not in incomplete
     assert EVIDENCE_INCOMPLETE not in uninvestigated
     assert NOT_INVESTIGATED in uninvestigated
+
+
+LOG_LINK = "https://app.datadoghq.com/logs?query=service%3Acheckout&event=AQAAA"
+
+
+def _evidence_lines(body: str) -> list[str]:
+    """The indented lines beneath a finding, which is where evidence renders."""
+    return [line.strip() for line in body.splitlines() if line.startswith("    ")]
+
+
+def test_evidence_carrying_an_address_renders_it_on_its_own_line() -> None:
+    """A reader who wants to see the finding for themselves goes from here."""
+    findings = Findings(
+        findings=(
+            _finding(examples=(_item(summary="container OOMKilled", url=LOG_LINK),)),
+        )
+    )
+
+    lines = _evidence_lines(_investigated(_incident(), findings).body)
+
+    assert lines == [f"{NOON.isoformat()} container OOMKilled", LOG_LINK]
+
+
+def test_evidence_with_no_address_renders_exactly_as_it_did_before() -> None:
+    """No address is a complete answer, and the report notes no absence."""
+    findings = Findings(findings=(_finding(examples=(_item(summary="OOMKilled"),)),))
+
+    lines = _evidence_lines(_investigated(_incident(), findings).body)
+
+    assert lines == [f"{NOON.isoformat()} OOMKilled"]
+
+
+def test_an_address_is_rendered_whole_beside_a_summary_that_was_shortened() -> None:
+    """The failure this exists to fix: half a URL still reads as a link."""
+    shortened = f"{'word ' * 60}…"
+    findings = Findings(
+        findings=(_finding(examples=(_item(summary=shortened, url=LOG_LINK),)),)
+    )
+
+    read, address = _evidence_lines(_investigated(_incident(), findings).body)
+
+    assert address == LOG_LINK
+    assert read.endswith("…")
+    assert LOG_LINK not in read
+
+
+def test_an_aggregates_address_stands_on_a_line_of_its_own_too() -> None:
+    """An item with no instant is an aggregate, and is still somewhere to go."""
+    aggregate = EvidenceItem(
+        id="call-1",
+        instant=None,
+        summary="4200 errors in the window",
+        payload={"count": 4200},
+        url=LOG_LINK,
+    )
+    findings = Findings(findings=(_finding(examples=(aggregate,)),))
+
+    lines = _evidence_lines(_investigated(_incident(), findings).body)
+
+    assert lines == ["4200 errors in the window", LOG_LINK]

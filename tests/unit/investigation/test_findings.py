@@ -46,6 +46,24 @@ def test_an_evidence_item_without_a_summary_evidences_nothing() -> None:
         EvidenceItem(id="call-1/item-1", instant=NOON, summary="   ", payload={})
 
 
+def test_an_evidence_item_carries_the_address_of_the_thing_itself() -> None:
+    """A reader who wants to see the evidence goes where the item says."""
+    item = EvidenceItem(
+        id="call-1/item-1",
+        instant=NOON,
+        summary="OOMKilled",
+        payload={"message": "OOMKilled"},
+        url="https://app.datadoghq.com/logs?event=AAAA",
+    )
+
+    assert item.url == "https://app.datadoghq.com/logs?event=AAAA"
+
+
+def test_an_evidence_item_the_platform_cannot_address_has_no_url() -> None:
+    """No address is a complete answer: evidence without one is still evidence."""
+    assert _item().url is None
+
+
 def test_an_evidence_item_may_have_no_instant() -> None:
     """An aggregate concerns a window rather than a moment; it is still evidence."""
     item = EvidenceItem(

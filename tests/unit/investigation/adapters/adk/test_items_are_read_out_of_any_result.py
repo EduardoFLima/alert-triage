@@ -151,3 +151,41 @@ def test_entries_are_found_under_the_protocols_own_wrapper() -> None:
     )
 
     assert [item.summary for item in items] == ["first"]
+
+
+def test_an_item_carries_the_address_a_linker_builds_for_its_payload() -> None:
+    """The address is derived from what was retrieved, by whoever knows how."""
+    items = items_from(
+        [{"id": "log-1", "message": "first"}, {"id": "log-2", "message": "second"}],
+        "call-1",
+        link=lambda payload: f"https://app.datadoghq.com/logs?event={payload['id']}",
+    )
+
+    assert [item.url for item in items] == [
+        "https://app.datadoghq.com/logs?event=log-1",
+        "https://app.datadoghq.com/logs?event=log-2",
+    ]
+
+
+def test_an_item_read_without_a_linker_has_no_address() -> None:
+    """Reading items is platform-blind; addressing them is not."""
+    (item,) = items_from([{"message": "OOMKilled"}], "call-1")
+
+    assert item.url is None
+
+
+def test_a_linker_that_cannot_address_a_payload_leaves_the_item_unaddressed() -> None:
+    (item,) = items_from([{"message": "OOMKilled"}], "call-1", link=lambda _: None)
+
+    assert item.url is None
+
+
+def test_a_long_summary_is_shortened_while_the_address_is_kept_whole() -> None:
+    """The address is a field of its own, so nothing shortens it into half a link."""
+    address = "https://app.datadoghq.com/logs?query=" + "a" * 400
+    (item,) = items_from(
+        [{"id": "log-1", "message": "word " * 400}], "call-1", link=lambda _: address
+    )
+
+    assert item.url == address
+    assert item.summary.endswith(" …")

@@ -229,3 +229,56 @@ def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
     (finding,) = investigator.investigate(_target()).findings
 
     assert finding.observation == "the logs show it too"
+
+
+class _Links:
+    """A platform's addresses, standing in for the one bound to a real site."""
+
+    def to_retrieval(self, args: Any) -> str | None:
+        return "https://platform/search"
+
+    def to_item(self, payload: Any, within: str | None) -> str | None:
+        return within
+
+
+def test_the_evidence_of_each_investigation_is_addressed_by_the_platforms_linker() -> (
+    None
+):
+    """One linker per deployment, reaching the ``Retrieved`` of every investigation."""
+    investigator = AdkInvestigator(
+        crew=(_specialist(),),
+        run_specialist=_reports(
+            findings=[
+                {
+                    "observation": "OOMKilled recurs",
+                    "occurrences": 3,
+                    "cites": ["call-1/item-1"],
+                }
+            ]
+        ),
+        links=_Links(),
+    )
+
+    (finding,) = investigator.investigate(_target()).findings
+
+    assert finding.examples[0].url == "https://platform/search"
+
+
+def test_an_investigator_with_no_linker_still_investigates() -> None:
+    """Evidence without an address is still evidence, and a test says so."""
+    investigator = AdkInvestigator(
+        crew=(_specialist(),),
+        run_specialist=_reports(
+            findings=[
+                {
+                    "observation": "OOMKilled recurs",
+                    "occurrences": 3,
+                    "cites": ["call-1/item-1"],
+                }
+            ]
+        ),
+    )
+
+    (finding,) = investigator.investigate(_target()).findings
+
+    assert finding.examples[0].url is None

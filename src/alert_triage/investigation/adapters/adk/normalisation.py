@@ -14,7 +14,7 @@ project makes once, here, instead of fifteen times, one per tool.
 """
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -38,6 +38,15 @@ SUMMARY_KEYS = ("message", "text", "title", "name", "summary")
 INSTANT_KEYS = ("timestamp", "time", "date", "started_at", "occurred_at")
 """Where the instant an entry concerns is usually found."""
 
+Linker = Callable[[Any], str | None]
+"""How a payload becomes the address a human opens it at.
+
+Injected rather than imported, so this module stays as platform-blind as the
+reading it does: knowing that a log entry has an address, and what that address
+looks like, is the platform adapter's business. ``None`` is a complete answer —
+a platform that cannot address an item has said so.
+"""
+
 MAX_SUMMARY_CHARS = 300
 """How much of an entry a summary shows before it stops being a line.
 
@@ -46,20 +55,24 @@ what is there for the reader who wants everything.
 """
 
 
-def items_from(result: Any, call: str) -> tuple[EvidenceItem, ...]:
+def items_from(
+    result: Any, call: str, link: Linker | None = None
+) -> tuple[EvidenceItem, ...]:
     """The discrete items within one tool result, in the order they arrived.
 
     Args:
         result: What the tool returned, as ADK handed it over.
         call: The identifier this retrieval is cited by. Items are addressed
             within it, so a citation names both the call and the item.
+        link: How to address an entry on the platform it came from. Without
+            one, items are read as they always were and carry no address.
 
     Returns:
         One item per entry found, or nothing at all when the result has no
         discrete entries to speak of.
     """
     return tuple(
-        _item(f"{call}/item-{position}", payload)
+        _item(f"{call}/item-{position}", payload, link)
         for position, payload in enumerate(_entries(readable(result)), start=1)
     )
 
@@ -100,13 +113,14 @@ def instant_of(payload: Any) -> datetime | None:
     return None
 
 
-def _item(identifier: str, payload: Any) -> EvidenceItem:
+def _item(identifier: str, payload: Any, link: Linker | None) -> EvidenceItem:
     """Normalise one entry as far as reading it demands, and no further."""
     return EvidenceItem(
         id=identifier,
         instant=instant_of(payload),
         summary=summarise(payload),
         payload=payload,
+        url=None if link is None else link(payload),
     )
 
 
