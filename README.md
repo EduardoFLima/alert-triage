@@ -141,8 +141,61 @@ Useful selections while working:
 ```bash
 uv run pytest -m unit            # fast set: no network, no external service
 uv run pytest -m integration     # integration-scope tests only
-uv run ruff format src tests     # apply formatting
+uv run pytest --no-cov           # skip coverage; the tightest red/green loop
+uv run pytest -x --lf            # stop at the first failure, then retry just it
+uv run pytest -rs                # say which tests skipped, and why
+uv run ruff check --fix src tests   # apply the fixable lint
+uv run ruff format src tests        # apply formatting
+uv run lint-imports                 # the architecture contracts, on their own
 ```
+
+Scope markers come from the directory a test lives in, never from a decorator,
+so `-m unit` and `-m integration` need nothing kept in sync by hand.
+
+Narrow further by path or by name — a file, a single test, or every test whose
+name matches:
+
+```bash
+uv run pytest tests/unit/triage/domain/test_what_a_report_says.py
+uv run pytest tests/unit/triage/domain/test_incident.py::test_an_incident_that_has_never_been_reported_says_so
+uv run pytest -k "link or address"
+```
+
+### Against a real Datadog account
+
+Seven tests are gated on real credentials and skip without them, which is why
+a fresh clone and CI stay green. They exist for the three things no fake can
+answer: that the tool names in a specialist's declaration exist on Datadog's
+MCP server, that a real model given the instruction actually calls them, and
+that a URL this project composes is a route the platform accepts rather than a
+404.
+
+```bash
+export DD_API_KEY=... DD_APP_KEY=... GOOGLE_API_KEY=...
+uv run pytest tests/integration/investigation/adapters/datadog \
+              tests/integration/triage/adapters/datadog -rs
+```
+
+The credentials must be **exported**, not left in `.env`: the skip is decided
+from the process environment as the module loads, and nothing reads the file
+on the way in. `-rs` is what tells you they ran rather than skipped past.
+
+Two of the seven are the link checks, and they are worth running alone after
+touching anything that builds a URL — they follow the address and rule out the
+404 that a route built from the wrong kind of identifier returns:
+
+```bash
+uv run pytest -k opens_rather_than_404s -rs
+```
+
+`ALERT_TRIAGE_LIVE_SERVICE` names a service in the account under test,
+defaulting to `checkout`. A quiet service is a valid answer: these confirm the
+retrieval happened, not that it found anything.
+
+A run costs a model call and a handful of platform calls. Note that `-k live`
+also catches the email and Teams channel tests, which are "live" in a different
+sense — a real server in this process, no account and no credentials — and
+those run every time.
 
 Engineering practices — TDD, clean code, the import rule — are in
 [`AGENTS.md`](AGENTS.md), which applies to humans and coding agents alike.
