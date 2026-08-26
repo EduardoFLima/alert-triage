@@ -1,13 +1,17 @@
-"""Confirms the declaration against the real platform and a real model.
+"""Confirms every declaration against the real platform and a real model.
 
 Everything else about the investigation is exercised offline, against a fake
 MCP server and a scripted model. Three things cannot be: that the tool names in
-the declaration exist on Datadog's server, that the filter admits them, and
-that a model given the instruction actually calls them. A fake proves none of
-those, because a fake is built from the same assumptions the declaration is.
+a declaration exist on Datadog's server, that the filter admits them, and that
+a model given the instruction actually calls them. A fake proves none of those,
+because a fake is built from the same assumptions the declaration is.
 
-It needs real credentials and is skipped without them, so CI and a fresh clone
-stay green. It costs a model call and a platform call when it does run.
+Parameterised over the crew rather than naming one specialist, so a specialist
+added later cannot ship without its tool names confirmed against the real
+server. It costs a model call and at least one platform call per specialist,
+and per toolset a specialist declares, which is a developer's cost rather than
+CI's: it needs real credentials and is skipped without them, so CI and a fresh
+clone stay green.
 """
 
 import asyncio
@@ -27,13 +31,14 @@ from alert_triage.investigation.adapters.adk.credentials import (
     ENTERPRISE_VARIABLE,
     resolve_model_access,
 )
+from alert_triage.investigation.adapters.adk.crew import CREW
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import run_with_adk
 from alert_triage.investigation.adapters.adk.model import build_model
 from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
-from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SPECIALIST
 from alert_triage.investigation.contract import InvestigationTarget
+from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.shared.window import Window
 from alert_triage.triage.adapters.datadog.connection import (
     API_KEY_VARIABLE as DD_API_KEY_VARIABLE,
@@ -76,6 +81,15 @@ pytestmark = pytest.mark.skipif(
 SERVICE = os.environ.get("ALERT_TRIAGE_LIVE_SERVICE", "checkout")
 """A service in the account under test. A quiet one is a valid answer."""
 
+DECLARED_TOOLSETS = [
+    (specialist.name, toolset) for specialist in CREW for toolset in specialist.toolsets
+]
+"""Every toolset the crew declares, named by the specialist that declared it.
+
+Per toolset rather than per specialist: a specialist reaching two of them opens
+a connection to each, and a failure has to say which half of it is missing.
+"""
+
 
 def _deployment() -> Deployment:
     connection = resolve_connection()
@@ -96,9 +110,15 @@ def _target() -> InvestigationTarget:
     )
 
 
-def test_the_declared_log_tools_exist_and_the_filter_admits_them() -> None:
+@pytest.mark.parametrize(
+    ("specialist", "declared"),
+    DECLARED_TOOLSETS,
+    ids=[f"{name}-{toolset.name}" for name, toolset in DECLARED_TOOLSETS],
+)
+def test_every_declared_tool_exists_and_the_filter_admits_it(
+    specialist: str, declared: Toolset
+) -> None:
     """The one thing no fake can establish: that these names are real."""
-    (declared,) = LOGS_SPECIALIST.toolsets
     toolset = McpToolset(
         connection_params=connection_for(declared, _deployment()),
         tool_filter=list(declared.tools),
@@ -109,11 +129,14 @@ def test_the_declared_log_tools_exist_and_the_filter_admits_them() -> None:
     assert {tool.name for tool in tools} == set(declared.tools)
 
 
-def test_a_real_model_given_the_instruction_calls_them() -> None:
+@pytest.mark.parametrize(
+    "specialist", CREW, ids=[specialist.name for specialist in CREW]
+)
+def test_a_real_model_given_the_instruction_calls_them(specialist: Specialist) -> None:
     """A quiet service is a valid answer; what must not happen is no retrieval."""
     retrieved = Retrieved()
 
-    run_with_adk(_deployment())(LOGS_SPECIALIST, retrieved, _target().describe())
+    run_with_adk(_deployment())(specialist, retrieved, _target().describe())
 
     assert retrieved.retrievals >= 1
     assert retrieved.failures == ()

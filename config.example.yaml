@@ -31,6 +31,30 @@ ingestion:
   # Optional. Retries of a failed platform request before the fetch gives up.
   max_retries: 3
 
+investigation:
+  # Optional. The model every specialist reasons on unless it is given one of
+  # its own below. What it costs to reach that model is a connection setting
+  # and is never read from here; see `.env.example`.
+  model: gemini-2.5-flash
+  # Optional. How many investigations one incident may be given in total, the
+  # first included, before the system reports what fired without findings. One
+  # disables retrying.
+  max_attempts: 3
+  # Optional. The specialists that reason on a model of their own, keyed by
+  # specialist name. An entry is only worth writing to name a model, and a
+  # specialist nobody declared is refused when the run is assembled. Every
+  # declared specialist may be named here:
+  #
+  #   logs_specialist, apm_specialist, trace_specialist,
+  #   infrastructure_specialist
+  #
+  # Left empty, as every specialist reasoning on the model above is the
+  # default: uncommenting an entry is what gives that one a model of its own.
+  specialists: {}
+  # trace_specialist:
+  #   # Mandatory within an entry. The model that specialist runs on.
+  #   model: gemini-2.5-pro
+
 re_notify:
   # Optional. How long after reporting an incident the system waits before
   # reporting it again, in seconds (2 days).
