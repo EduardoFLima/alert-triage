@@ -93,7 +93,7 @@ class Retrieved:
         """Why each retrieval that failed did, in the order they failed."""
         return tuple(self._failures)
 
-    def retain(
+    def retain_evidence(
         self, result: Any, args: Mapping[str, Any] | None = None
     ) -> dict[str, Any]:
         """Keep what a tool returned and describe it in the terms it may be cited in.
@@ -122,7 +122,7 @@ class Retrieved:
             self._evidence[item.id] = item
         return self._offered(call, items, result)
 
-    def refuse(self, reason: str) -> dict[str, Any]:
+    def refuse_evidence(self, reason: str) -> dict[str, Any]:
         """Record a failed retrieval and answer it in terms nothing can misread.
 
         Args:
@@ -177,7 +177,7 @@ class Retrieved:
         return offered
 
 
-def evidence_kept(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
+def keep_evidence_callback(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
     """The callback that stands between a tool result and the model reading it.
 
     Registered on every specialist, closing over one investigation's
@@ -213,13 +213,13 @@ def evidence_kept(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
             return None
         failure = _failure_in(tool_response)
         if failure is not None:
-            return retrieved.refuse(f"{name} failed: {failure}")
-        return retrieved.retain(tool_response, args)
+            return retrieved.refuse_evidence(f"{name} failed: {failure}")
+        return retrieved.retain_evidence(tool_response, args)
 
     return _kept
 
 
-def calls_logged() -> BeforeTool:
+def log_tool_call() -> BeforeTool:
     """The callback that watches a tool call on its way out, and permits it.
 
     It enforces nothing today. It exists because the per-agent tool-call bound

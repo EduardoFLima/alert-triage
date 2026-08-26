@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 
 from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
-    calls_logged,
-    evidence_kept,
+    log_tool_call,
+    keep_evidence_callback,
 )
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -90,7 +90,7 @@ def connection_for(
     )
 
 
-def _permitted(specialist: Specialist) -> frozenset[str]:
+def _permitted_tools(specialist: Specialist) -> frozenset[str]:
     """Every tool this specialist declared, across all its toolsets."""
     return frozenset(tool for toolset in specialist.toolsets for tool in toolset.tools)
 
@@ -125,6 +125,6 @@ def build_agent(
             )
             for toolset in specialist.toolsets
         ],
-        before_tool_callback=calls_logged(),
-        after_tool_callback=evidence_kept(retrieved, _permitted(specialist)),
+        before_tool_callback=log_tool_call(),
+        after_tool_callback=keep_evidence_callback(retrieved, _permitted_tools(specialist)),
     )

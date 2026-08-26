@@ -50,9 +50,9 @@ def _reports(
 
     def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
         for _ in range(fails):
-            retrieved.refuse(f"{specialist.name} could not reach the platform")
+            retrieved.refuse_evidence(f"{specialist.name} could not reach the platform")
         if retrieves:
-            retrieved.retain(_logs(*retrieves))
+            retrieved.retain_evidence(_logs(*retrieves))
         return {"findings": findings if findings is not None else []}
 
     return _run
@@ -217,7 +217,7 @@ def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
 
     def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
         if specialist.name == "logs_specialist":
-            retrieved.retain(_logs("OOMKilled"))
+            retrieved.retain_evidence(_logs("OOMKilled"))
             return {"findings": []}
         return {"findings": [_cites(["call-1/item-1"], "the logs show it too")]}
 
