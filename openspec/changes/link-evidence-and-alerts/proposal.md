@@ -44,6 +44,13 @@ links live wherever they happen to land.
 - **The report renders a link as a link.** An evidence line carries its
   address on its own line rather than embedded in prose, so what a reader sees
   is the retrieved line and, under it, where to go and see it.
+- **The web host is configured, not composed.** `app.<site>` is where most
+  Datadog accounts live and not where every account lives: an organisation may
+  be issued a sub-domain of its own, and every link built for `app` reaches
+  nobody on such an account. `DD_WEB_SUBDOMAIN` supplies it, defaulting to
+  `app`, and both link builders take the whole host rather than the region.
+  Only the addresses a human is sent to move — the API client and the MCP
+  server keep hosts of their own.
 - **A credential-gated check that the URLs resolve.** The live run this project
   already gates on credentials gains an assertion that a built alert URL and a
   built evidence URL answer rather than 404. No fake can establish this, and it
@@ -72,6 +79,11 @@ specified already; each is missing the address of the thing it describes.
   to the platform"; it gains that the evidence carries its own links too, and
   that a link is rendered so it survives the channels a report is delivered
   through.
+- `config`: the platform-connection requirement resolves a site and
+  credentials. It gains where the web application is served, because
+  `app.<site>` is where most accounts live and not where every account lives —
+  an organisation issued a sub-domain of its own serves the pages a reader
+  opens only there.
 
 ## Impact
 

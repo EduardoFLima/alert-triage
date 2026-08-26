@@ -520,6 +520,10 @@ under the platform's own conventional variable names rather than the
 - `DD_API_KEY`, `DD_APP_KEY` — Datadog credentials. No default; the
   application refuses to start without them.
 - `DD_SITE` — Datadog region, defaulting to `datadoghq.com`.
+- `DD_WEB_SUBDOMAIN` — where this account's web app is served, defaulting to
+  `app`. Only ever the host a link sends a human to: an organisation issued a
+  sub-domain of its own serves its pages there and nowhere else, while the API
+  and the MCP server keep hosts of their own.
 - `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) — the credential an investigation's
   model reasons on, under the Google GenAI SDK's own names so an operator
   who already exports one exports nothing new. No default. A deployment

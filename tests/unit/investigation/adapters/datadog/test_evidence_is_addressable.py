@@ -21,8 +21,16 @@ SEARCH = {
 }
 
 
-def _links(site: str = "datadoghq.com") -> DatadogLinks:
-    return DatadogLinks(site)
+def _links(web_host: str = "app.datadoghq.com") -> DatadogLinks:
+    return DatadogLinks(web_host)
+
+
+def test_an_organisation_on_its_own_subdomain_is_addressed_there() -> None:
+    """``app`` is where most accounts live, not where every account lives."""
+    address = _links("foobar.datadoghq.eu").to_retrieval(SEARCH)
+
+    assert address is not None
+    assert urlparse(address).netloc == "foobar.datadoghq.eu"
 
 
 def _parameters(address: str) -> dict[str, list[str]]:
@@ -125,8 +133,8 @@ def test_a_retrieval_with_no_query_is_still_addressed() -> None:
 
 
 def test_an_account_on_another_site_never_receives_a_com_address() -> None:
-    retrieval = _links("datadoghq.eu").to_retrieval(SEARCH)
-    item = _links("datadoghq.eu").to_item({"id": "log-1"}, retrieval)
+    retrieval = _links("app.datadoghq.eu").to_retrieval(SEARCH)
+    item = _links("app.datadoghq.eu").to_item({"id": "log-1"}, retrieval)
 
     assert retrieval is not None and item is not None
     assert urlparse(retrieval).netloc == "app.datadoghq.eu"

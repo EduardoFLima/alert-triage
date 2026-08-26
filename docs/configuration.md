@@ -89,7 +89,14 @@ Under Datadog's own variable names, so an operator who already exports
 export DD_API_KEY=...      # required
 export DD_APP_KEY=...      # required; the Events API needs both
 export DD_SITE=datadoghq.eu  # optional, defaults to datadoghq.com
+export DD_WEB_SUBDOMAIN=foobar  # optional, defaults to app
 ```
+
+`DD_WEB_SUBDOMAIN` is only ever the host a link sends a human to. Datadog
+serves most accounts from `app.<site>`, but an organisation may be issued a
+sub-domain of its own — `foobar.datadoghq.eu` — and the pages it serves are
+reachable only there. The API and the MCP server have hosts of their own, so
+setting this moves the links in a report and nothing else.
 
 ### The model an investigation reasons on
 

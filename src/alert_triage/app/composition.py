@@ -199,7 +199,7 @@ def build_investigator(
 
     return AdkInvestigator(
         crew=crew_for(investigation.specialists),
-        links=DatadogLinks(datadog_connection.site),
+        links=DatadogLinks(datadog_connection.web_host),
         run_specialist=run_with_adk(
             Deployment(
                 endpoint=mcp_endpoint(datadog_connection.site),

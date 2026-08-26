@@ -46,16 +46,18 @@ the caller which it meant.
 
 
 class DatadogLinks:
-    """Where the evidence one account returned is opened, bound to its site."""
+    """Where the evidence one account returned is opened, bound to its host."""
 
-    def __init__(self, site: str) -> None:
+    def __init__(self, web_host: str) -> None:
         """Bind the addresses to one deployment's account.
 
         Args:
-            site: Datadog regional site, e.g. ``datadoghq.eu``. An account on
-                one site addressed on another gets a page it cannot see.
+            web_host: Where this account's web app is served, e.g.
+                ``app.datadoghq.eu``. The whole host rather than the region:
+                an organisation may be issued a sub-domain of its own, and an
+                account addressed on the wrong host gets a page it cannot see.
         """
-        self._site = site
+        self._web_host = web_host
 
     def to_retrieval(self, args: Mapping[str, Any]) -> str | None:
         """Where the search one retrieval came from is opened.
@@ -73,7 +75,7 @@ class DatadogLinks:
         if window is not None:
             parameters["from_ts"], parameters["to_ts"] = window
         parameters["live"] = "false"
-        return f"https://app.{self._site}/{LOG_EXPLORER_PATH}?{urlencode(parameters)}"
+        return f"https://{self._web_host}/{LOG_EXPLORER_PATH}?{urlencode(parameters)}"
 
     def to_item(self, payload: Any, within: str | None) -> str | None:
         """Where one retrieved entry is opened.

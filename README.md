@@ -102,7 +102,8 @@ A run reads everything it needs from its environment:
 - `SCOPE_OWNER` — whose alerts are in scope. Mandatory, and the one setting
   that may instead live in `config.yaml`.
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
-  authenticates with. `DD_SITE` if the account is not on `datadoghq.com`.
+  authenticates with. `DD_SITE` if the account is not on `datadoghq.com`, and
+  `DD_WEB_SUBDOMAIN` if its web app is not served from `app`.
 - `GOOGLE_API_KEY` — what the model an investigation reasons on costs to
   reach. A deployment on the enterprise platform sets
   `GOOGLE_GENAI_USE_ENTERPRISE=true` instead and needs no key.

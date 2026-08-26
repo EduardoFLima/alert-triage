@@ -19,9 +19,20 @@ from alert_triage.configuration.port import ConfigError
 
 DEFAULT_SITE = "datadoghq.com"
 
+DEFAULT_WEB_SUBDOMAIN = "app"
+"""Where the web app lives for an account that has not been given its own.
+
+Datadog serves most accounts from ``app.<site>``, but an organisation may be
+issued a sub-domain of its own — ``foobar.datadoghq.eu`` — and the pages it
+serves are only reachable there. This is only ever the host a human is sent
+to: the API and the MCP server have hosts of their own, which is why widening
+this does not touch either.
+"""
+
 SITE_VARIABLE = "DD_SITE"
 API_KEY_VARIABLE = "DD_API_KEY"
 APP_KEY_VARIABLE = "DD_APP_KEY"
+WEB_SUBDOMAIN_VARIABLE = "DD_WEB_SUBDOMAIN"
 
 
 @dataclass(frozen=True)
@@ -32,11 +43,24 @@ class DatadogConnection:
         site: Datadog regional site, e.g. ``datadoghq.eu``.
         api_key: Datadog API key.
         app_key: Datadog application key, which the Events API also requires.
+        web_subdomain: Where this account's web app is served from, which is
+            ``app`` unless the organisation has a sub-domain of its own.
     """
 
     site: str
     api_key: str
     app_key: str
+    web_subdomain: str = DEFAULT_WEB_SUBDOMAIN
+
+    @property
+    def web_host(self) -> str:
+        """The host a link sends a human to, for this account.
+
+        Derived rather than configured whole: the region is already resolved
+        and an operator overriding a sub-domain should not have to restate the
+        site beside it.
+        """
+        return f"{self.web_subdomain}.{self.site}"
 
 
 def resolve_connection(env: Mapping[str, str] | None = None) -> DatadogConnection:
@@ -57,6 +81,7 @@ def resolve_connection(env: Mapping[str, str] | None = None) -> DatadogConnectio
         site=environment.get(SITE_VARIABLE) or DEFAULT_SITE,
         api_key=_required(environment, API_KEY_VARIABLE),
         app_key=_required(environment, APP_KEY_VARIABLE),
+        web_subdomain=environment.get(WEB_SUBDOMAIN_VARIABLE) or DEFAULT_WEB_SUBDOMAIN,
     )
 
 

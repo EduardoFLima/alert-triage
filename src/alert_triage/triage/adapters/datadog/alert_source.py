@@ -57,17 +57,20 @@ class DatadogAlertSource:
     lets the tests drive translation and pagination with no network.
     """
 
-    def __init__(self, events: EventSearch, owner: str, site: str) -> None:
-        """Bind the adapter to an endpoint, an owner, and a site.
+    def __init__(self, events: EventSearch, owner: str, web_host: str) -> None:
+        """Bind the adapter to an endpoint, an owner, and a web host.
 
         Args:
             events: The Datadog events endpoint to query.
             owner: Owner whose alerts are in scope, in the project's own terms.
-            site: Datadog site, used to build a link a human can open.
+            web_host: Where this account's web app is served, used to build a
+                link a human can open. The whole host rather than the region:
+                an organisation may be issued a sub-domain of its own, and
+                composing ``app`` in here would send its readers nowhere.
         """
         self._events = events
         self._owner = owner
-        self._site = site
+        self._web_host = web_host
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
@@ -147,14 +150,14 @@ class DatadogAlertSource:
         window = _window_around(fired_at)
         monitor = getattr(getattr(attributes, "attributes", None), "monitor_id", None)
         if monitor is not None:
-            return f"https://app.{self._site}/monitors/{monitor}?{urlencode(window)}"
+            return f"https://{self._web_host}/monitors/{monitor}?{urlencode(window)}"
         if not service:
             return ""
         over_the_service = {
             "query": f"{MONITOR_ALERT_QUERY} {SERVICE_TAG_PREFIX}{service}",
             **window,
         }
-        return f"https://app.{self._site}/event/explorer?{urlencode(over_the_service)}"
+        return f"https://{self._web_host}/event/explorer?{urlencode(over_the_service)}"
 
 
 def build_configuration(
@@ -205,7 +208,7 @@ def build_alert_source(
     """
     client = ApiClient(build_configuration(connection, ingestion))
     return DatadogAlertSource(
-        events=EventsApi(client), owner=owner, site=connection.site
+        events=EventsApi(client), owner=owner, web_host=connection.web_host
     )
 
 

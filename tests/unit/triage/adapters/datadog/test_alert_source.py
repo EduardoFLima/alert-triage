@@ -76,7 +76,7 @@ def _page(*events: EventResponse, after: str | None = None) -> EventsListRespons
 
 def _source(*pages: EventsListResponse | Exception) -> DatadogAlertSource:
     return DatadogAlertSource(
-        events=FakeEvents(*pages), owner="sre", site="datadoghq.com"
+        events=FakeEvents(*pages), owner="sre", web_host="app.datadoghq.com"
     )
 
 
@@ -98,12 +98,25 @@ def test_the_link_points_at_the_configured_site() -> None:
     source = DatadogAlertSource(
         events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
         owner="sre",
-        site="datadoghq.eu",
+        web_host="app.datadoghq.eu",
     )
 
     (alert,) = source.fetch_since(SINCE)
 
     assert urlparse(alert.link).netloc == "app.datadoghq.eu"
+
+
+def test_an_organisation_on_its_own_subdomain_is_linked_there() -> None:
+    """``app`` is where most accounts live, not where every account lives."""
+    source = DatadogAlertSource(
+        events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
+        owner="sre",
+        web_host="foobar.datadoghq.eu",
+    )
+
+    (alert,) = source.fetch_since(SINCE)
+
+    assert urlparse(alert.link).netloc == "foobar.datadoghq.eu"
 
 
 def test_an_alert_links_to_the_monitor_that_raised_it() -> None:
@@ -182,7 +195,9 @@ def test_a_naive_fire_time_is_read_as_utc() -> None:
 
 def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
     events = FakeEvents(_page())
-    source = DatadogAlertSource(events=events, owner="sre", site="datadoghq.com")
+    source = DatadogAlertSource(
+        events=events, owner="sre", web_host="app.datadoghq.com"
+    )
 
     source.fetch_since(SINCE)
 
@@ -192,7 +207,9 @@ def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
 
 def test_the_request_asks_only_for_monitor_alerts() -> None:
     events = FakeEvents(_page())
-    source = DatadogAlertSource(events=events, owner="sre", site="datadoghq.com")
+    source = DatadogAlertSource(
+        events=events, owner="sre", web_host="app.datadoghq.com"
+    )
 
     source.fetch_since(SINCE)
 
@@ -202,7 +219,9 @@ def test_the_request_asks_only_for_monitor_alerts() -> None:
 
 def test_the_request_carries_the_requested_time_bound() -> None:
     events = FakeEvents(_page())
-    source = DatadogAlertSource(events=events, owner="sre", site="datadoghq.com")
+    source = DatadogAlertSource(
+        events=events, owner="sre", web_host="app.datadoghq.com"
+    )
 
     source.fetch_since(SINCE)
 
@@ -217,7 +236,9 @@ def test_alerts_from_every_cursor_page_are_returned() -> None:
         _page(_event("evt-2", tags=["service:checkout"]), after="cursor-2"),
         _page(_event("evt-3", tags=["service:payments"])),
     )
-    source = DatadogAlertSource(events=events, owner="sre", site="datadoghq.com")
+    source = DatadogAlertSource(
+        events=events, owner="sre", web_host="app.datadoghq.com"
+    )
 
     alerts = source.fetch_since(SINCE)
 
