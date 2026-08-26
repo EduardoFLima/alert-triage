@@ -176,9 +176,37 @@ uv run pytest tests/integration/investigation/adapters/datadog \
               tests/integration/triage/adapters/datadog -rs
 ```
 
-The credentials must be **exported**, not left in `.env`: the skip is decided
-from the process environment as the module loads, and nothing reads the file
-on the way in. `-rs` is what tells you they ran rather than skipped past.
+The credentials must reach the **process environment**: the skip is decided as
+the module loads, and nothing in the test path reads `.env` on the way in.
+`-rs` is what tells you they ran rather than skipped past.
+
+**Using the `.env` you already have.** Rather than exporting by hand, let `uv`
+put the file into the environment for the run:
+
+```bash
+uv run --env-file .env pytest tests/integration/investigation/adapters/datadog \
+                              tests/integration/triage/adapters/datadog -rs
+```
+
+It parses the file the way the application does and applies it to that one
+command only, so nothing leaks into the shell afterwards. Anything already
+exported still wins, which matches how a `.env` behaves at runtime. For a
+shell that is not going through `uv`, or to keep the values for a whole
+session:
+
+```bash
+set -a; source .env; set +a     # every assignment exported until the shell exits
+```
+
+`source` is the blunter of the two — it is the shell reading the file, not a
+dotenv parser, so an unquoted value containing spaces or a `#` mid-line will
+not survive it intact. Prefer `--env-file` unless you want the values to
+persist.
+
+Loading `.env` is deliberately not automatic. A stray file in a checkout would
+otherwise start reaching a real account and spending model calls during an
+ordinary `uv run pytest`, and the gate reading the process environment is what
+keeps that an explicit act.
 
 Two of the seven are the link checks, and they are worth running alone after
 touching anything that builds a URL — they follow the address and rule out the
