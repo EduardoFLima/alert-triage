@@ -177,7 +177,9 @@ class Retrieved:
         return offered
 
 
-def keep_evidence_callback(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
+def keep_evidence_callback(
+    retrieved: Retrieved, permitted: frozenset[str]
+) -> AfterTool:
     """The callback that stands between a tool result and the model reading it.
 
     Registered on every specialist, closing over one investigation's

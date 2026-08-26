@@ -193,7 +193,9 @@ def test_the_call_an_aggregate_is_cited_by_carries_the_retrievals_address() -> N
     """An aggregate has no entry to point at, so the query is where to look."""
     retrieved = Retrieved(link=_Links())
 
-    retrieved.retain_evidence(_aggregate(), args={"query": "service:checkout status:error"})
+    retrieved.retain_evidence(
+        _aggregate(), args={"query": "service:checkout status:error"}
+    )
 
     assert retrieved.resolve("call-1").url == (  # type: ignore[union-attr]
         "https://platform/search?query=service:checkout status:error"

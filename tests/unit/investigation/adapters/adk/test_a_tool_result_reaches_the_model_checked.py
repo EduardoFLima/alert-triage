@@ -12,8 +12,8 @@ import pytest
 
 from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
-    log_tool_call,
     keep_evidence_callback,
+    log_tool_call,
 )
 from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED, findings_from

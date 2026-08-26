@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 
 from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
-    log_tool_call,
     keep_evidence_callback,
+    log_tool_call,
 )
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -126,5 +126,7 @@ def build_agent(
             for toolset in specialist.toolsets
         ],
         before_tool_callback=log_tool_call(),
-        after_tool_callback=keep_evidence_callback(retrieved, _permitted_tools(specialist)),
+        after_tool_callback=keep_evidence_callback(
+            retrieved, _permitted_tools(specialist)
+        ),
     )
