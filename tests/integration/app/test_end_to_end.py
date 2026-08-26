@@ -3,12 +3,14 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from pathlib import Path
 
 import pytest
 
 from alert_triage.app.pipeline import RunOutcome, run
 from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig, load_config
+from alert_triage.investigation.adapters.adk.crew import SIGNALS_EXAMINED
 from alert_triage.investigation.contract import (
     EvidenceItem,
     Finding,
@@ -115,7 +117,7 @@ def _run(
         ledger=ledger,
         notifier=notifier,
         investigator=investigator or FakeInvestigator(),
-        build_report=build_report,
+        build_report=partial(build_report, examined=SIGNALS_EXAMINED),
         config=config,
         now=at,
         new_id=new_id,

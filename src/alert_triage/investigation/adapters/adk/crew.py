@@ -22,6 +22,7 @@ from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SP
 from alert_triage.investigation.adapters.datadog.specialists.trace import (
     TRACE_SPECIALIST,
 )
+from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.specialist import Specialist
 
 CREW: tuple[Specialist, ...] = (
@@ -35,6 +36,15 @@ CREW: tuple[Specialist, ...] = (
 All four run on every investigation. Which ones an incident actually needs is
 the next slice's question, and answering it needs specialists to choose
 between."""
+
+
+SIGNALS_EXAMINED: tuple[Signal, ...] = tuple(specialist.signal for specialist in CREW)
+"""The signals an investigation examines, which is what a report may claim.
+
+Derived from the crew rather than from ``Signal`` itself: a member declared and
+not yet crewed is a signal nothing looks at, and a report claiming it would be
+claiming coverage nobody has. Adding a specialist widens this by itself.
+"""
 
 
 def crew_for(configured: Mapping[str, SpecialistModel]) -> tuple[Specialist, ...]:

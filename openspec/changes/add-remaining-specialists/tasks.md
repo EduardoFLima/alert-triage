@@ -87,13 +87,13 @@ and because a test that has never failed has not been shown to test anything.
 
 ## 7. The report
 
-- [ ] 7.1 Write a failing test that a report for an investigation finding
+- [x] 7.1 Write a failing test that a report for an investigation finding
       nothing notable names every signal examined rather than only the logs.
-- [ ] 7.2 Write a failing test that the wording widens by itself when a
+- [x] 7.2 Write a failing test that the wording widens by itself when a
       specialist joins the crew, rather than being a fixed list.
-- [ ] 7.3 Replace `NOTHING_NOTABLE` in `triage/domain/report.py` with wording
+- [x] 7.3 Replace `NOTHING_NOTABLE` in `triage/domain/report.py` with wording
       derived from the crew's declared signals. Green.
-- [ ] 7.4 Check the existing report tests for others that assume one signal, and
+- [x] 7.4 Check the existing report tests for others that assume one signal, and
       fix what has become untrue.
 
 ## 8. Configuration example

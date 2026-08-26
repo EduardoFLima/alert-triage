@@ -258,9 +258,10 @@ def _delivered(
 ) -> tuple[bool, RunFailure | None]:
     """Deliver a report worth sending, and say whether a channel took it.
 
-    Findings are worth sending — including empty ones, which say the logs were
-    searched and were clean. A failed investigation is not: "these alerts fired
-    and we could not look at them" carries nothing a team can act on, so it
+    Findings are worth sending — including empty ones, which say the signals
+    the investigation covers were examined and were clean. A failed
+    investigation is not: "these alerts fired and we could not look at them"
+    carries nothing a team can act on, so it
     waits for the retry. Once the attempts are spent that wait would be
     forever, so the alerts go out without findings rather than not at all.
 

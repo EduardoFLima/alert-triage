@@ -22,12 +22,19 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 def _uninvestigated(incident: Incident) -> TriageReport:
     """The report an incident gets when no investigation ever completed."""
-    return build_report(incident, None)
+    return build_report(incident, None, examined=EVERY_SIGNAL)
 
 
-def _investigated(incident: Incident, findings: Findings) -> TriageReport:
+EVERY_SIGNAL = tuple(Signal)
+
+
+def _investigated(
+    incident: Incident,
+    findings: Findings,
+    examined: tuple[Signal, ...] = EVERY_SIGNAL,
+) -> TriageReport:
     """The report an incident gets when one did."""
-    return build_report(incident, findings)
+    return build_report(incident, findings, examined=examined)
 
 
 def _incident(incident_id: str = "incident-1", service: str = "checkout") -> Incident:
@@ -204,6 +211,35 @@ def test_an_investigation_that_found_nothing_notable_says_so() -> None:
     assert NOT_INVESTIGATED not in body
 
 
+def test_an_investigation_that_found_nothing_names_every_signal_it_examined() -> None:
+    """'Nothing notable' is only interpretable against the scope it covered."""
+    body = _investigated(_incident(), Findings()).body.lower()
+
+    for signal in EVERY_SIGNAL:
+        assert signal.value in body
+
+
+def test_a_report_claims_no_signal_that_was_not_examined() -> None:
+    body = _investigated(
+        _incident(), Findings(), examined=(Signal.LOGS, Signal.TRACE)
+    ).body.lower()
+
+    assert Signal.APM.value not in body
+    assert Signal.INFRASTRUCTURE.value not in body
+
+
+def test_the_account_of_what_was_examined_widens_with_the_crew() -> None:
+    """A specialist joining the crew widens the wording rather than dating it."""
+    incident = _incident()
+
+    alone = _investigated(incident, Findings(), examined=(Signal.LOGS,)).body
+    whole = _investigated(incident, Findings(), examined=EVERY_SIGNAL).body
+
+    assert alone != whole
+    assert Signal.INFRASTRUCTURE.value in whole.lower()
+    assert Signal.INFRASTRUCTURE.value not in alone.lower()
+
+
 def test_an_investigated_report_offers_no_conclusion() -> None:
     findings = Findings(findings=(_finding(),))
 
@@ -226,15 +262,22 @@ def test_the_report_for_an_incident_is_chosen_by_whether_there_are_findings() ->
     """Why an investigation failed is the run's business; a report only knows if."""
     incident = _incident()
 
-    assert build_report(incident, None) == _uninvestigated(incident)
-    assert build_report(incident, Findings()) == _investigated(incident, Findings())
+    assert build_report(incident, None, examined=EVERY_SIGNAL) == _uninvestigated(
+        incident
+    )
+    assert build_report(incident, Findings(), examined=EVERY_SIGNAL) == _investigated(
+        incident, Findings()
+    )
 
 
 def test_no_findings_is_not_the_same_as_findings_that_are_empty() -> None:
     """One says nobody looked; the other says somebody looked and it was clean."""
     incident = _incident()
 
-    assert build_report(incident, None).body != build_report(incident, Findings()).body
+    assert (
+        build_report(incident, None, examined=EVERY_SIGNAL).body
+        != build_report(incident, Findings(), examined=EVERY_SIGNAL).body
+    )
 
 
 def test_an_investigated_report_reads_an_aggregate_with_no_instant() -> None:
