@@ -79,6 +79,17 @@ run is credential-gated and manual, so the cost is a developer's, not CI's.
 crew's declarations, so it widens by itself. Deriving it from `Signal` members
 instead would claim coverage of any signal declared but not yet crewed.
 
+**The scope reaches the report through the composition root, not through an
+import.** `triage.domain` may not import `investigation.adapters`, so the
+report cannot read `CREW` itself and the sentence cannot be built where it is
+worded. `build_report` therefore takes the signals examined as an argument, and
+the composition root — the one place allowed to name an adapter — passes
+`SIGNALS_EXAMINED`, derived from `CREW`. The alternative, carrying the signals
+on `Findings`, is a contract change this slice ruled out and the slice that
+makes the crew selective will want anyway: there what ran stops being what was
+declared, and only the investigation can say which is which. Until then the two
+are the same tuple, and the cheaper of them holds.
+
 ## Risks / Trade-offs
 
 - **The `apm` toolset is Preview and may be renamed or withdrawn.** → The live
