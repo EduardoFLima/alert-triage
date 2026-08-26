@@ -17,6 +17,7 @@ from alert_triage.configuration.settings import (
     CriticalService,
     Grouping,
     Ingestion,
+    Investigation,
     Ledger,
     ReNotify,
     Scope,
@@ -29,6 +30,7 @@ from alert_triage.investigation.adapters.adk.credentials import (
     LOCATION_VARIABLE,
     PROJECT_VARIABLE,
 )
+from alert_triage.investigation.adapters.adk.crew import CREW
 from alert_triage.notification.adapters.email.settings import (
     EMAIL_FROM_VARIABLE,
     EMAIL_TO_VARIABLE,
@@ -48,6 +50,7 @@ from alert_triage.triage.adapters.sqlite import LEDGER_PATH_VARIABLE
 
 SECTIONS = {
     "scope": Scope,
+    "investigation": Investigation,
     "grouping": Grouping,
     "ingestion": Ingestion,
     "re_notify": ReNotify,
@@ -96,6 +99,7 @@ def test_the_example_config_states_the_defaults_it_documents(
     config = load_config(config_example, env={})
 
     assert config.grouping == Grouping()
+    assert config.investigation == Investigation()
     assert config.ingestion == Ingestion()
     assert config.re_notify == ReNotify()
     assert config.ledger == Ledger()
@@ -152,3 +156,11 @@ def test_the_example_env_file_supplies_nothing_by_being_copied_unedited(
         MODEL_API_KEY_VARIABLE,
     }
     assert not any(environment.values())
+
+
+@pytest.mark.parametrize("specialist", [one.name for one in CREW])
+def test_the_example_config_names_every_specialist_that_may_be_given_a_model(
+    specialist: str, config_example: Path
+) -> None:
+    """The example is the only place an operator learns what may be named."""
+    assert specialist in config_example.read_text()

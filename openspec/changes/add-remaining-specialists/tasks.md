@@ -98,23 +98,23 @@ and because a test that has never failed has not been shown to test anything.
 
 ## 8. Configuration example
 
-- [ ] 8.1 Add `investigation` to `SECTIONS` in
+- [x] 8.1 Add `investigation` to `SECTIONS` in
       `tests/integration/configuration/test_example_configuration.py` and watch
       it fail — the example has no such section.
-- [ ] 8.2 Add the `investigation:` section to `config.example.yaml`: `model`,
+- [x] 8.2 Add the `investigation:` section to `config.example.yaml`: `model`,
       `max_attempts`, and a commented `specialists:` entry showing a
       per-specialist model override. Name the four specialists, since the
       example is the only place an operator learns what may be named.
-- [ ] 8.3 Green, and confirm `docs/configuration.md` does not now contradict the
+- [x] 8.3 Green, and confirm `docs/configuration.md` does not now contradict the
       example.
 
 ## 9. Live confirmation (credential-gated)
 
-- [ ] 9.1 Rewrite `tests/integration/investigation/adapters/datadog/`'s live
+- [x] 9.1 Rewrite `tests/integration/investigation/adapters/datadog/`'s live
       test to parameterise over `CREW` rather than naming the logs specialist,
       keeping the same two assertions: the declared tools exist and the filter
       admits them, and a real model given the instruction actually calls them.
-- [ ] 9.2 Confirm it still skips cleanly with no credentials.
+- [x] 9.2 Confirm it still skips cleanly with no credentials.
 - [ ] 9.3 Run it against a real account. Record which toolsets resolved — in
       particular whether `apm` is reachable and named as expected — and how many
       tool calls each specialist made.
@@ -126,10 +126,10 @@ and because a test that has never failed has not been shown to test anything.
 
 ## 10. Before calling it done
 
-- [ ] 10.1 `uv run ruff check src tests`
-- [ ] 10.2 `uv run ruff format --check src tests`
-- [ ] 10.3 `uv run mypy`
-- [ ] 10.4 `uv run pytest`
-- [ ] 10.5 Confirm the architecture test still passes with no `.importlinter`
+- [x] 10.1 `uv run ruff check src tests`
+- [x] 10.2 `uv run ruff format --check src tests`
+- [x] 10.3 `uv run mypy`
+- [x] 10.4 `uv run pytest`
+- [x] 10.5 Confirm the architecture test still passes with no `.importlinter`
       edit — three specialist modules add no dependency and no context, so a
       contract change here would mean something is in the wrong place.

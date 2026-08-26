@@ -33,6 +33,9 @@ re_notify:
   cooldown_seconds: 172800  # how long a report suppresses the next one (2 days)
 ledger:
   retention_seconds: 2592000  # how long closed incidents are kept (30 days)
+investigation:
+  model: gemini-2.5-flash   # what every specialist reasons on by default
+  max_attempts: 3           # investigations one incident may be given in total
 ```
 
 Set `scope.owner` to the team that owns the alerts you want triaged; the
@@ -40,6 +43,13 @@ Datadog adapter spends it as a `team:` term in its event query. Keep
 `ingestion.lookback_seconds` comfortably wider than the interval the job runs
 on, so a delayed run does not step over alerts — re-delivered alerts are
 recognised and absorbed rather than reported twice.
+
+An investigation runs a crew of specialists, one per observability signal, and
+`investigation.model` is what each of them reasons on. One that wants a
+stronger model than its siblings is named under `investigation.specialists`;
+[`config.example.yaml`](../config.example.yaml) lists the names that may be
+used, and a name nobody declared is refused while the run is still being
+assembled rather than at the first investigation.
 
 `re_notify.cooldown_seconds` and `ledger.retention_seconds` are tuned
 separately and neither is derived from the other: the first is how often a
