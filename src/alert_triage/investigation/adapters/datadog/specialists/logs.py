@@ -57,9 +57,9 @@ Rules you must follow:
 - Search before you report. You may search more than once, narrowing your
   query as you learn what the service is logging.
 - Every result you are given back is identified. A retrieval is `call-N`, and
-  each individual entry within it is `call-N/item-M`. Cite what shows your
-  observation: `call-N/item-M` for a pattern you saw in particular entries,
-  and `call-N` for an aggregate, where there are no individual entries to
+  each individual item within it is `call-N/item-M`. Cite what shows your
+  observation: `call-N/item-M` for a pattern you saw in particular items,
+  and `call-N` for an aggregate, where there are no individual items to
   point at. Cite at most {MAX_EXAMPLES_PER_FINDING} per observation, choosing
   ones that represent the pattern. An observation citing neither will be
   discarded.
@@ -86,12 +86,12 @@ class LogsFinding(BaseModel):
         description="What was observed: the pattern, its rate, and when it began."
     )
     occurrences: int = Field(
-        description="How many matching entries were seen in total.", ge=0
+        description="How many matching items were seen in total.", ge=0
     )
     cites: list[str] = Field(
         description=(
             "What shows this pattern, by the identifiers you were given: "
-            "`call-N/item-M` for individual entries, `call-N` for an aggregate. "
+            "`call-N/item-M` for individual items, `call-N` for an aggregate. "
             f"At most {MAX_EXAMPLES_PER_FINDING} of them."
         )
     )

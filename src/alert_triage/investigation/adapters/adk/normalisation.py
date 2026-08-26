@@ -21,34 +21,34 @@ from typing import Any
 from alert_triage.investigation.contract import EvidenceItem
 
 ENVELOPE_KEYS = ("logs", "data", "results", "result")
-"""Keys a platform is known to wrap its entries in.
+"""Keys a platform is known to wrap its items in.
 
 ``result`` is the protocol's own rather than any platform's: a tool answering
 with a list has it wrapped under that key, because structured content is
 required to be an object.
 
-Widening this list is how a newly reached tool's entries become citable one by
+Widening this list is how a newly reached tool's items become citable one by
 one; a result whose envelope is not here is still citable whole, so the cost of
 an omission is coarser evidence rather than a failure.
 """
 
 SUMMARY_KEYS = ("message", "text", "title", "name", "summary")
-"""Where a human-readable line is usually found in an entry."""
+"""Where a human-readable line is usually found in an item."""
 
 INSTANT_KEYS = ("timestamp", "time", "date", "started_at", "occurred_at")
-"""Where the instant an entry concerns is usually found."""
+"""Where the instant an item concerns is usually found."""
 
 Linker = Callable[[Any], str | None]
 """How a payload becomes the address a human opens it at.
 
 Injected rather than imported, so this module stays as platform-blind as the
-reading it does: knowing that a log entry has an address, and what that address
+reading it does: knowing that a log item has an address, and what that address
 looks like, is the platform adapter's business. ``None`` is a complete answer —
 a platform that cannot address an item has said so.
 """
 
 MAX_SUMMARY_CHARS = 300
-"""How much of an entry a summary shows before it stops being a line.
+"""How much of an item a summary shows before it stops being a line.
 
 A report is read by a human on a phone at three in the morning; the payload is
 what is there for the reader who wants everything.
@@ -64,16 +64,16 @@ def items_from(
         result: What the tool returned, as ADK handed it over.
         call: The identifier this retrieval is cited by. Items are addressed
             within it, so a citation names both the call and the item.
-        link: How to address an entry on the platform it came from. Without
+        link: How to address an item on the platform it came from. Without
             one, items are read as they always were and carry no address.
 
     Returns:
-        One item per entry found, or nothing at all when the result has no
-        discrete entries to speak of.
+        One item per discrete thing the result carries, or nothing at all when
+        it carries none to speak of.
     """
     return tuple(
         _item(f"{call}/item-{position}", payload, link)
-        for position, payload in enumerate(_entries(readable(result)), start=1)
+        for position, payload in enumerate(_items(readable(result)), start=1)
     )
 
 
@@ -114,7 +114,7 @@ def instant_of(payload: Any) -> datetime | None:
 
 
 def _item(identifier: str, payload: Any, link: Linker | None) -> EvidenceItem:
-    """Normalise one entry as far as reading it demands, and no further."""
+    """Normalise one item as far as reading it demands, and no further."""
     return EvidenceItem(
         id=identifier,
         instant=instant_of(payload),
@@ -124,8 +124,8 @@ def _item(identifier: str, payload: Any, link: Linker | None) -> EvidenceItem:
     )
 
 
-def _entries(payload: Any) -> Sequence[Any]:
-    """The entries within a result, where it has any."""
+def _items(payload: Any) -> Sequence[Any]:
+    """The items within a result, where it has any."""
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):

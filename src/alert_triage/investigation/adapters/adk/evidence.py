@@ -49,9 +49,14 @@ class Links(Protocol):
     """How a platform addresses what a retrieval returned, at both grains.
 
     Injected rather than imported: this module is the framework's side of the
-    boundary, and which route opens a log entry is the platform adapter's
+    boundary, and which route opens a log item is the platform adapter's
     knowledge. A deployment that supplies none gets evidence with no addresses,
     which is what evidence has always been here.
+
+    The two grains are the two a citation has. ``to_retrieval`` addresses the
+    search a retrieval came from, which is what a finding about an aggregate
+    cites; ``to_item`` addresses one thing within it, which is what a finding
+    about a pattern cites. Both answer with an address, never with evidence.
     """
 
     def to_retrieval(self, args: Mapping[str, Any]) -> str | None:
@@ -59,7 +64,7 @@ class Links(Protocol):
         ...
 
     def to_item(self, payload: Any, within: str | None) -> str | None:
-        """Where this entry is opened, or ``within`` when it names no entry."""
+        """Where this item is opened, or ``within`` when it names no item."""
         ...
 
 
@@ -110,7 +115,7 @@ class Retrieved:
         self._retrievals += 1
         call = f"{_CALL_PREFIX}{self._retrievals}"
         address = self._address_of(args or {})
-        items = items_from(result, call, self._entry_addresses(address))
+        items = items_from(result, call, self._item_addresses(address))
         self._evidence[call] = EvidenceItem(
             id=call,
             instant=None,
@@ -147,8 +152,8 @@ class Retrieved:
         """Where the search this retrieval came from is opened."""
         return None if self._link is None else self._link.to_retrieval(args)
 
-    def _entry_addresses(self, within: str | None) -> Linker | None:
-        """How each entry of this retrieval is addressed, given where it came from."""
+    def _item_addresses(self, within: str | None) -> Linker | None:
+        """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None

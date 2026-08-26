@@ -144,15 +144,15 @@ class _Links:
         return f"https://platform/search?query={args.get('query', '')}"
 
     def to_item(self, payload: Any, within: str | None) -> str | None:
-        entry = payload.get("id") if isinstance(payload, dict) else None
-        return f"https://platform/logs?event={entry}" if entry else within
+        item = payload.get("id") if isinstance(payload, dict) else None
+        return f"https://platform/logs?event={item}" if item else within
 
 
-def _identified(*entries: str) -> dict[str, Any]:
+def _identified(*items: str) -> dict[str, Any]:
     return {
         "logs": [
-            {"id": entry, "timestamp": NOON.isoformat(), "message": entry}
-            for entry in entries
+            {"id": item, "timestamp": NOON.isoformat(), "message": item}
+            for item in items
         ]
     }
 
@@ -190,7 +190,7 @@ def test_an_item_the_platform_cannot_address_falls_back_to_its_retrieval() -> No
 
 
 def test_the_call_an_aggregate_is_cited_by_carries_the_retrievals_address() -> None:
-    """An aggregate has no entry to point at, so the query is where to look."""
+    """An aggregate has no item to point at, so the query is where to look."""
     retrieved = Retrieved(link=_Links())
 
     retrieved.retain_evidence(

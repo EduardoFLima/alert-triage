@@ -27,7 +27,7 @@ from alert_triage.investigation.adapters.adk.credentials import (
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import run_with_adk
 from alert_triage.investigation.adapters.adk.model import build_model
-from alert_triage.investigation.adapters.datadog.links import ENTRY_KEYS, DatadogLinks
+from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
 from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SPECIALIST
 from alert_triage.investigation.contract import InvestigationTarget
@@ -117,22 +117,22 @@ def test_an_address_built_from_a_real_retrieval_opens_rather_than_404s(
     assert answers(address), f"the platform serves nothing at {address}"
 
 
-def test_what_key_a_live_log_payload_identifies_an_entry_by() -> None:
+def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
     """The design's open question, answered by a real payload rather than a guess.
 
-    Per-entry addressing is the optimisation and the retrieval's own address is
-    the fallback, so a payload naming an entry under none of the keys this
-    adapter reads is a finding to fold back into ``ENTRY_KEYS`` — not a broken
+    Per-item addressing is the optimisation and the retrieval's own address is
+    the fallback, so a payload naming an item under none of the keys this
+    adapter reads is a finding to fold back into ``ITEM_KEYS`` — not a broken
     link. What this records is which of them a live payload actually uses.
     """
     retrieved = _investigated()
 
-    entry = retrieved.resolve("call-1/item-1")
-    if entry is None:
-        pytest.skip(f"the logs of {SERVICE!r} were quiet, so no entry was returned")
+    item = retrieved.resolve("call-1/item-1")
+    if item is None:
+        pytest.skip(f"the logs of {SERVICE!r} were quiet, so no item was returned")
 
-    payload = entry.payload if isinstance(entry.payload, dict) else {}
-    named = [key for key in ENTRY_KEYS if payload.get(key)]
-    print(f"a live log entry is identified by {named or f'none of {ENTRY_KEYS}'}")
-    print(f"the keys a live log entry carries are {sorted(payload)}")
-    assert entry.url is not None
+    payload = item.payload if isinstance(item.payload, dict) else {}
+    named = [key for key in ITEM_KEYS if payload.get(key)]
+    print(f"a live log item is identified by {named or f'none of {ITEM_KEYS}'}")
+    print(f"the keys a live log item carries are {sorted(payload)}")
+    assert item.url is not None

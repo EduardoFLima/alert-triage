@@ -11,7 +11,7 @@ from alert_triage.investigation.adapters.adk.normalisation import items_from
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 
-def test_a_bare_list_of_entries_becomes_one_item_each_in_order() -> None:
+def test_a_bare_list_becomes_one_item_each_in_order() -> None:
     items = items_from(
         [{"message": "first"}, {"message": "second"}, {"message": "third"}], "call-1"
     )
@@ -24,7 +24,7 @@ def test_a_bare_list_of_entries_becomes_one_item_each_in_order() -> None:
     ]
 
 
-def test_entries_wrapped_in_a_recognised_envelope_are_found() -> None:
+def test_items_wrapped_in_a_recognised_envelope_are_found() -> None:
     items = items_from(
         {"logs": [{"message": "first"}, {"message": "second"}]}, "call-2"
     )
@@ -84,7 +84,7 @@ def test_an_item_with_no_obvious_line_is_summarised_from_its_payload() -> None:
     assert "restarts" in item.summary
 
 
-def test_an_entry_that_is_not_a_record_is_still_an_item() -> None:
+def test_a_payload_that_is_not_a_record_is_still_an_item() -> None:
     (item,) = items_from(["something the platform said"], "call-1")
 
     assert item.summary == "something the platform said"
@@ -120,7 +120,7 @@ def test_a_single_word_too_long_to_keep_is_still_shortened() -> None:
     assert len(item.summary) < 5000
 
 
-def test_entries_are_found_inside_a_structured_tool_result() -> None:
+def test_items_are_found_inside_a_structured_tool_result() -> None:
     """The protocol's own wrapping is not evidence either."""
     items = items_from(
         {"structuredContent": {"logs": [{"message": "first"}]}, "isError": False},
@@ -130,7 +130,7 @@ def test_entries_are_found_inside_a_structured_tool_result() -> None:
     assert [item.summary for item in items] == ["first"]
 
 
-def test_entries_are_found_inside_a_tool_result_answered_as_text() -> None:
+def test_items_are_found_inside_a_tool_result_answered_as_text() -> None:
     items = items_from(
         {"content": [{"type": "text", "text": '[{"message": "first"}]'}]}, "call-1"
     )
@@ -144,7 +144,7 @@ def test_a_tool_result_that_is_prose_has_no_items() -> None:
     assert items_from(result, "call-1") == ()
 
 
-def test_entries_are_found_under_the_protocols_own_wrapper() -> None:
+def test_items_are_found_under_the_protocols_own_wrapper() -> None:
     """A tool answering with a list has it wrapped, because content is an object."""
     items = items_from(
         {"structuredContent": {"result": [{"message": "first"}]}}, "call-1"

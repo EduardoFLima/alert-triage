@@ -1,9 +1,9 @@
 """Where a reader goes to see for themselves what a retrieval returned.
 
 An address is derived from the payload and the arguments the tool was called
-with, never from what a specialist wrote. Both grains are covered: an entry the
+with, never from what a specialist wrote. Both grains are covered: an item the
 payload identifies, and the retrieval it came from, which is the fallback for an
-entry the payload does not identify.
+item the payload does not identify.
 """
 
 from datetime import UTC, datetime
@@ -37,7 +37,7 @@ def _parameters(address: str) -> dict[str, list[str]]:
     return parse_qs(urlparse(address).query)
 
 
-def test_a_payload_naming_an_entry_is_addressed_as_that_entry() -> None:
+def test_a_payload_naming_an_item_is_addressed_as_that_item() -> None:
     retrieval = _links().to_retrieval(SEARCH)
 
     address = _links().to_item({"id": "AQAAA-log-1", "message": "OOMKilled"}, retrieval)
@@ -46,7 +46,7 @@ def test_a_payload_naming_an_entry_is_addressed_as_that_entry() -> None:
     assert _parameters(address)["event"] == ["AQAAA-log-1"]
 
 
-def test_an_entrys_address_still_carries_the_search_that_produced_it() -> None:
+def test_an_items_address_still_carries_the_search_that_produced_it() -> None:
     """An address that degrades to the right search never leads nowhere."""
     retrieval = _links().to_retrieval(SEARCH)
 
@@ -56,7 +56,7 @@ def test_an_entrys_address_still_carries_the_search_that_produced_it() -> None:
     assert _parameters(address)["query"] == ["service:checkout status:error"]
 
 
-def test_a_payload_naming_no_entry_is_addressed_as_its_retrieval() -> None:
+def test_a_payload_naming_no_item_is_addressed_as_its_retrieval() -> None:
     """A reader lands on the search that produced it rather than nowhere."""
     retrieval = _links().to_retrieval(SEARCH)
 

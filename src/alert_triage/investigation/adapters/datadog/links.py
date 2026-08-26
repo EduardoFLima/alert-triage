@@ -8,10 +8,14 @@ its own addresses without this file being edited.
 Only forms Datadog documents are built. A retrieval is addressed as the Log
 Explorer search that produced it — a query, the window it ran over as
 millisecond timestamps, and a view pinned to that window rather than to the
-present. An entry the payload identifies is addressed as that same search with
-the entry named on it, so an address that cannot open the entry still opens the
-search the entry is in. A link that degrades to the right page is the whole
+present. An item the payload identifies is addressed as that same search with
+the item named on it, so an address that cannot open the item still opens the
+search the item is in. A link that degrades to the right page is the whole
 point: the broken link this replaced degraded to nowhere.
+
+"Item" throughout, never "entry": it is the word the citation format
+``call-N/item-M`` already commits this project to, and one thing retrieved
+deserves one name.
 """
 
 from collections.abc import Mapping
@@ -21,11 +25,11 @@ from urllib.parse import urlencode
 
 LOG_EXPLORER_PATH = "logs"
 
-ENTRY_KEYS = ("id", "log_id", "event_id")
-"""Where a retrieved entry's own identifier is found, where it has one.
+ITEM_KEYS = ("id", "log_id", "event_id")
+"""Where a retrieved item's own identifier is found, where it has one.
 
 Which of these a live payload actually uses is what the credential-gated run
-answers. An entry under none of them is addressed as its retrieval, which is
+answers. An item under none of them is addressed as its retrieval, which is
 why the list being incomplete costs precision rather than a working link.
 """
 
@@ -78,22 +82,22 @@ class DatadogLinks:
         return f"https://{self._web_host}/{LOG_EXPLORER_PATH}?{urlencode(parameters)}"
 
     def to_item(self, payload: Any, within: str | None) -> str | None:
-        """Where one retrieved entry is opened.
+        """Where one retrieved item is opened.
 
         Args:
-            payload: The entry as the platform returned it.
+            payload: The item as the platform returned it.
             within: Where the retrieval it came from is opened, which is what
-                an entry the payload does not identify falls back to.
+                an item the payload does not identify falls back to.
 
         Returns:
-            The address of that entry, of the retrieval it came from, or
+            The address of that item, of the retrieval it came from, or
             ``None`` where the platform offers neither.
         """
-        entry = _first(payload, ENTRY_KEYS) if isinstance(payload, dict) else None
-        if entry is None:
+        item = _first(payload, ITEM_KEYS) if isinstance(payload, dict) else None
+        if item is None:
             return within
         search = within or self.to_retrieval({})
-        return f"{search}&{urlencode({'event': entry})}"
+        return f"{search}&{urlencode({'event': item})}"
 
 
 def _first(source: Any, keys: tuple[str, ...]) -> str | None:
