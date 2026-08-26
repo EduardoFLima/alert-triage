@@ -122,3 +122,14 @@ are the same tuple, and the cheaper of them holds.
   declaration alongside `get_datadog_metric`, or whether metrics alone answer
   the resource question. Answerable from the live run's tool-call counts without
   changing anything else.
+
+- **The live run has not happened yet** (tasks 9.3 to 9.5). It needs a Datadog
+  account and a model credential, which the environment this was implemented in
+  does not hold, and no fake can stand in for it: whether these tool names exist,
+  whether the filter admits them, and in particular whether the Preview `apm`
+  toolset is reachable and named as expected are exactly what it establishes.
+  Everything else here is green, and the check itself skips cleanly without
+  credentials. Until someone runs it against a real account, the four
+  declarations are unconfirmed against the server, the fallback in 9.4 is
+  untested, and the tool-call counts this slice was to contribute remain
+  unmeasured.
