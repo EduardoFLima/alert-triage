@@ -39,8 +39,9 @@ def test_the_declaration_reaches_the_core_and_kubernetes_toolsets() -> None:
 
 def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
     assert _permitted() == {
-        "get_datadog_metric",
+        "search_datadog_metrics",
         "get_datadog_metric_context",
+        "get_datadog_metric",
         "search_datadog_hosts",
         "search_datadog_k8s_resources",
         "describe_datadog_k8s_resource",

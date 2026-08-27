@@ -16,7 +16,10 @@ answer is retained as a retrieval that found nothing.
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    METRIC_CONTEXT_TOOL,
     METRIC_QUERY_DIALECT,
+    METRIC_SEARCH_TOOL,
+    METRIC_TOOL,
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
@@ -30,8 +33,6 @@ the platform organises its tools, and a specialist declaring which group it
 reaches for what is a specialist whose live check says which half is missing.
 """
 
-METRIC_TOOL = "get_datadog_metric"
-METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
 HOSTS_TOOL = "search_datadog_hosts"
 K8S_SEARCH_TOOL = "search_datadog_k8s_resources"
 K8S_DESCRIBE_TOOL = "describe_datadog_k8s_resource"
@@ -48,8 +49,8 @@ began relative to the alerts.
 
 The tools you have are Datadog's:
 
-- `{METRIC_CONTEXT_TOOL}` tells you which metrics exist for a service or host
-  and what tags they carry.
+- `{METRIC_SEARCH_TOOL}` lists the metrics that exist for a service or host.
+- `{METRIC_CONTEXT_TOOL}` tells you the tags and values one of them carries.
 - `{METRIC_TOOL}` returns a metric's values over a time range.
 - `{HOSTS_TOOL}` finds the hosts a service runs on, with the tags that say
   what they are.
@@ -57,12 +58,6 @@ The tools you have are Datadog's:
   the deployment has them.
 - `{K8S_DESCRIBE_TOOL}` returns one such workload in full, including its
   restarts and why it was last rescheduled.
-
-Ask `{METRIC_CONTEXT_TOOL}` which metrics are reported before you query one.
-Do not guess a metric name: a name nothing reports comes back empty, and an
-empty answer means it is not reported, which is not the same as the resource
-being healthy. A managed service reports a different set from a virtual
-machine, and neither reports everything.
 
 {METRIC_QUERY_DIALECT}
 
@@ -147,7 +142,8 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     output_schema=ReportedFindings,
     toolsets=(
         Toolset(
-            name=CORE_TOOLSET, tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, HOSTS_TOOL)
+            name=CORE_TOOLSET,
+            tools=(METRIC_SEARCH_TOOL, METRIC_CONTEXT_TOOL, METRIC_TOOL, HOSTS_TOOL),
         ),
         Toolset(name=KUBERNETES_TOOLSET, tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL)),
     ),

@@ -24,7 +24,10 @@ grain.
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    METRIC_CONTEXT_TOOL,
     METRIC_QUERY_DIALECT,
+    METRIC_SEARCH_TOOL,
+    METRIC_TOOL,
 )
 from alert_triage.investigation.adapters.datadog.specialists.preview import (
     APM_TOOLSET_AVAILABLE,
@@ -39,17 +42,14 @@ APM_TOOLSET = "apm"
 ``apm`` is reached only where the account has it; see ``preview``.
 """
 
-METRIC_TOOL = "get_datadog_metric"
-METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
 DEPENDENCIES_TOOL = "search_datadog_service_dependencies"
 EVENTS_TOOL = "search_datadog_events"
 """The tools every account has, whatever its Preview access.
 
-``METRIC_CONTEXT_TOOL`` is what keeps a guessed metric name from reading as a
-healthy service. A metric query the platform has never heard of comes back
-empty, and an empty answer is deliberately not a failure — so without a way to
-ask which metrics a service actually reports, the specialist cannot tell "this
-service is fine" from "I made that name up".
+The three metric tools come from ``dialect``, which owns the order between
+them. Only ``METRIC_SEARCH_TOOL`` discovers a metric name; the other two are
+lookups that fail on a name nobody returned, which is how a guessed name became
+a failed retrieval rather than an answer.
 
 ``EVENTS_TOOL`` carries deploy correlation on an account without Preview. It
 returns deployments, infrastructure changes and monitor alerts rather than the
@@ -70,8 +70,8 @@ assumptions this declaration is.
 """
 
 _CORE_TOOLS_DESCRIBED = f"""\
-- `{METRIC_CONTEXT_TOOL}` tells you which metrics exist for a service and
-  what tags they carry.
+- `{METRIC_SEARCH_TOOL}` lists the metrics that exist for a service.
+- `{METRIC_CONTEXT_TOOL}` tells you the tags and values one of them carries.
 - `{METRIC_TOOL}` returns a metric's values over a time range.
 - `{DEPENDENCIES_TOOL}` names the service's immediate upstream and downstream
   neighbours."""
@@ -155,12 +155,6 @@ The tools you have are Datadog's:
 
 {_tools_described(preview)}
 
-Ask `{METRIC_CONTEXT_TOOL}` which metrics the service reports before you
-query one. Do not guess a metric name: a name this service does not report
-comes back empty, and an empty answer means the service does not report it,
-which is not the same as the service being healthy. If you find yourself
-reporting that a signal was quiet, be sure you asked for a metric that exists.
-
 {METRIC_QUERY_DIALECT}
 
 What to report:
@@ -237,7 +231,12 @@ def apm_specialist(*, preview: bool) -> Specialist:
         return _declared(
             Toolset(
                 name=CORE_TOOLSET,
-                tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL),
+                tools=(
+                    METRIC_SEARCH_TOOL,
+                    METRIC_CONTEXT_TOOL,
+                    METRIC_TOOL,
+                    DEPENDENCIES_TOOL,
+                ),
             ),
             Toolset(
                 name=APM_TOOLSET,
@@ -254,7 +253,13 @@ def apm_specialist(*, preview: bool) -> Specialist:
     return _declared(
         Toolset(
             name=CORE_TOOLSET,
-            tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL, EVENTS_TOOL),
+            tools=(
+                METRIC_SEARCH_TOOL,
+                METRIC_CONTEXT_TOOL,
+                METRIC_TOOL,
+                DEPENDENCIES_TOOL,
+                EVENTS_TOOL,
+            ),
         ),
         preview=preview,
     )

@@ -44,8 +44,9 @@ def test_without_preview_it_reaches_the_core_toolset_alone() -> None:
 
 def test_without_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
     assert _permitted(apm_specialist(preview=False)) == {
-        "get_datadog_metric",
+        "search_datadog_metrics",
         "get_datadog_metric_context",
+        "get_datadog_metric",
         "search_datadog_service_dependencies",
         "search_datadog_events",
     }
@@ -77,8 +78,9 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
     assert (
         _permitted(apm_specialist(preview=True))
         == {
-            "get_datadog_metric",
+            "search_datadog_metrics",
             "get_datadog_metric_context",
+            "get_datadog_metric",
             "search_datadog_service_dependencies",
         }
         | PREVIEW_TOOLS

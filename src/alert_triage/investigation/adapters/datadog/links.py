@@ -58,6 +58,7 @@ it ignores costs a reader the pre-filled search, not the page.
 """
 
 PAGE_DESTINATIONS = {
+    "search_datadog_metrics": METRIC_EXPLORER_PATH,
     "get_datadog_metric": METRIC_EXPLORER_PATH,
     "get_datadog_metric_context": METRIC_EXPLORER_PATH,
     "search_datadog_hosts": HOST_LIST_PATH,
