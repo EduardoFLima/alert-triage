@@ -17,7 +17,10 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from alert_triage.investigation.adapters.adk.evidence import Retrieved, evidence_kept
+from alert_triage.investigation.adapters.adk.evidence import (
+    Retrieved,
+    keep_evidence_callback,
+)
 from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
 from alert_triage.investigation.contract import InvestigationTarget, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
@@ -67,7 +70,7 @@ class _Tool:
 
 
 def _after(retrieved: Retrieved, response: Any) -> Any:
-    return evidence_kept(retrieved, PERMITTED)(
+    return keep_evidence_callback(retrieved, PERMITTED)(
         tool=_Tool(),
         args={"service": "checkout"},
         tool_context=None,

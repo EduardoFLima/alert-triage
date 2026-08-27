@@ -37,6 +37,9 @@ from alert_triage.investigation.adapters.adk.investigator import run_with_adk
 from alert_triage.investigation.adapters.adk.model import build_model
 from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
+from alert_triage.investigation.adapters.datadog.specialists.logs import (
+    LOGS_SPECIALIST,
+)
 from alert_triage.investigation.contract import InvestigationTarget
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.shared.window import Window

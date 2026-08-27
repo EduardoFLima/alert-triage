@@ -28,6 +28,18 @@ CREWED = pytest.mark.parametrize(
     "specialist", CREW, ids=[specialist.name for specialist in CREW]
 )
 
+DECLARED_ANYWHERE = {
+    tool for one in CREW for toolset in one.toolsets for tool in toolset.tools
+}
+"""Every tool the crew declares, which is the vocabulary a tool name is drawn from.
+
+An instruction quotes its tools and also their parameters, and the two are
+shaped identically — `analyze_datadog_logs` takes a `use_log_patterns`. No
+pattern separates them, so the check asks what is a tool somewhere in the crew
+rather than what looks like one. That is what the mistake it exists to catch
+would produce: a name copied from a sibling specialist.
+"""
+
 
 def _permitted(specialist: Specialist) -> set[str]:
     return {tool for toolset in specialist.toolsets for tool in toolset.tools}
@@ -54,7 +66,9 @@ def test_every_tool_an_instruction_names_is_one_the_declaration_permits(
     specialist: Specialist,
 ) -> None:
     """A tool the filter refuses is a retrieval the model cannot make."""
-    assert _tools_named_in(specialist.instruction) <= _permitted(specialist)
+    named = _tools_named_in(specialist.instruction) & DECLARED_ANYWHERE
+
+    assert named <= _permitted(specialist)
 
 
 @CREWED

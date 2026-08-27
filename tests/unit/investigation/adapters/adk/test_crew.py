@@ -90,7 +90,9 @@ def _each_reports_what_it_retrieved(
     specialist: Specialist, retrieved: Retrieved, prompt: str
 ) -> dict[str, Any]:
     """A stand-in for every specialist: it retrieves, then reports what it saw."""
-    offered = retrieved.retain({"logs": [{"message": f"{specialist.name} saw this"}]})
+    offered = retrieved.retain_evidence(
+        {"logs": [{"message": f"{specialist.name} saw this"}]}
+    )
     return {
         "findings": [
             {
