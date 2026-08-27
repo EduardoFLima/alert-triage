@@ -135,6 +135,14 @@ and because a test that has never failed has not been shown to test anything.
       `get_datadog_metric_context` and `search_datadog_events`. A published name
       is not an admitted one, and neither has ever run. The three `apm` names
       wait on 9.8.
+- [x] 9.9 Fix what the first live run rejected. Three distinct 400s, all real:
+      an incident of one alert spans an instant and no metric query accepts one
+      (`query end is not after query start`); the model wrote log-query syntax
+      into a metric scope (`'AND' and 'OR' cannot be mixed with ','`); and it
+      asked a distribution metric for an aggregation nobody configured
+      (`missing_aggregation :: AGG_AVG/AGG_P95`). The first was a production
+      bug reaching every single-alert incident, fixed in the contract; the other
+      two are instruction, now taught once in `specialists/dialect.py`.
 - [ ] 9.7 Check whether metric discovery actually changes what the APM and
       infrastructure specialists report. The claim is that a guessed metric name
       returns empty and now reads as a quiet signal; the live run is where that

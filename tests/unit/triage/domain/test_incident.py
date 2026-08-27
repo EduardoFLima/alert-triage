@@ -53,6 +53,14 @@ def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() 
     assert target.alert_count == 2
 
 
+def test_an_incident_of_one_alert_is_still_askable_about_a_period() -> None:
+    """One alert spans an instant, and no metric query accepts one."""
+    target = _incident(_alert()).investigation_target
+
+    assert target.window.end > target.window.start
+    assert target.window.start <= NOON <= target.window.end
+
+
 def test_there_is_no_incident_without_the_alerts_that_opened_it() -> None:
     with pytest.raises(ValueError, match="at least one alert"):
         _incident()

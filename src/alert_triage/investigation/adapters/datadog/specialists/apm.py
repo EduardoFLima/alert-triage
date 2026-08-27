@@ -23,6 +23,9 @@ grain.
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    METRIC_QUERY_DIALECT,
+)
 from alert_triage.investigation.adapters.datadog.specialists.preview import (
     APM_TOOLSET_AVAILABLE,
 )
@@ -158,11 +161,7 @@ comes back empty, and an empty answer means the service does not report it,
 which is not the same as the service being healthy. If you find yourself
 reporting that a signal was quiet, be sure you asked for a metric that exists.
 
-A metric query is an aggregator, a metric name, and a scope in braces:
-`avg:trace.http.request.duration{{service:checkout}}`, with
-`sum:trace.http.request.errors{{service:checkout}}.as_count()` for a count and
-`p95:` where an average would hide the tail. Always scope the query to the
-service you were told about and the window you were given.
+{METRIC_QUERY_DIALECT}
 
 What to report:
 
