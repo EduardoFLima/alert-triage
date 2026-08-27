@@ -237,6 +237,12 @@ def _investigated(
     if not decision.should_investigate:
         return None, None
     try:
+        _log.info(
+            "\n\n\n=== STARTING INVESTIGATION ===\nService: %s\nStarted: %s\n\n\n",
+            incident.service,
+            incident.window.start,
+        )
+
         findings = investigator.investigate(incident.investigation_target)
     except InvestigatorError as error:
         _log.error("Investigating %s failed: %s", incident.service, error)
@@ -278,6 +284,7 @@ def _delivered(
         )
         return False, None
     try:
+        _log.info("\n\n\n=== REPORTING ===\n\n\n")
         notifier.deliver(build_report(incident, findings))
     except NotifierError as error:
         _log.error("Reporting %s failed: %s", incident.service, error)
