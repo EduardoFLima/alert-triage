@@ -58,8 +58,8 @@ The tools you have are Datadog's:
   request worth looking at and the identifier of the trace it belongs to.
 - `{TRACE_TOOL}` returns one whole trace by its identifier, which is where you
   see what a single request actually spent its time on.
-{ranking_tool}
-{ordering}
+{RANKING_TOOL}
+{ORDERING}
 
 A span query is facets joined by spaces —
 `service:checkout status:error`, `service:checkout @duration:>2s` for the slow
@@ -127,8 +127,8 @@ def _instruction(preview: bool) -> str:
         SPAN_SEARCH_TOOL=SPAN_SEARCH_TOOL,
         TRACE_TOOL=TRACE_TOOL,
         MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
-        ranking_tool=f"{_RANKING_TOOL_DESCRIBED}\n" if preview else "",
-        ordering=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
+        RANKING_TOOL=f"{_RANKING_TOOL_DESCRIBED}\n" if preview else "",
+        ORDERING=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
     ).strip()
 
 
