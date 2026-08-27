@@ -122,6 +122,12 @@ uv run pytest
 All four must pass. A green local run is meant to predict a green CI run — if
 it does not, fix the discrepancy rather than working around it.
 
+A green run is not the whole story where the change touches a tool name, a
+specialist's instruction, or a composed URL. Those are established only against
+a real account, by tests that skip silently without credentials — see
+[`docs/live-testing.md`](docs/live-testing.md). Say plainly when you have not
+run them.
+
 ## Planning changes
 
 Non-trivial work is planned through OpenSpec (`openspec/`) before it is

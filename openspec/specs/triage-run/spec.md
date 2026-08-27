@@ -234,6 +234,16 @@ and its body SHALL carry both what the investigation found, with the evidence
 behind it, and the alerts absorbed into the incident — when they fired, their
 titles, and the links back to the platform that reported them.
 
+Evidence in a report SHALL carry its own link back to the platform, where the
+evidence has one, so that a reader who wants to see a finding for themselves
+can go from the report to the thing it rests on. A link SHALL be rendered as
+an address standing on its own, distinct from the text of what was retrieved,
+so that a channel which turns addresses into links finds a whole one and a
+channel which does not still shows a reader something they can copy. The
+system SHALL NOT render a link inside a passage of text that is subject to
+truncation, because a truncated address is worse than none: it still reads as
+a link and leads somewhere the evidence is not.
+
 When the investigation behind a report could not gather all the evidence it
 asked for, the report SHALL say so, so that a reader can tell findings drawn
 from everything the platform holds from findings drawn from part of it. A
@@ -255,6 +265,20 @@ cause, or a confidence level, none of which an investigation produces yet.
 - **WHEN** an investigation returned findings for an incident
 - **THEN** the report's body states those findings and the evidence behind
   them
+
+#### Scenario: Evidence in a report can be followed
+- **WHEN** a report is built from findings whose evidence carries links
+- **THEN** each such piece of evidence appears with its link, and a reader can
+  follow it to that evidence on the platform
+
+#### Scenario: Evidence with no link is still reported
+- **WHEN** a report is built from findings whose evidence carries no link
+- **THEN** that evidence appears with its time and summary as before, and the
+  report notes no absence
+
+#### Scenario: A link is never truncated
+- **WHEN** a piece of evidence carries a link and a long summary
+- **THEN** the summary may be shortened and the link is rendered whole
 
 #### Scenario: The report does not pretend to conclude
 - **WHEN** a report is built from findings

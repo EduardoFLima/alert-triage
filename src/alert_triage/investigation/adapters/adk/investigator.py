@@ -31,7 +31,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from alert_triage.investigation.adapters.adk.agent import Deployment, build_agent
-from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.adapters.adk.evidence import Links, Retrieved
 from alert_triage.investigation.contract import (
     Finding,
     Findings,
@@ -57,16 +57,24 @@ class AdkInvestigator:
     """An investigation run by a crew of specialists, behind the port."""
 
     def __init__(
-        self, *, crew: Sequence[Specialist], run_specialist: RunSpecialist
+        self,
+        *,
+        crew: Sequence[Specialist],
+        run_specialist: RunSpecialist,
+        links: Links | None = None,
     ) -> None:
         """Build an investigator over one crew and one way of running a specialist.
 
         Args:
             crew: The specialists to run, in the order to run them.
             run_specialist: How one specialist is driven for one target.
+            links: How this deployment's platform addresses what it returns.
+                One per deployment, reaching every investigation's evidence.
+                Absent, evidence is gathered and reported without addresses.
         """
         self._crew = tuple(crew)
         self._run_specialist = run_specialist
+        self._links = links
 
     def investigate(self, target: InvestigationTarget) -> Findings:
         """Investigate one target and report what was found.
@@ -86,7 +94,7 @@ class AdkInvestigator:
             InvestigatorError: The investigation could not be completed —
                 a specialist errored, or nothing could be retrieved at all.
         """
-        retrieved = Retrieved()
+        retrieved = Retrieved(link=self._links)
         found = self._report(target, retrieved)
         if retrieved.failures and not retrieved.retrievals:
             raise InvestigatorError(

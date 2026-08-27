@@ -55,7 +55,7 @@ def _server() -> FastMCP:
 
     @mcp.tool(name=SEARCH)
     def search(query: str) -> list[dict[str, str]]:
-        """Return the log entries matching a query."""
+        """Return the log items matching a query."""
         return [
             {"timestamp": NOON.isoformat(), "message": "container OOMKilled"},
             {"timestamp": NOON.isoformat(), "message": "restarting checkout"},

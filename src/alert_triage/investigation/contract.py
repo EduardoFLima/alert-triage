@@ -100,12 +100,19 @@ class EvidenceItem:
             that concerns a period rather than a moment.
         summary: The line a human reads to recognise this item.
         payload: What the platform actually returned, verbatim.
+        url: Where a human opens this item on the platform. Derived from what
+            was retrieved, never written by the investigation: an invented
+            address cannot be checked the way an invented identifier can, and
+            a reader will follow it. ``None`` where the platform offers no way
+            to address the item, which is a complete answer rather than a
+            failure.
     """
 
     id: str
     instant: datetime | None
     summary: str
     payload: Any
+    url: str | None = None
 
     def __post_init__(self) -> None:
         """Reject an item nobody could read, which evidences nothing."""

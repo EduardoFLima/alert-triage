@@ -30,18 +30,18 @@ class _Retained:
 
 def _retained(result: dict[str, Any]) -> _Retained:
     """One retrieval, citable whole as ``call-1`` and item by item beneath it."""
-    entries = result.get("logs", [])
+    items = result.get("logs", [])
     evidence = {
         "call-1": EvidenceItem(
             id="call-1", instant=None, summary=str(result), payload=result
         )
     }
-    for position, entry in enumerate(entries, start=1):
+    for position, item in enumerate(items, start=1):
         evidence[f"call-1/item-{position}"] = EvidenceItem(
             id=f"call-1/item-{position}",
             instant=NOON,
-            summary=entry["message"],
-            payload=entry,
+            summary=item["message"],
+            payload=item,
         )
     return _Retained(evidence)
 

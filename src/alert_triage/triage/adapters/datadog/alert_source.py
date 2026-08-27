@@ -6,8 +6,9 @@ leaves is a list of ``Alert``.
 """
 
 from collections.abc import Iterator, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
+from urllib.parse import urlencode
 
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.exceptions import ApiException
@@ -31,6 +32,14 @@ MONITOR_ALERT_QUERY = "source:alert"
 
 PAGE_LIMIT = 100
 
+LINK_MARGIN = timedelta(minutes=30)
+"""How much either side of a firing an alert's link shows.
+
+A page pinned to the instant an alert fired shows a reader the moment and none
+of its run-up. Half an hour each way is enough to see the shape of it without
+being a window a reader has to search within.
+"""
+
 
 class EventSearch(Protocol):
     """The one endpoint this adapter uses, named so a test can stand in for it."""
@@ -48,17 +57,20 @@ class DatadogAlertSource:
     lets the tests drive translation and pagination with no network.
     """
 
-    def __init__(self, events: EventSearch, owner: str, site: str) -> None:
-        """Bind the adapter to an endpoint, an owner, and a site.
+    def __init__(self, events: EventSearch, owner: str, web_host: str) -> None:
+        """Bind the adapter to an endpoint, an owner, and a web host.
 
         Args:
             events: The Datadog events endpoint to query.
             owner: Owner whose alerts are in scope, in the project's own terms.
-            site: Datadog site, used to build a link a human can open.
+            web_host: Where this account's web app is served, used to build a
+                link a human can open. The whole host rather than the region:
+                an organisation may be issued a sub-domain of its own, and
+                composing ``app`` in here would send its readers nowhere.
         """
         self._events = events
         self._owner = owner
-        self._site = site
+        self._web_host = web_host
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
@@ -118,13 +130,34 @@ class DatadogAlertSource:
         service = _service_of(getattr(attributes, "tags", []))
         if service is None:
             return None
+        fired_at = _as_utc(attributes.timestamp)
         return Alert(
             service=service,
-            fired_at=_as_utc(attributes.timestamp),
+            fired_at=fired_at,
             source_id=event.id,
             title=getattr(getattr(attributes, "attributes", None), "title", ""),
-            link=f"https://app.{self._site}/event/event?id={event.id}",
+            link=self._link_to(attributes, service, fired_at),
         )
+
+    def _link_to(self, attributes: object, service: str, fired_at: datetime) -> str:
+        """Where a reader opens what fired, over the period it fired in.
+
+        The monitor that raised the alert where the event names one, and the
+        service's own events where it does not. Never the event itself: the v2
+        identifier this API returns has no page of its own, and a link built
+        from one reads as working until a human follows it.
+        """
+        window = _window_around(fired_at)
+        monitor = getattr(getattr(attributes, "attributes", None), "monitor_id", None)
+        if monitor is not None:
+            return f"https://{self._web_host}/monitors/{monitor}?{urlencode(window)}"
+        if not service:
+            return ""
+        over_the_service = {
+            "query": f"{MONITOR_ALERT_QUERY} {SERVICE_TAG_PREFIX}{service}",
+            **window,
+        }
+        return f"https://{self._web_host}/event/explorer?{urlencode(over_the_service)}"
 
 
 def build_configuration(
@@ -175,7 +208,7 @@ def build_alert_source(
     """
     client = ApiClient(build_configuration(connection, ingestion))
     return DatadogAlertSource(
-        events=EventsApi(client), owner=owner, site=connection.site
+        events=EventsApi(client), owner=owner, web_host=connection.web_host
     )
 
 
@@ -191,6 +224,15 @@ def _service_of(tags: Sequence[str]) -> str | None:
         if tag.startswith(SERVICE_TAG_PREFIX):
             return tag.removeprefix(SERVICE_TAG_PREFIX)
     return None
+
+
+def _window_around(fired_at: datetime) -> dict[str, str]:
+    """The period a link shows, pinned so it outlives the moment it was built."""
+    return {
+        "from_ts": str(int((fired_at - LINK_MARGIN).timestamp() * 1000)),
+        "to_ts": str(int((fired_at + LINK_MARGIN).timestamp() * 1000)),
+        "live": "false",
+    }
 
 
 def _as_utc(timestamp: datetime) -> datetime:

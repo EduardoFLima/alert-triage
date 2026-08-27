@@ -12,20 +12,25 @@ stay green. It costs a model call and a platform call when it does run.
 
 import asyncio
 import os
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
+from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment, connection_for
 from alert_triage.investigation.adapters.adk.credentials import (
+    ALTERNATE_API_KEY_VARIABLE,
     API_KEY_VARIABLE,
+    ENTERPRISE_VARIABLE,
     resolve_model_access,
 )
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import run_with_adk
 from alert_triage.investigation.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
 from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SPECIALIST
 from alert_triage.investigation.contract import InvestigationTarget
@@ -38,14 +43,33 @@ from alert_triage.triage.adapters.datadog.connection import (
     resolve_connection,
 )
 
+
+def _a_model_can_be_reached() -> bool:
+    """Whether this environment can reach a model at all, by either route.
+
+    Asked of the resolver rather than restated here. A deployment on the
+    enterprise platform holds no key and is no less able to run these; naming
+    ``GOOGLE_API_KEY`` in the gate would skip it for lacking something it is
+    not supposed to have. Deferring keeps the gate agreeing with the thing it
+    guards, including the alternate name the resolver already accepts.
+    """
+    try:
+        resolve_model_access()
+    except ConfigError:
+        return False
+    return True
+
+
 pytestmark = pytest.mark.skipif(
     not (
         os.environ.get(DD_API_KEY_VARIABLE)
         and os.environ.get(APP_KEY_VARIABLE)
-        and os.environ.get(API_KEY_VARIABLE)
+        and _a_model_can_be_reached()
     ),
     reason=(
-        f"needs real {DD_API_KEY_VARIABLE}, {APP_KEY_VARIABLE} and {API_KEY_VARIABLE}"
+        f"needs real {DD_API_KEY_VARIABLE} and {APP_KEY_VARIABLE}, and a way to "
+        f"reach a model: {API_KEY_VARIABLE} or {ALTERNATE_API_KEY_VARIABLE}, or "
+        f"{ENTERPRISE_VARIABLE} for the enterprise platform"
     ),
 )
 
@@ -93,3 +117,44 @@ def test_a_real_model_given_the_instruction_calls_them() -> None:
 
     assert retrieved.retrievals >= 1
     assert retrieved.failures == ()
+
+
+def _investigated() -> Retrieved:
+    """One real investigation, kept with this account's addresses attached."""
+    connection = resolve_connection()
+    retrieved = Retrieved(link=DatadogLinks(connection.web_host))
+    run_with_adk(_deployment())(LOGS_SPECIALIST, retrieved, _target().describe())
+    return retrieved
+
+
+def test_an_address_built_from_a_real_retrieval_opens_rather_than_404s(
+    answers: Callable[[str], bool],
+) -> None:
+    """A unit test asserts the string; only Datadog says whether it is a route."""
+    retrieved = _investigated()
+
+    address = retrieved.resolve("call-1").url  # type: ignore[union-attr]
+
+    assert address is not None
+    assert answers(address), f"the platform serves nothing at {address}"
+
+
+def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
+    """The design's open question, answered by a real payload rather than a guess.
+
+    Per-item addressing is the optimisation and the retrieval's own address is
+    the fallback, so a payload naming an item under none of the keys this
+    adapter reads is a finding to fold back into ``ITEM_KEYS`` — not a broken
+    link. What this records is which of them a live payload actually uses.
+    """
+    retrieved = _investigated()
+
+    item = retrieved.resolve("call-1/item-1")
+    if item is None:
+        pytest.skip(f"the logs of {SERVICE!r} were quiet, so no item was returned")
+
+    payload = item.payload if isinstance(item.payload, dict) else {}
+    named = [key for key in ITEM_KEYS if payload.get(key)]
+    print(f"a live log item is identified by {named or f'none of {ITEM_KEYS}'}")
+    print(f"the keys a live log item carries are {sorted(payload)}")
+    assert item.url is not None

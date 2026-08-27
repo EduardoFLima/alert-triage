@@ -173,10 +173,26 @@ dependency map, a waterfall — cites the retrieval. A finding citing neither
 SHALL be discarded.
 
 Every retrieved item SHALL be rendered into a report through one common
-normalisation — an identifier, the instant it concerns, and a human-readable
-summary alongside what the platform actually returned — rather than through a
-translation written per tool, so that a specialist reaching a new tool needs
+normalisation — an identifier, the instant it concerns, a human-readable
+summary, and an address at which a human can open the thing itself on the
+platform, alongside what the platform actually returned — rather than through
+a translation written per tool, so that a specialist reaching a new tool needs
 no new rendering.
+
+An item's address SHALL be derived from what was retrieved, never produced by
+the reasoning that formed the finding. The system SHALL NOT accept an address
+as part of what a specialist reports, because an invented address cannot be
+checked against what was retrieved the way an invented identifier can, and a
+reader will follow it. An address SHALL be absent where the platform offers no
+way to address that item, which is a complete answer rather than a failure:
+evidence without an address is still evidence, and the system SHALL render it
+as such.
+
+An address SHALL be available at both grains at which evidence is identified.
+An individual item SHALL be addressed as that item where the retrieved result
+identifies it, and a retrieval SHALL be addressed as the query that produced
+it over the window it ran over, so that evidence with no discrete items is
+still something a reader can go and look at.
 
 A finding whose evidence cannot be traced back to what was retrieved SHALL be
 discarded, and the system SHALL record that it was discarded and why, so that
@@ -225,6 +241,29 @@ examples travel with it for a human to check it against.
 - **WHEN** a specialist gathers evidence from a tool the system carries no
   per-tool handling for
 - **THEN** that evidence is identified, checked, and rendered like any other
+
+#### Scenario: Evidence carries where to go and see it
+- **WHEN** a retrieved item is presented to a human and the platform can
+  address it
+- **THEN** the item carries an address that opens that item on the platform,
+  distinct from the summary of what it says
+
+#### Scenario: An item the platform cannot address
+- **WHEN** a retrieved item is presented to a human and the platform offers no
+  way to address it
+- **THEN** the item carries no address, and is still reported with its
+  identifier, instant, and summary
+
+#### Scenario: An address is never taken from what a specialist reports
+- **WHEN** a specialist's report includes something shaped like an address for
+  its evidence
+- **THEN** it is not used, and the address a reader is given is the one derived
+  from what was retrieved
+
+#### Scenario: An aggregate is addressable
+- **WHEN** a finding cites a retrieval that produced no discrete items
+- **THEN** the address a reader is given opens the query that produced it over
+  the window it ran over
 
 ### Requirement: A failed retrieval is never an absence of evidence
 When a retrieval of evidence fails — the platform refuses it, is unreachable,

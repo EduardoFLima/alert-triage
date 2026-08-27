@@ -17,10 +17,11 @@ in ``investigation/domain/evidence.py``.
 """
 
 import logging
-from collections.abc import Callable, Sequence
-from typing import Any
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, Protocol
 
 from alert_triage.investigation.adapters.adk.normalisation import (
+    Linker,
     items_from,
     readable,
     summarise,
@@ -44,6 +45,29 @@ BeforeTool = Callable[..., None]
 """How ADK offers a tool call for inspection before it is made."""
 
 
+class Links(Protocol):
+    """How a platform addresses what a retrieval returned, at both grains.
+
+    Injected rather than imported: this module is the framework's side of the
+    boundary, and which route opens a log item is the platform adapter's
+    knowledge. A deployment that supplies none gets evidence with no addresses,
+    which is what evidence has always been here.
+
+    The two grains are the two a citation has. ``to_retrieval`` addresses the
+    search a retrieval came from, which is what a finding about an aggregate
+    cites; ``to_item`` addresses one thing within it, which is what a finding
+    about a pattern cites. Both answer with an address, never with evidence.
+    """
+
+    def to_retrieval(self, args: Mapping[str, Any]) -> str | None:
+        """Where the search that produced this retrieval is opened."""
+        ...
+
+    def to_item(self, payload: Any, within: str | None) -> str | None:
+        """Where this item is opened, or ``within`` when it names no item."""
+        ...
+
+
 class Retrieved:
     """What this investigation actually retrieved, keyed for citation.
 
@@ -52,11 +76,17 @@ class Retrieved:
     a stale identifier from an earlier incident cannot resolve.
     """
 
-    def __init__(self) -> None:
-        """Start with nothing retrieved, nothing citable, and nothing failed."""
+    def __init__(self, link: Links | None = None) -> None:
+        """Start with nothing retrieved, nothing citable, and nothing failed.
+
+        Args:
+            link: How this deployment's platform addresses what it returns.
+                Absent, every piece of evidence is kept without an address.
+        """
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
+        self._link = link
 
     @property
     def retrievals(self) -> int:
@@ -68,11 +98,15 @@ class Retrieved:
         """Why each retrieval that failed did, in the order they failed."""
         return tuple(self._failures)
 
-    def retain(self, result: Any) -> dict[str, Any]:
+    def retain_evidence(
+        self, result: Any, args: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Keep what a tool returned and describe it in the terms it may be cited in.
 
         Args:
             result: What the tool returned, as ADK handed it over.
+            args: What the tool was called with. The query is in here, which is
+                what a retrieval with no discrete items is addressed by.
 
         Returns:
             The call and its items under the identifiers that resolve, which is
@@ -80,18 +114,20 @@ class Retrieved:
         """
         self._retrievals += 1
         call = f"{_CALL_PREFIX}{self._retrievals}"
-        items = items_from(result, call)
+        address = self._address_of(args or {})
+        items = items_from(result, call, self._item_addresses(address))
         self._evidence[call] = EvidenceItem(
             id=call,
             instant=None,
             summary=summarise(readable(result)),
             payload=result,
+            url=address,
         )
         for item in items:
             self._evidence[item.id] = item
         return self._offered(call, items, result)
 
-    def refuse(self, reason: str) -> dict[str, Any]:
+    def refuse_evidence(self, reason: str) -> dict[str, Any]:
         """Record a failed retrieval and answer it in terms nothing can misread.
 
         Args:
@@ -111,6 +147,17 @@ class Retrieved:
     def resolve(self, citation: str) -> EvidenceItem | None:
         """The evidence behind a citation, or ``None`` if there is none."""
         return self._evidence.get(citation)
+
+    def _address_of(self, args: Mapping[str, Any]) -> str | None:
+        """Where the search this retrieval came from is opened."""
+        return None if self._link is None else self._link.to_retrieval(args)
+
+    def _item_addresses(self, within: str | None) -> Linker | None:
+        """How each item of this retrieval is addressed, given where it came from."""
+        link = self._link
+        if link is None:
+            return None
+        return lambda payload: link.to_item(payload, within)
 
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any
@@ -135,7 +182,9 @@ class Retrieved:
         return offered
 
 
-def evidence_kept(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
+def keep_evidence_callback(
+    retrieved: Retrieved, permitted: frozenset[str]
+) -> AfterTool:
     """The callback that stands between a tool result and the model reading it.
 
     Registered on every specialist, closing over one investigation's
@@ -171,13 +220,13 @@ def evidence_kept(retrieved: Retrieved, permitted: frozenset[str]) -> AfterTool:
             return None
         failure = _failure_in(tool_response)
         if failure is not None:
-            return retrieved.refuse(f"{name} failed: {failure}")
-        return retrieved.retain(tool_response)
+            return retrieved.refuse_evidence(f"{name} failed: {failure}")
+        return retrieved.retain_evidence(tool_response, args)
 
     return _kept
 
 
-def calls_logged() -> BeforeTool:
+def log_tool_call() -> BeforeTool:
     """The callback that watches a tool call on its way out, and permits it.
 
     It enforces nothing today. It exists because the per-agent tool-call bound
