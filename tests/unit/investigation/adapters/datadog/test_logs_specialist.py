@@ -40,6 +40,18 @@ def test_the_instruction_asks_for_a_call_citation_for_an_aggregate() -> None:
     assert "aggregate" in LOGS_INSTRUCTION.lower()
 
 
+def test_the_instruction_says_what_to_do_with_a_window_of_no_width() -> None:
+    """A one-alert incident's window starts and ends at the same instant.
+
+    Passed on as given, that is a range the platform reads as empty and answers
+    with nothing — a quiet service, indistinguishable from a real one.
+    """
+    lowered = LOGS_INSTRUCTION.lower()
+
+    assert "single instant" in lowered
+    assert "empty range" in lowered
+
+
 def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
     """The gate again, in the model's own terms: a failure is not a quiet service."""
     lowered = LOGS_INSTRUCTION.lower()
@@ -62,10 +74,17 @@ def test_the_declaration_reports_under_the_logs_signal() -> None:
 
 
 def test_the_declaration_names_its_toolset_and_its_log_tools() -> None:
+    """Spelled out rather than read back off the constants they name.
+
+    A tool name is a fact about Datadog's server, not a choice this project
+    makes, so a test comparing the declaration against its own constants would
+    agree with any rename and notice none. Only the live check can say a name
+    is real; this is what makes changing one deliberate.
+    """
     (toolset,) = LOGS_SPECIALIST.toolsets
 
     assert toolset.name == "core"
-    assert "search_datadog_logs" in toolset.tools
+    assert toolset.tools == ("search_datadog_logs", "analyze_datadog_logs")
 
 
 def test_the_declaration_reaches_no_tool_outside_it() -> None:
