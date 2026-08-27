@@ -238,25 +238,40 @@ def apm_specialist(*, preview: bool) -> Specialist:
         return _declared(
             Toolset(
                 name=CORE_TOOLSET,
-                tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL)
+                tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL),
             ),
             Toolset(
                 name=APM_TOOLSET,
-                tools=(BOTTLENECK_TOOL, WATCHDOG_TOOL, CHANGES_TOOL, CHANGE_SEARCH_TOOL),
+                tools=(
+                    BOTTLENECK_TOOL,
+                    WATCHDOG_TOOL,
+                    CHANGES_TOOL,
+                    CHANGE_SEARCH_TOOL,
+                ),
             ),
+            preview=preview,
         )
 
     return _declared(
         Toolset(
             name=CORE_TOOLSET,
-            tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL, EVENTS_TOOL)
+            tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL, EVENTS_TOOL),
         ),
+        preview=preview,
     )
 
 
-def _declared(*toolsets: Toolset) -> Specialist:
-    """The declaration around whichever toolsets the account turned out to have."""
-    preview = any(toolset.name == APM_TOOLSET for toolset in toolsets)
+def _declared(*toolsets: Toolset, preview: bool) -> Specialist:
+    """The declaration around the toolsets the account turned out to have.
+
+    Args:
+        toolsets: What this account's specialist may reach.
+        preview: Whether those include the Preview toolset, which is what the
+            instruction is written against.
+
+    Returns:
+        The declaration, with the instruction matching the tools.
+    """
     return Specialist(
         name="apm_specialist",
         signal=Signal.APM,
