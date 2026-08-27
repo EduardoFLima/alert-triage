@@ -161,69 +161,11 @@ uv run pytest tests/unit/triage/domain/test_incident.py::test_an_incident_that_h
 uv run pytest -k "link or address"
 ```
 
-### Against a real Datadog account
-
 Seven tests are gated on real credentials and skip without them, which is why
-a fresh clone and CI stay green. They exist for the three things no fake can
-answer: that the tool names in a specialist's declaration exist on Datadog's
-MCP server, that a real model given the instruction actually calls them, and
-that a URL this project composes is a route the platform accepts rather than a
-404.
-
-```bash
-export DD_API_KEY=... DD_APP_KEY=... GOOGLE_API_KEY=...
-uv run pytest tests/integration/investigation/adapters/datadog \
-              tests/integration/triage/adapters/datadog -rs
-```
-
-The credentials must reach the **process environment**: the skip is decided as
-the module loads, and nothing in the test path reads `.env` on the way in.
-`-rs` is what tells you they ran rather than skipped past.
-
-**Using the `.env` you already have.** Rather than exporting by hand, let `uv`
-put the file into the environment for the run:
-
-```bash
-uv run --env-file .env pytest tests/integration/investigation/adapters/datadog \
-                              tests/integration/triage/adapters/datadog -rs
-```
-
-It parses the file the way the application does and applies it to that one
-command only, so nothing leaks into the shell afterwards. Anything already
-exported still wins, which matches how a `.env` behaves at runtime. For a
-shell that is not going through `uv`, or to keep the values for a whole
-session:
-
-```bash
-set -a; source .env; set +a     # every assignment exported until the shell exits
-```
-
-`source` is the blunter of the two — it is the shell reading the file, not a
-dotenv parser, so an unquoted value containing spaces or a `#` mid-line will
-not survive it intact. Prefer `--env-file` unless you want the values to
-persist.
-
-Loading `.env` is deliberately not automatic. A stray file in a checkout would
-otherwise start reaching a real account and spending model calls during an
-ordinary `uv run pytest`, and the gate reading the process environment is what
-keeps that an explicit act.
-
-Two of the seven are the link checks, and they are worth running alone after
-touching anything that builds a URL — they follow the address and rule out the
-404 that a route built from the wrong kind of identifier returns:
-
-```bash
-uv run pytest -k opens_rather_than_404s -rs
-```
-
-`ALERT_TRIAGE_LIVE_SERVICE` names a service in the account under test,
-defaulting to `checkout`. A quiet service is a valid answer: these confirm the
-retrieval happened, not that it found anything.
-
-A run costs a model call and a handful of platform calls. Note that `-k live`
-also catches the email and Teams channel tests, which are "live" in a different
-sense — a real server in this process, no account and no credentials — and
-those run every time.
+a fresh clone and CI stay green — they cover what no fake can answer, like
+whether a URL this project composes is a route the platform actually accepts.
+How to run them, and how to point them at an existing `.env`, is in
+[`docs/live-testing.md`](docs/live-testing.md).
 
 Engineering practices — TDD, clean code, the import rule — are in
 [`AGENTS.md`](AGENTS.md), which applies to humans and coding agents alike.
