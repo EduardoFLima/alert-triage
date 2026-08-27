@@ -36,6 +36,15 @@ identifies it, and a retrieval SHALL be addressed as the query that produced
 it over the window it ran over, so that evidence with no discrete items is
 still something a reader can go and look at.
 
+A finding whose evidence cannot be traced back to what was retrieved SHALL be
+discarded, and the system SHALL record that it was discarded and why, so that
+fabrication is visible to whoever is tuning the investigation. Discarding one
+finding SHALL NOT discard the others, and SHALL NOT fail the investigation:
+findings whose evidence checks out SHALL still be reported. An investigation
+left with no findings after discarding SHALL return an empty result — an
+honest "nothing notable" — rather than a failure, because the investigation
+did run.
+
 This requirement constrains evidence, not description. How a finding
 characterises its evidence — a rate, a count, a description of a pattern —
 remains the investigation's own account of what it saw, which is why the
