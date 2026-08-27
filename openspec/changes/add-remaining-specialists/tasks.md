@@ -118,11 +118,22 @@ and because a test that has never failed has not been shown to test anything.
 - [ ] 9.3 Run it against a real account. Record which toolsets resolved — in
       particular whether `apm` is reachable and named as expected — and how many
       tool calls each specialist made.
-- [ ] 9.4 If `apm` is unreachable, drop its two tools from the APM declaration,
-      note the fallback in design.md, and keep the golden signals from `core`.
+- [ ] 9.4 If `apm` is unreachable, it now costs two specialists rather than one:
+      drop its four tools from the APM declaration, keeping the golden signals
+      and dependencies from `core`, and drop `apm_query_trace` from the trace
+      declaration, leaving it to read a whole trace rather than rank it. Note
+      the fallback in design.md.
 - [ ] 9.5 Record the live run's tool-call counts in the change, as the first
       real evidence for `max_tool_calls_per_agent` and the open question about
       `search_datadog_hosts`.
+- [ ] 9.6 Confirm the four tools added after the docs check are real:
+      `get_datadog_metric_context` on `core`, and `apm_search_watchdog_stories`,
+      `semantic_search_change_stories` and `apm_query_trace` on `apm`. A
+      published name is not an admitted one, and these have never run.
+- [ ] 9.7 Check whether metric discovery actually changes what the APM and
+      infrastructure specialists report. The claim is that a guessed metric name
+      returns empty and now reads as a quiet signal; the live run is where that
+      either shows up or does not.
 
 ## 10. Before calling it done
 

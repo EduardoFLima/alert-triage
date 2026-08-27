@@ -28,6 +28,7 @@ reaches for what is a specialist whose live check says which half is missing.
 """
 
 METRIC_TOOL = "get_datadog_metric"
+METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
 HOSTS_TOOL = "search_datadog_hosts"
 K8S_SEARCH_TOOL = "search_datadog_k8s_resources"
 K8S_DESCRIBE_TOOL = "describe_datadog_k8s_resource"
@@ -44,6 +45,8 @@ began relative to the alerts.
 
 The tools you have are Datadog's:
 
+- `{METRIC_CONTEXT_TOOL}` tells you which metrics exist for a service or host
+  and what tags they carry.
 - `{METRIC_TOOL}` returns a metric's values over a time range.
 - `{HOSTS_TOOL}` finds the hosts a service runs on, with the tags that say
   what they are.
@@ -51,6 +54,12 @@ The tools you have are Datadog's:
   the deployment has them.
 - `{K8S_DESCRIBE_TOOL}` returns one such workload in full, including its
   restarts and why it was last rescheduled.
+
+Ask `{METRIC_CONTEXT_TOOL}` which metrics are reported before you query one.
+Do not guess a metric name: a name nothing reports comes back empty, and an
+empty answer means it is not reported, which is not the same as the resource
+being healthy. A managed service reports a different set from a virtual
+machine, and neither reports everything.
 
 A metric query is an aggregator, a metric name, and a scope in braces:
 `avg:system.mem.pct_usable{{service:checkout}}`, with `max:` where a single
@@ -133,7 +142,9 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     instruction=INFRASTRUCTURE_INSTRUCTION,
     output_schema=ReportedFindings,
     toolsets=(
-        Toolset(name=CORE_TOOLSET, tools=(METRIC_TOOL, HOSTS_TOOL)),
+        Toolset(
+            name=CORE_TOOLSET, tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, HOSTS_TOOL)
+        ),
         Toolset(name=KUBERNETES_TOOLSET, tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL)),
     ),
 )

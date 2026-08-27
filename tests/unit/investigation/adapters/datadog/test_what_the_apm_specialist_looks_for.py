@@ -31,13 +31,32 @@ def test_the_declaration_reaches_both_the_platforms_core_and_apm_toolsets() -> N
     assert {toolset.name for toolset in APM_SPECIALIST.toolsets} == {"core", "apm"}
 
 
-def test_the_declaration_permits_the_four_tools_it_needs_and_no_others() -> None:
+def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
     assert _permitted(APM_SPECIALIST) == {
         "get_datadog_metric",
+        "get_datadog_metric_context",
         "search_datadog_service_dependencies",
         "apm_latency_bottleneck_summary",
+        "apm_search_watchdog_stories",
         "get_change_stories",
+        "semantic_search_change_stories",
     }
+
+
+def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
+    """A guessed metric name comes back empty, which now reads as a quiet signal."""
+    assert "get_datadog_metric_context" in _permitted(APM_SPECIALIST)
+
+
+def test_the_instruction_says_to_discover_a_metric_before_querying_it() -> None:
+    ordering = APM_INSTRUCTION.index("get_datadog_metric_context")
+
+    assert ordering < APM_INSTRUCTION.index("Rules you must follow")
+    assert "guess" in APM_INSTRUCTION.lower()
+
+
+def test_the_instruction_asks_what_the_platform_already_noticed() -> None:
+    assert "apm_search_watchdog_stories" in APM_INSTRUCTION
 
 
 def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
