@@ -234,18 +234,22 @@ def apm_specialist(*, preview: bool) -> Specialist:
         The declaration, reaching only tools the account can actually call and
         instructed only in what those tools can establish.
     """
-    core = Toolset(
-        name=CORE_TOOLSET,
-        tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL)
-        + (() if preview else (EVENTS_TOOL,)),
-    )
-    if not preview:
-        return _declared(core)
+    if preview:
+        return _declared(
+            Toolset(
+                name=CORE_TOOLSET,
+                tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL)
+            ),
+            Toolset(
+                name=APM_TOOLSET,
+                tools=(BOTTLENECK_TOOL, WATCHDOG_TOOL, CHANGES_TOOL, CHANGE_SEARCH_TOOL),
+            ),
+        )
+
     return _declared(
-        core,
         Toolset(
-            name=APM_TOOLSET,
-            tools=(BOTTLENECK_TOOL, WATCHDOG_TOOL, CHANGES_TOOL, CHANGE_SEARCH_TOOL),
+            name=CORE_TOOLSET,
+            tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL, EVENTS_TOOL)
         ),
     )
 
