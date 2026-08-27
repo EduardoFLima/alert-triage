@@ -6,9 +6,6 @@ from alert_triage.notification.adapters.email import (
     EMAIL_FROM_VARIABLE,
     EMAIL_TO_VARIABLE,
     SMTP_HOST_VARIABLE,
-    SMTP_PASSWORD_VARIABLE,
-    SMTP_PORT_VARIABLE,
-    SMTP_USERNAME_VARIABLE,
     EmailNotifier,
 )
 from alert_triage.notification.adapters.fan_out import FanOutNotifier
@@ -85,15 +82,8 @@ def test_a_half_configured_channel_still_refuses_rather_than_falling_back() -> N
 
 
 def test_the_environment_is_read_from_the_process_by_default(
-    monkeypatch: pytest.MonkeyPatch,
+    process_environment: dict[str, str],
 ) -> None:
-    monkeypatch.delenv(SMTP_HOST_VARIABLE)
-    monkeypatch.delenv(SMTP_PORT_VARIABLE)
-    monkeypatch.delenv(SMTP_USERNAME_VARIABLE)
-    monkeypatch.delenv(SMTP_PASSWORD_VARIABLE)
-    monkeypatch.delenv(EMAIL_FROM_VARIABLE)
-    monkeypatch.delenv(EMAIL_TO_VARIABLE)
-    for variable, value in TEAMS_ENV.items():
-        monkeypatch.setenv(variable, value)
+    process_environment.update(TEAMS_ENV)
 
     assert _channels(resolve_notifier()) == [TeamsNotifier]

@@ -1,10 +1,34 @@
 """Shared pytest configuration and fixtures for the whole suite."""
 
+import os
 from pathlib import Path
 
 import pytest
 
 _SCOPE_MARKERS = frozenset({"unit", "integration"})
+
+
+@pytest.fixture
+def process_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    """The process environment, emptied, for a test that reads it by default.
+
+    A few tests establish that a caller passing no environment is handed the
+    process's. They are the only ones reading it for real, which makes them the
+    only ones a developer's own exports can answer for — and sourcing a ``.env``
+    to run the live checks is exactly how those exports arrive.
+
+    Emptying it beats deleting the names one at a time. That list is stale the
+    moment a setting is added, it goes stale silently, and it fails in whichever
+    direction the shell happens to lean: a name the file exports must be deleted
+    here, and deleting a name CI never sets raises instead.
+
+    Returns:
+        The environment those tests read, to be filled with exactly what the
+        behaviour under test needs and nothing else.
+    """
+    environment: dict[str, str] = {}
+    monkeypatch.setattr(os, "environ", environment)
+    return environment
 
 
 @pytest.fixture(scope="session")
