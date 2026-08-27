@@ -63,7 +63,7 @@ ALERT_TRIAGE_EMAIL_TO="sre@example.com,oncall@example.com"
 
 
 def test_a_name_the_file_leaves_unset_is_absent_rather_than_empty(
-    tmp_path: Path,
+        tmp_path: Path,
 ) -> None:
     """An unset name must not shadow the same name exported by the process."""
     path = _write(tmp_path, "DD_SITE\n")
@@ -74,14 +74,16 @@ def test_a_name_the_file_leaves_unset_is_absent_rather_than_empty(
 
 
 def test_the_environment_is_read_from_the_process_by_default(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SCOPE_OWNER", "from-the-process")
 
-    environment = resolve_environment(_write(tmp_path, "DD_API_KEY=from-the-file\n"))
+    environment = resolve_environment(
+        _write(tmp_path, "SOME_RANDOM_PROP=from-the-file\n")
+    )
 
     assert environment["SCOPE_OWNER"] == "from-the-process"
-    assert environment["DD_API_KEY"] == "from-the-file"
+    assert environment["SOME_RANDOM_PROP"] == "from-the-file"
 
 
 def test_the_file_is_looked_for_beside_the_run_by_default() -> None:

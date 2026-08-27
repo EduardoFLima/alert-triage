@@ -39,6 +39,7 @@ def test_the_primary_variable_wins_over_the_alternate() -> None:
 def test_the_environment_is_read_from_the_process_by_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv(ENTERPRISE_VARIABLE)
     monkeypatch.setenv(API_KEY_VARIABLE, "model-key")
 
     assert resolve_model_access() == ApiKey("model-key")
