@@ -24,7 +24,7 @@ LOGS_TOOLSET = "core"
 """The toolset on the platform's server holding its log tools."""
 
 LOG_SEARCH_TOOL = "search_datadog_logs"
-LOG_AGGREGATE_TOOL = "aggregate_datadog_logs"
+LOG_AGGREGATE_TOOL = "analyze_datadog_logs"
 """The log tools this specialist may reach, and the only ones.
 
 Widening this is a word in the declaration below. It is also the one thing a
@@ -42,15 +42,23 @@ find: what recurs, how often, and when it started relative to the alerts.
 
 The tools you have are Datadog's:
 
-- `{LOG_SEARCH_TOOL}` returns individual log events matching a query.
-- `{LOG_AGGREGATE_TOOL}` counts them, grouped, when you want the shape of a
-  pattern rather than its instances.
+- `{LOG_SEARCH_TOOL}` returns individual log events matching a Datadog log
+  query.
+- `{LOG_AGGREGATE_TOOL}` aggregates them with SQL — counts, group-bys — over a
+  virtual `logs` table filtered by a Datadog log query, when you want the shape
+  of a pattern rather than its instances.
 
-Both take a Datadog log query. That syntax is `service:checkout status:error`
-— facets joined by spaces, `-` to negate, `*` to wildcard, `@` for attributes
-from structured logs (`@http.status_code:503`), and `AND`/`OR` where you need
-them explicit. Always scope the query to the service you were told about and
-the window you were given.
+A Datadog log query is `service:checkout status:error` — facets joined by
+spaces, `-` to negate, `*` to wildcard, `@` for attributes from structured logs
+(`@http.status_code:503`), and `AND`/`OR` where you need them explicit. Always
+scope the query to the service you were told about and the window you were
+given.
+
+The window you are given may be a single instant: a one-alert incident has an
+identical start and end. Treat it as the moment the trouble is centred on and
+look at a span bracketing it — the surrounding minutes to hours — never an
+empty range. A time range whose end does not lie after its start returns
+nothing.
 
 Rules you must follow:
 
