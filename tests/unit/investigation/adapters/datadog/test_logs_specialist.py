@@ -52,6 +52,24 @@ def test_the_instruction_says_what_to_do_with_a_window_of_no_width() -> None:
     assert "empty range" in lowered
 
 
+def test_the_instruction_says_where_a_widened_window_goes() -> None:
+    """The tool's own schema forbids the obvious reading of "widen the span".
+
+    ``analyze_datadog_logs`` filters to ``from``/``to`` before the SQL runs and
+    rejects the time functions a model would reach for, so being told to look
+    wider without being told where invites a query that errors.
+    """
+    lowered = LOGS_INSTRUCTION.lower()
+
+    assert "`from`" in lowered
+    assert "never in sql" in lowered
+
+
+def test_the_instruction_offers_the_clustering_the_task_is_asking_for() -> None:
+    """Reporting what recurs is what ``use_log_patterns`` already returns."""
+    assert "use_log_patterns" in LOGS_INSTRUCTION
+
+
 def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
     """The gate again, in the model's own terms: a failure is not a quiet service."""
     lowered = LOGS_INSTRUCTION.lower()
