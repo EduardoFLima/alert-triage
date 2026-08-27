@@ -57,13 +57,18 @@ class Links(Protocol):
     search a retrieval came from, which is what a finding about an aggregate
     cites; ``to_item`` addresses one thing within it, which is what a finding
     about a pattern cites. Both answer with an address, never with evidence.
+
+    Both are told which tool produced the retrieval, because a platform serves
+    its products on different pages and the tool is what says which one. This
+    module does not know what any of them are — it passes the name across and
+    the adapter decides, or decides there is nowhere honest to send a reader.
     """
 
-    def to_retrieval(self, args: Mapping[str, Any]) -> str | None:
-        """Where the search that produced this retrieval is opened."""
+    def to_retrieval(self, args: Mapping[str, Any], *, tool: str) -> str | None:
+        """Where the retrieval this tool produced is opened."""
         ...
 
-    def to_item(self, payload: Any, within: str | None) -> str | None:
+    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
         """Where this item is opened, or ``within`` when it names no item."""
         ...
 
@@ -99,7 +104,7 @@ class Retrieved:
         return tuple(self._failures)
 
     def retain_evidence(
-        self, result: Any, args: Mapping[str, Any] | None = None
+        self, result: Any, args: Mapping[str, Any] | None = None, *, tool: str = ""
     ) -> dict[str, Any]:
         """Keep what a tool returned and describe it in the terms it may be cited in.
 
@@ -107,6 +112,8 @@ class Retrieved:
             result: What the tool returned, as ADK handed it over.
             args: What the tool was called with. The query is in here, which is
                 what a retrieval with no discrete items is addressed by.
+            tool: What produced it. The platform serves each of its products on
+                a page of its own, and this is what says which one.
 
         Returns:
             The call and its items under the identifiers that resolve, which is
@@ -114,8 +121,8 @@ class Retrieved:
         """
         self._retrievals += 1
         call = f"{_CALL_PREFIX}{self._retrievals}"
-        address = self._address_of(args or {})
-        items = items_from(result, call, self._item_addresses(address))
+        address = self._address_of(args or {}, tool)
+        items = items_from(result, call, self._item_addresses(address, tool))
         self._evidence[call] = EvidenceItem(
             id=call,
             instant=None,
@@ -148,16 +155,16 @@ class Retrieved:
         """The evidence behind a citation, or ``None`` if there is none."""
         return self._evidence.get(citation)
 
-    def _address_of(self, args: Mapping[str, Any]) -> str | None:
-        """Where the search this retrieval came from is opened."""
-        return None if self._link is None else self._link.to_retrieval(args)
+    def _address_of(self, args: Mapping[str, Any], tool: str) -> str | None:
+        """Where the retrieval this tool produced is opened."""
+        return None if self._link is None else self._link.to_retrieval(args, tool=tool)
 
-    def _item_addresses(self, within: str | None) -> Linker | None:
+    def _item_addresses(self, within: str | None, tool: str) -> Linker | None:
         """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None
-        return lambda payload: link.to_item(payload, within)
+        return lambda payload: link.to_item(payload, within, tool=tool)
 
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any
@@ -221,7 +228,7 @@ def keep_evidence_callback(
         failure = _failure_in(tool_response)
         if failure is not None:
             return retrieved.refuse_evidence(f"{name} failed: {failure}")
-        return retrieved.retain_evidence(tool_response, args)
+        return retrieved.retain_evidence(tool_response, args, tool=name)
 
     return _kept
 

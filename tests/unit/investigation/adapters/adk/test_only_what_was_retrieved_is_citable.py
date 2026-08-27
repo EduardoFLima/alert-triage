@@ -138,14 +138,40 @@ def test_failures_and_successes_accumulate_side_by_side() -> None:
 
 
 class _Links:
-    """A platform's addresses, standing in for the one bound to a real site."""
+    """A platform's addresses, standing in for the one bound to a real site.
 
-    def to_retrieval(self, args: Any) -> str | None:
+    It ignores which tool produced the retrieval. Which product a tool opens is
+    the platform adapter's decision and has tests of its own; what these
+    establish is that an address, once built, reaches the evidence.
+    """
+
+    def to_retrieval(self, args: Any, *, tool: str) -> str | None:
         return f"https://platform/search?query={args.get('query', '')}"
 
-    def to_item(self, payload: Any, within: str | None) -> str | None:
+    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
         item = payload.get("id") if isinstance(payload, dict) else None
         return f"https://platform/logs?event={item}" if item else within
+
+
+class _NamesTheTool:
+    """A linker that reports which tool it was told produced the retrieval."""
+
+    def to_retrieval(self, args: Any, *, tool: str) -> str | None:
+        return f"https://platform/{tool}"
+
+    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+        return within
+
+
+def test_the_tool_that_produced_a_retrieval_reaches_the_linker() -> None:
+    """A platform serves its products on different pages; the tool says which."""
+    retrieved = Retrieved(link=_NamesTheTool())
+
+    retrieved.retain_evidence(_aggregate(), tool="get_datadog_metric")
+
+    assert retrieved.resolve("call-1").url == (  # type: ignore[union-attr]
+        "https://platform/get_datadog_metric"
+    )
 
 
 def _identified(*items: str) -> dict[str, Any]:
