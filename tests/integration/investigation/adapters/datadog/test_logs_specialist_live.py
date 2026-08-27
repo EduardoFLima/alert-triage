@@ -18,10 +18,13 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
+from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment, connection_for
 from alert_triage.investigation.adapters.adk.credentials import (
+    ALTERNATE_API_KEY_VARIABLE,
     API_KEY_VARIABLE,
+    ENTERPRISE_VARIABLE,
     resolve_model_access,
 )
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
@@ -40,14 +43,33 @@ from alert_triage.triage.adapters.datadog.connection import (
     resolve_connection,
 )
 
+
+def _a_model_can_be_reached() -> bool:
+    """Whether this environment can reach a model at all, by either route.
+
+    Asked of the resolver rather than restated here. A deployment on the
+    enterprise platform holds no key and is no less able to run these; naming
+    ``GOOGLE_API_KEY`` in the gate would skip it for lacking something it is
+    not supposed to have. Deferring keeps the gate agreeing with the thing it
+    guards, including the alternate name the resolver already accepts.
+    """
+    try:
+        resolve_model_access()
+    except ConfigError:
+        return False
+    return True
+
+
 pytestmark = pytest.mark.skipif(
     not (
         os.environ.get(DD_API_KEY_VARIABLE)
         and os.environ.get(APP_KEY_VARIABLE)
-        and os.environ.get(API_KEY_VARIABLE)
+        and _a_model_can_be_reached()
     ),
     reason=(
-        f"needs real {DD_API_KEY_VARIABLE}, {APP_KEY_VARIABLE} and {API_KEY_VARIABLE}"
+        f"needs real {DD_API_KEY_VARIABLE} and {APP_KEY_VARIABLE}, and a way to "
+        f"reach a model: {API_KEY_VARIABLE} or {ALTERNATE_API_KEY_VARIABLE}, or "
+        f"{ENTERPRISE_VARIABLE} for the enterprise platform"
     ),
 )
 
@@ -100,7 +122,7 @@ def test_a_real_model_given_the_instruction_calls_them() -> None:
 def _investigated() -> Retrieved:
     """One real investigation, kept with this account's addresses attached."""
     connection = resolve_connection()
-    retrieved = Retrieved(link=DatadogLinks(connection.site))
+    retrieved = Retrieved(link=DatadogLinks(connection.web_host))
     run_with_adk(_deployment())(LOGS_SPECIALIST, retrieved, _target().describe())
     return retrieved
 

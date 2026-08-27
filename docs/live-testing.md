@@ -28,6 +28,22 @@ skipped" scrolls by unnoticed.
 
 A run costs a model call and a handful of platform calls.
 
+**Reaching the model without a key.** A deployment on the enterprise platform
+authenticates with the credentials it already holds, so `GOOGLE_API_KEY` is
+the wrong thing to ask it for. Either route satisfies the gate:
+
+```bash
+export DD_API_KEY=... DD_APP_KEY=...
+export GOOGLE_GENAI_USE_ENTERPRISE=true
+export GOOGLE_CLOUD_PROJECT=...        # optional; discovery names it otherwise
+export GOOGLE_CLOUD_LOCATION=...       # optional; the SDK defaults it
+```
+
+`GEMINI_API_KEY` works wherever `GOOGLE_API_KEY` does. The gate asks
+`resolve_model_access()` the same question a run asks it, rather than naming
+variables of its own, so a route the application accepts is a route these
+tests accept — and the skip message names all of them when it fires.
+
 ## Pointing them at the `.env` you already have
 
 The credentials have to reach the **process environment**: the skip is decided
