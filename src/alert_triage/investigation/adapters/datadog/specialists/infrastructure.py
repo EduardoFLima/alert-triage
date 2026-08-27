@@ -15,6 +15,9 @@ answer is retained as a retrieval that found nothing.
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    METRIC_QUERY_DIALECT,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -61,10 +64,11 @@ empty answer means it is not reported, which is not the same as the resource
 being healthy. A managed service reports a different set from a virtual
 machine, and neither reports everything.
 
-A metric query is an aggregator, a metric name, and a scope in braces:
-`avg:system.mem.pct_usable{{service:checkout}}`, with `max:` where a single
-saturated host matters more than the average across them. Always scope the
-query to the service you were told about and the window you were given.
+{METRIC_QUERY_DIALECT}
+
+Prefer `max:` over `avg:` where a single saturated host matters more than the
+average across them, which for resource pressure is usually the case: one host
+out of memory is an incident that an average over ten hosts hides.
 
 What to report:
 
