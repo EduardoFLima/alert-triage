@@ -37,13 +37,24 @@ def test_the_declaration_reaches_the_core_and_kubernetes_toolsets() -> None:
     }
 
 
-def test_the_declaration_permits_the_four_tools_it_needs_and_no_others() -> None:
+def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
     assert _permitted() == {
         "get_datadog_metric",
+        "get_datadog_metric_context",
         "search_datadog_hosts",
         "search_datadog_k8s_resources",
         "describe_datadog_k8s_resource",
     }
+
+
+def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
+    """A guessed metric name comes back empty, which now reads as a quiet signal."""
+    assert "get_datadog_metric_context" in _permitted()
+
+
+def test_the_instruction_says_to_discover_a_metric_before_querying_it() -> None:
+    assert "get_datadog_metric_context" in INFRASTRUCTURE_INSTRUCTION
+    assert "guess" in _flowed()
 
 
 def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:

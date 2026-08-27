@@ -23,14 +23,25 @@ def test_the_declaration_reports_under_the_trace_signal() -> None:
     assert TRACE_SPECIALIST.signal is Signal.TRACE
 
 
-def test_the_declaration_reaches_the_platforms_core_toolset_alone() -> None:
-    (toolset,) = TRACE_SPECIALIST.toolsets
-
-    assert toolset.name == "core"
+def test_the_declaration_reaches_the_platforms_core_and_apm_toolsets() -> None:
+    assert {toolset.name for toolset in TRACE_SPECIALIST.toolsets} == {"core", "apm"}
 
 
-def test_the_declaration_permits_the_two_tools_it_needs_and_no_others() -> None:
-    assert _permitted() == {"search_datadog_spans", "get_datadog_trace"}
+def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
+    assert _permitted() == {
+        "search_datadog_spans",
+        "get_datadog_trace",
+        "apm_query_trace",
+    }
+
+
+def test_the_declaration_can_rank_within_a_trace_rather_than_reading_it_whole() -> None:
+    """Which operation dominated is a ranking question, not a reading exercise."""
+    assert "apm_query_trace" in _permitted()
+
+
+def test_the_instruction_asks_it_to_rank_within_a_fetched_trace() -> None:
+    assert "apm_query_trace" in TRACE_INSTRUCTION
 
 
 def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
@@ -42,6 +53,7 @@ def test_the_instruction_asks_for_the_spans_before_the_trace() -> None:
     lowered = TRACE_INSTRUCTION.lower()
 
     assert lowered.index("search_datadog_spans") < lowered.index("get_datadog_trace")
+    assert lowered.index("get_datadog_trace") < lowered.index("apm_query_trace")
     assert "before" in lowered
 
 
