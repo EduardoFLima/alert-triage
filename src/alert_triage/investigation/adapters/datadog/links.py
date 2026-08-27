@@ -34,7 +34,7 @@ deserves one name.
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 LOG_EXPLORER_PATH = "logs"
 TRACE_EXPLORER_PATH = "apm/traces"
@@ -42,6 +42,7 @@ METRIC_EXPLORER_PATH = "metric/explorer"
 HOST_LIST_PATH = "infrastructure"
 KUBERNETES_EXPLORER_PATH = "orchestration/overview"
 SERVICE_CATALOGUE_PATH = "services"
+SERVICE_PAGE_PATH = "apm/entity"
 """The products a retrieval is opened in, each read from Datadog's own docs."""
 
 SEARCHABLE_DESTINATIONS = {
@@ -57,6 +58,19 @@ the same explorer contract and is not yet confirmed to honour it. A parameter
 it ignores costs a reader the pre-filled search, not the page.
 """
 
+SERVICE_DESTINATIONS = frozenset({"search_datadog_service_dependencies"})
+"""Tools whose evidence is about one service, and opens on that service's page.
+
+Datadog addresses a service as ``/apm/entity/service%3A<name>`` rather than by
+a query on the catalogue, so the name is part of the path and has to be read
+out of what the tool was called with. A retrieval that named no service falls
+back to the catalogue, because a service page for no service is a 404 and the
+catalogue is where a reader would look one up anyway.
+"""
+
+SERVICE_KEYS = ("service", "service_name", "serviceName", "filter_service")
+"""What a tool called the service it was asked about."""
+
 PAGE_DESTINATIONS = {
     "search_datadog_metrics": METRIC_EXPLORER_PATH,
     "get_datadog_metric": METRIC_EXPLORER_PATH,
@@ -64,7 +78,6 @@ PAGE_DESTINATIONS = {
     "search_datadog_hosts": HOST_LIST_PATH,
     "search_datadog_k8s_resources": KUBERNETES_EXPLORER_PATH,
     "describe_datadog_k8s_resource": KUBERNETES_EXPLORER_PATH,
-    "search_datadog_service_dependencies": SERVICE_CATALOGUE_PATH,
 }
 """Tools whose product page is documented but whose query parameters are not.
 
@@ -72,7 +85,11 @@ Opened as the page itself. Pre-filling it from a query nobody has established
 the syntax of is how a link arrives at a product with a filter it cannot parse.
 """
 
-DATADOG_DESTINATIONS = SEARCHABLE_DESTINATIONS | PAGE_DESTINATIONS
+DATADOG_DESTINATIONS = (
+    SEARCHABLE_DESTINATIONS
+    | PAGE_DESTINATIONS
+    | dict.fromkeys(SERVICE_DESTINATIONS, SERVICE_PAGE_PATH)
+)
 """Every tool this project can address, and where each opens."""
 
 UNADDRESSED_TOOLS = frozenset({"search_datadog_events"})
@@ -145,6 +162,8 @@ class DatadogLinks:
         """
         if tool in SEARCHABLE_DESTINATIONS:
             return self._searched(SEARCHABLE_DESTINATIONS[tool], args)
+        if tool in SERVICE_DESTINATIONS:
+            return self._service_page(_first(args, SERVICE_KEYS))
         page = PAGE_DESTINATIONS.get(tool)
         return None if page is None else f"https://{self._web_host}/{page}"
 
@@ -177,6 +196,13 @@ class DatadogLinks:
             parameters["from_ts"], parameters["to_ts"] = window
         parameters["live"] = "false"
         return f"https://{self._web_host}/{path}?{urlencode(parameters)}"
+
+    def _service_page(self, service: str | None) -> str:
+        """One service's own page, or the catalogue when the tool named none."""
+        if service is None:
+            return f"https://{self._web_host}/{SERVICE_CATALOGUE_PATH}"
+        named = quote(f"service:{service}", safe="")
+        return f"https://{self._web_host}/{SERVICE_PAGE_PATH}/{named}"
 
     def _anchors_items(self, tool: str) -> bool:
         """Whether this tool's product is documented to open one named item."""
