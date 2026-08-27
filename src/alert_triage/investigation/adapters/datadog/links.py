@@ -40,7 +40,7 @@ LOG_EXPLORER_PATH = "logs"
 TRACE_EXPLORER_PATH = "apm/traces"
 METRIC_EXPLORER_PATH = "metric/explorer"
 HOST_LIST_PATH = "infrastructure"
-KUBERNETES_EXPLORER_PATH = "orchestration/overview"
+KUBERNETES_POD_EXPLORER_PATH = "orchestration/explorer/pod"
 SERVICE_CATALOGUE_PATH = "services"
 SERVICE_PAGE_PATH = "apm/entity"
 """The products a retrieval is opened in, each read from Datadog's own docs."""
@@ -56,6 +56,19 @@ SEARCHABLE_DESTINATIONS = {
 Only the log form is established against a real account; the trace explorer is
 the same explorer contract and is not yet confirmed to honour it. A parameter
 it ignores costs a reader the pre-filled search, not the page.
+"""
+
+SERVICE_SCOPED_DESTINATIONS = {
+    "search_datadog_k8s_resources": KUBERNETES_POD_EXPLORER_PATH,
+    "describe_datadog_k8s_resource": KUBERNETES_POD_EXPLORER_PATH,
+}
+"""Tools whose product is a whole estate, narrowed to the service that alerted.
+
+The pod explorer opened at its own root lists every pod in every cluster, which
+is not evidence about anything. Scoping it is a ``service:`` term in a ``query``
+parameter, so the service is read out of what the tool was called with, exactly
+as the service page reads it — the two products want it in different places and
+it is the same fact.
 """
 
 SERVICE_DESTINATIONS = frozenset({"search_datadog_service_dependencies"})
@@ -76,8 +89,6 @@ PAGE_DESTINATIONS = {
     "get_datadog_metric": METRIC_EXPLORER_PATH,
     "get_datadog_metric_context": METRIC_EXPLORER_PATH,
     "search_datadog_hosts": HOST_LIST_PATH,
-    "search_datadog_k8s_resources": KUBERNETES_EXPLORER_PATH,
-    "describe_datadog_k8s_resource": KUBERNETES_EXPLORER_PATH,
 }
 """Tools whose product page is documented but whose query parameters are not.
 
@@ -87,6 +98,7 @@ the syntax of is how a link arrives at a product with a filter it cannot parse.
 
 DATADOG_DESTINATIONS = (
     SEARCHABLE_DESTINATIONS
+    | SERVICE_SCOPED_DESTINATIONS
     | PAGE_DESTINATIONS
     | dict.fromkeys(SERVICE_DESTINATIONS, SERVICE_PAGE_PATH)
 )
@@ -162,8 +174,11 @@ class DatadogLinks:
         """
         if tool in SEARCHABLE_DESTINATIONS:
             return self._searched(SEARCHABLE_DESTINATIONS[tool], args)
+        service = _first(args, SERVICE_KEYS)
+        if tool in SERVICE_SCOPED_DESTINATIONS:
+            return self._scoped(SERVICE_SCOPED_DESTINATIONS[tool], service)
         if tool in SERVICE_DESTINATIONS:
-            return self._service_page(_first(args, SERVICE_KEYS))
+            return self._service_page(service)
         page = PAGE_DESTINATIONS.get(tool)
         return None if page is None else f"https://{self._web_host}/{page}"
 
@@ -196,6 +211,13 @@ class DatadogLinks:
             parameters["from_ts"], parameters["to_ts"] = window
         parameters["live"] = "false"
         return f"https://{self._web_host}/{path}?{urlencode(parameters)}"
+
+    def _scoped(self, path: str, service: str | None) -> str:
+        """One product narrowed to the service that alerted, where it was named."""
+        page = f"https://{self._web_host}/{path}"
+        if service is None:
+            return page
+        return f"{page}?{urlencode({'query': f'service:{service}'})}"
 
     def _service_page(self, service: str | None) -> str:
         """One service's own page, or the catalogue when the tool named none."""

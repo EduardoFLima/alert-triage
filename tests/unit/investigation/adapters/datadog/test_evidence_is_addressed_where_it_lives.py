@@ -43,8 +43,8 @@ def _address(tool: str) -> str | None:
         ("get_datadog_metric", "/metric/explorer"),
         ("get_datadog_metric_context", "/metric/explorer"),
         ("search_datadog_hosts", "/infrastructure"),
-        ("search_datadog_k8s_resources", "/orchestration/overview"),
-        ("describe_datadog_k8s_resource", "/orchestration/overview"),
+        ("search_datadog_k8s_resources", "/orchestration/explorer/pod"),
+        ("describe_datadog_k8s_resource", "/orchestration/explorer/pod"),
         ("search_datadog_service_dependencies", "/apm/entity/"),
     ),
 )
@@ -124,3 +124,29 @@ def test_a_service_page_falls_back_to_the_catalogue_when_no_service_was_named() 
     )
 
     assert address == f"https://{HOST}/services"
+
+
+def test_a_workloads_evidence_opens_the_pod_explorer_scoped_to_its_service() -> None:
+    """A cluster-wide pod list is not evidence about the service that alerted."""
+    address = DatadogLinks(HOST).to_retrieval(
+        {"service": "some-service"}, tool="search_datadog_k8s_resources"
+    )
+
+    assert address == (
+        f"https://{HOST}/orchestration/explorer/pod?query=service%3Asome-service"
+    )
+
+
+def test_a_pod_explorer_opens_unscoped_when_no_service_was_named() -> None:
+    address = DatadogLinks(HOST).to_retrieval({}, tool="describe_datadog_k8s_resource")
+
+    assert address == f"https://{HOST}/orchestration/explorer/pod"
+
+
+def test_host_evidence_still_opens_the_host_list_rather_than_the_pod_explorer() -> None:
+    """Hosts and pods differ, and the service that alerted may run on no pods."""
+    address = DatadogLinks(HOST).to_retrieval(
+        {"service": "some-service"}, tool="search_datadog_hosts"
+    )
+
+    assert address == f"https://{HOST}/infrastructure"
