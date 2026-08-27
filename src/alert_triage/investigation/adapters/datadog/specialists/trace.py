@@ -1,15 +1,17 @@
 """The trace specialist, declared: its tools, its instruction, and its schema.
 
-Three tools and an order between them: spans are searched to find a request
-worth looking at, a trace is fetched by the identifier that search returned,
-and the spans within that trace are ranked rather than read. Stating the order
-in the instruction is what stops the specialist asking for a trace it has no
-identifier for.
+An order between its tools: spans are searched to find a request worth looking
+at, and a trace is fetched by the identifier that search returned. Stating the
+order in the instruction is what stops the specialist asking for a trace it has
+no identifier for.
 
-Ranking is why this specialist reaches ``apm`` as well as ``core``. "Which
-operation dominated" is a question about ordering a trace's spans by the time
-they own, and answering it by reading a whole waterfall is both unreliable on a
-deep trace and expensive in context.
+Where the account has Datadog's Preview ``apm`` toolset, a third step follows:
+the spans within that trace are ranked rather than read. "Which operation
+dominated" is a question about ordering a trace's spans by the time they own,
+and answering it by reading a whole waterfall is both unreliable on a deep
+trace and expensive in context. Without Preview the specialist reads the
+waterfall, which is what it has always done and is the one thing ``core`` can
+still offer here.
 
 This is the specialist whose signal a model can fake most convincingly. A
 plausible account of where a slow request spends its time can be written
@@ -21,6 +23,9 @@ nowhere to write a waterfall into.
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.datadog.specialists.preview import (
+    APM_TOOLSET_AVAILABLE,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -28,17 +33,17 @@ CORE_TOOLSET = "core"
 APM_TOOLSET = "apm"
 """The toolsets on the platform's server holding its trace tools.
 
-``apm`` is marked Preview by the platform, which is a live-test failure waiting
-to happen rather than a reason to avoid it: without it this specialist reads a
-waterfall instead of ranking it.
+``apm`` is reached only where the account has it; see ``preview``.
 """
 
 SPAN_SEARCH_TOOL = "search_datadog_spans"
 TRACE_TOOL = "get_datadog_trace"
-TRACE_QUERY_TOOL = "apm_query_trace"
-"""The trace tools this specialist may reach, and the only ones."""
+"""The trace tools every account has, whatever its Preview access."""
 
-TRACE_INSTRUCTION = f"""
+TRACE_QUERY_TOOL = "apm_query_trace"
+"""Ranking within a trace, which exists only in the Preview toolset."""
+
+_INSTRUCTION_TEMPLATE = """\
 You are a trace specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
 
@@ -53,15 +58,8 @@ The tools you have are Datadog's:
   request worth looking at and the identifier of the trace it belongs to.
 - `{TRACE_TOOL}` returns one whole trace by its identifier, which is where you
   see what a single request actually spent its time on.
-- `{TRACE_QUERY_TOOL}` filters, aggregates and ranks the spans within a trace,
-  which is how you find the operation that dominated it rather than reading
-  the whole waterfall yourself.
-
-Search before you fetch, and rank before you conclude. A trace is fetched by an
-identifier and the search is where an identifier comes from; once you hold a
-trace, rank its spans rather than reading it end to end, so that which
-operation dominated is something the platform told you rather than something
-you judged by eye.
+{ranking_tool}
+{ordering}
 
 A span query is facets joined by spaces —
 `service:checkout status:error`, `service:checkout @duration:>2s` for the slow
@@ -100,7 +98,38 @@ Rules you must follow:
 - Do not name a root cause, offer a hypothesis, state a confidence level, or
   recommend an action. Another agent reasons across signals and concludes;
   your job is to say accurately what the traces show.
-""".strip()
+"""
+
+
+_RANKING_TOOL_DESCRIBED = f"""
+- `{TRACE_QUERY_TOOL}` filters, aggregates and ranks the spans within a trace,
+  which is how you find the operation that dominated it rather than reading
+  the whole waterfall yourself.""".strip("\n")
+
+_ORDER_WITH_RANKING = """
+Search before you fetch, and rank before you conclude. A trace is fetched by an
+identifier and the search is where an identifier comes from; once you hold a
+trace, rank its spans rather than reading it end to end, so that which
+operation dominated is something the platform told you rather than something
+you judged by eye.""".strip("\n")
+
+_ORDER_WITHOUT_RANKING = """
+Search before you fetch: a trace is fetched by an identifier, and the search is
+where an identifier comes from. Read the trace you fetch carefully — which
+operation dominated is something you have to work out from the spans in it, so
+account for where the time went rather than naming the first slow thing you
+see.""".strip("\n")
+
+
+def _instruction(preview: bool) -> str:
+    """What this specialist is asked, given whether it can rank within a trace."""
+    return _INSTRUCTION_TEMPLATE.format(
+        SPAN_SEARCH_TOOL=SPAN_SEARCH_TOOL,
+        TRACE_TOOL=TRACE_TOOL,
+        MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
+        ranking_tool=f"{_RANKING_TOOL_DESCRIBED}\n" if preview else "",
+        ordering=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
+    ).strip()
 
 
 class TraceFinding(BaseModel):
@@ -133,14 +162,30 @@ class ReportedFindings(BaseModel):
     )
 
 
-TRACE_SPECIALIST = Specialist(
-    name="trace_specialist",
-    signal=Signal.TRACE,
-    instruction=TRACE_INSTRUCTION,
-    output_schema=ReportedFindings,
-    toolsets=(
-        Toolset(name=CORE_TOOLSET, tools=(SPAN_SEARCH_TOOL, TRACE_TOOL)),
-        Toolset(name=APM_TOOLSET, tools=(TRACE_QUERY_TOOL,)),
-    ),
-)
+def trace_specialist(*, preview: bool) -> Specialist:
+    """Declare the trace specialist for an account with or without Preview access.
+
+    Args:
+        preview: Whether the account may reach the ``apm`` toolset, and so may
+            rank a trace's spans rather than reading the waterfall.
+
+    Returns:
+        The declaration, reaching only tools the account can actually call and
+        instructed only in what those tools can establish.
+    """
+    core = Toolset(name=CORE_TOOLSET, tools=(SPAN_SEARCH_TOOL, TRACE_TOOL))
+    ranking = (Toolset(name=APM_TOOLSET, tools=(TRACE_QUERY_TOOL,)),) if preview else ()
+    return Specialist(
+        name="trace_specialist",
+        signal=Signal.TRACE,
+        instruction=_instruction(preview),
+        output_schema=ReportedFindings,
+        toolsets=(core, *ranking),
+    )
+
+
+TRACE_SPECIALIST = trace_specialist(preview=APM_TOOLSET_AVAILABLE)
 """The trace specialist as the crew sees it: one declaration, nothing else."""
+
+TRACE_INSTRUCTION = TRACE_SPECIALIST.instruction
+"""What the specialist is asked, for the access this deployment actually has."""

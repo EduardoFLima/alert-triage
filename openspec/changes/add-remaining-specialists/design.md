@@ -92,10 +92,30 @@ are the same tuple, and the cheaper of them holds.
 
 ## Risks / Trade-offs
 
-- **The `apm` toolset is Preview and may be renamed or withdrawn.** → The live
-  test fails loudly with the toolset named. Falling back costs the APM
-  specialist two tools and its declaration one edit; the golden signals come
-  from `core` either way.
+- **The `apm` toolset is Preview, and this account does not have it.** →
+  Resolved rather than mitigated. `specialists/preview.py` carries one switch,
+  `APM_TOOLSET_AVAILABLE`, currently `False`, and the APM and trace declarations
+  are built from it. Declaring a tool the server will refuse is worse than
+  omitting it: the model is told it has the tool, spends a call finding out it
+  does not, and the refusal is recorded as a failed retrieval — marking the
+  whole investigation incomplete over a capability nobody ever had. So the
+  switch drives the instruction as well as the toolsets, and neither half can
+  drift from the other.
+
+  What survives without Preview: golden signals, metric discovery, single-hop
+  dependencies, and deploy correlation — the last through
+  `search_datadog_events`, which returns deployments and infrastructure changes
+  rather than assembled change stories. Coarser, and enough for "did this start
+  after a deploy". The trace specialist reads a waterfall instead of ranking it,
+  which is what it did before `apm_query_trace` was considered at all.
+
+  What is genuinely lost: latency-bottleneck breakdown and the platform's own
+  Watchdog anomalies. `core` has no substitute for either — checked against the
+  tool reference rather than assumed — so both asks leave the instruction
+  entirely rather than becoming questions the specialist cannot answer.
+
+  The switch is a migration aid, not a permanent flag. When `apm` goes
+  generally available it comes out along with the branches it drives.
 - **Four sequential specialists press on `max_investigation_duration_seconds`
   (300s).** → Nothing enforces that bound yet (slice 12), so the practical risk
   in this slice is a slow run rather than a tripped breaker. Concurrency is the

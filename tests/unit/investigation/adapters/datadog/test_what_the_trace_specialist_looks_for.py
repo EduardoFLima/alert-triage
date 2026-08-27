@@ -11,6 +11,7 @@ from alert_triage.investigation.adapters.datadog.specialists.trace import (
     TRACE_SPECIALIST,
     ReportedFindings,
     TraceFinding,
+    trace_specialist,
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 
@@ -23,25 +24,51 @@ def test_the_declaration_reports_under_the_trace_signal() -> None:
     assert TRACE_SPECIALIST.signal is Signal.TRACE
 
 
-def test_the_declaration_reaches_the_platforms_core_and_apm_toolsets() -> None:
-    assert {toolset.name for toolset in TRACE_SPECIALIST.toolsets} == {"core", "apm"}
+def _tools(specialist: object) -> set[str]:
+    return {
+        tool
+        for toolset in specialist.toolsets  # type: ignore[attr-defined]
+        for tool in toolset.tools
+    }
 
 
-def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
-    assert _permitted() == {
+def test_without_preview_it_reaches_the_core_toolset_alone() -> None:
+    """An account without Preview must not be told it has a tool it cannot call."""
+    without = trace_specialist(preview=False)
+
+    assert {toolset.name for toolset in without.toolsets} == {"core"}
+    assert _tools(without) == {"search_datadog_spans", "get_datadog_trace"}
+
+
+def test_without_preview_ranking_is_neither_permitted_nor_named() -> None:
+    without = trace_specialist(preview=False)
+
+    assert "apm_query_trace" not in _tools(without)
+    assert "apm_query_trace" not in without.instruction
+
+
+def test_without_preview_it_is_still_told_to_account_for_where_time_went() -> None:
+    """It reads the waterfall instead of ranking it; the job does not change."""
+    without = trace_specialist(preview=False)
+
+    assert "before you fetch" in without.instruction.lower()
+    assert "where the time went" in without.instruction.lower()
+
+
+def test_with_preview_it_reaches_both_the_core_and_apm_toolsets() -> None:
+    with_preview = trace_specialist(preview=True)
+
+    assert {toolset.name for toolset in with_preview.toolsets} == {"core", "apm"}
+    assert _tools(with_preview) == {
         "search_datadog_spans",
         "get_datadog_trace",
         "apm_query_trace",
     }
 
 
-def test_the_declaration_can_rank_within_a_trace_rather_than_reading_it_whole() -> None:
+def test_with_preview_it_is_told_to_rank_within_a_fetched_trace() -> None:
     """Which operation dominated is a ranking question, not a reading exercise."""
-    assert "apm_query_trace" in _permitted()
-
-
-def test_the_instruction_asks_it_to_rank_within_a_fetched_trace() -> None:
-    assert "apm_query_trace" in TRACE_INSTRUCTION
+    assert "apm_query_trace" in trace_specialist(preview=True).instruction
 
 
 def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
@@ -53,8 +80,14 @@ def test_the_instruction_asks_for_the_spans_before_the_trace() -> None:
     lowered = TRACE_INSTRUCTION.lower()
 
     assert lowered.index("search_datadog_spans") < lowered.index("get_datadog_trace")
-    assert lowered.index("get_datadog_trace") < lowered.index("apm_query_trace")
     assert "before" in lowered
+
+
+def test_with_preview_the_instruction_orders_all_three_steps() -> None:
+    lowered = trace_specialist(preview=True).instruction.lower()
+
+    assert lowered.index("search_datadog_spans") < lowered.index("get_datadog_trace")
+    assert lowered.index("get_datadog_trace") < lowered.index("apm_query_trace")
 
 
 def test_the_instruction_asks_where_the_time_went_or_where_the_request_broke() -> None:

@@ -5,19 +5,27 @@ them: what the service's immediate neighbours were doing, and whether anything
 landed just before the alerts. Both are tools on this platform rather than
 inferences, which is why they are declarations here and not code.
 
-It reaches two toolsets. ``core`` holds the metric and dependency tools every
-account has; ``apm`` holds the ones that make the difference between reporting
-that latency rose and reporting where it went — plus the anomalies the platform
-had already found on its own.
+What it reaches depends on one thing outside it: whether the account has
+Datadog's Preview ``apm`` toolset. Without it the specialist still reports the
+golden signals, the neighbours, and what changed — the last through raw events
+rather than change stories, which is coarser and still answers "did this start
+after a deploy". What it cannot do without it is say where the latency went, or
+report what the platform had already noticed on its own; ``core`` offers no
+substitute for either, so those asks leave the instruction entirely rather than
+becoming tools the model is told about and cannot call.
 
-Everything is a module constant so that what the specialist asks for can be
-asserted by a unit test without constructing an agent or reaching a model. As
-with every specialist, the output schema offers no field an agent could write
-evidence into: it cites what it was shown, at either grain.
+Everything is a module constant or built from one, so that what the specialist
+asks for can be asserted by a unit test without constructing an agent or
+reaching a model. As with every specialist, the output schema offers no field
+an agent could write evidence into: it cites what it was shown, at either
+grain.
 """
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.datadog.specialists.preview import (
+    APM_TOOLSET_AVAILABLE,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -25,19 +33,14 @@ CORE_TOOLSET = "core"
 APM_TOOLSET = "apm"
 """The toolsets on the platform's server holding what this specialist reaches.
 
-``apm`` is marked Preview by the platform. That is a live-test failure waiting
-to happen rather than a reason to avoid it: without it the specialist reports
-that latency moved and never where the time went.
+``apm`` is reached only where the account has it; see ``preview``.
 """
 
 METRIC_TOOL = "get_datadog_metric"
 METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
 DEPENDENCIES_TOOL = "search_datadog_service_dependencies"
-BOTTLENECK_TOOL = "apm_latency_bottleneck_summary"
-WATCHDOG_TOOL = "apm_search_watchdog_stories"
-CHANGES_TOOL = "get_change_stories"
-CHANGE_SEARCH_TOOL = "semantic_search_change_stories"
-"""The tools this specialist may reach, and the only ones.
+EVENTS_TOOL = "search_datadog_events"
+"""The tools every account has, whatever its Preview access.
 
 ``METRIC_CONTEXT_TOOL`` is what keeps a guessed metric name from reading as a
 healthy service. A metric query the platform has never heard of comes back
@@ -45,12 +48,99 @@ empty, and an empty answer is deliberately not a failure — so without a way to
 ask which metrics a service actually reports, the specialist cannot tell "this
 service is fine" from "I made that name up".
 
+``EVENTS_TOOL`` carries deploy correlation on an account without Preview. It
+returns deployments, infrastructure changes and monitor alerts rather than the
+change stories assembled for an APM service: coarser, and enough, because the
+question is whether something landed near the alerts rather than what it
+consisted of.
+"""
+
+BOTTLENECK_TOOL = "apm_latency_bottleneck_summary"
+WATCHDOG_TOOL = "apm_search_watchdog_stories"
+CHANGES_TOOL = "get_change_stories"
+CHANGE_SEARCH_TOOL = "semantic_search_change_stories"
+"""The tools that exist only in the Preview toolset, reached only where granted.
+
 That these names exist and that the filter admits them is what the
 credential-gated live run establishes; a fake is built from the same
 assumptions this declaration is.
 """
 
-APM_INSTRUCTION = f"""
+_CORE_TOOLS_DESCRIBED = f"""\
+- `{METRIC_CONTEXT_TOOL}` tells you which metrics exist for a service and
+  what tags they carry.
+- `{METRIC_TOOL}` returns a metric's values over a time range.
+- `{DEPENDENCIES_TOOL}` names the service's immediate upstream and downstream
+  neighbours."""
+
+_PREVIEW_TOOLS_DESCRIBED = f"""\
+- `{BOTTLENECK_TOOL}` breaks a service's latency down into where the time was
+  spent, when you have seen latency move and want to say where it went.
+- `{WATCHDOG_TOOL}` returns the anomalies the platform itself already detected
+  for a service over a time range.
+- `{CHANGES_TOOL}` returns the deployments, feature-flag changes and
+  configuration changes recorded for a service over a time range.
+- `{CHANGE_SEARCH_TOOL}` searches those same changes in plain language, for
+  when you want the ones that could plausibly explain a movement you have
+  already observed rather than all of them."""
+
+_EVENTS_DESCRIBED = f"""\
+- `{EVENTS_TOOL}` returns the events recorded around a service — deployments,
+  infrastructure changes and monitor alerts — which is how you find out
+  whether something landed near the alerts."""
+
+_WATCHDOG_ASK = """\
+- Anything the platform already flagged for this service over the window. It
+  detected it independently of you, so it is worth reporting whether or not it
+  matches what you went looking for."""
+
+_BOTTLENECK_ASK = """\
+- Where the latency went, once you have seen it move: which part of the
+  service's own work the time was actually spent in."""
+
+_GOLDEN_SIGNALS_ASK = """\
+- The golden signals over the window, and when each movement began relative to
+  the alerts. If they held steady, say so — an unremarkable service is a
+  useful answer."""
+
+_NEIGHBOURS_ASK = """\
+- What the service's immediate neighbours were doing over the same window,
+  where the platform can say. Go one hop only: a neighbour is context for this
+  service's behaviour, and you are not investigating it. Do not investigate a
+  neighbour in its own right, and do not follow the dependency graph beyond
+  those immediate neighbours."""
+
+_CHANGE_ASK = """\
+- Whether a change to the service landed close enough to the alerts to be
+  worth a reader's attention, and when it landed. A change near the alerts is
+  a coincidence in time that you observed. It is not a cause, and you must not
+  present it as one."""
+
+
+def _tools_described(preview: bool) -> str:
+    """The tools this specialist is told it has, given what the account may reach."""
+    return "\n".join(
+        (
+            _CORE_TOOLS_DESCRIBED,
+            _PREVIEW_TOOLS_DESCRIBED if preview else _EVENTS_DESCRIBED,
+        )
+    )
+
+
+def _what_to_report(preview: bool) -> str:
+    """What it is asked to report, minus anything it has no tool to establish."""
+    asks = (
+        (_WATCHDOG_ASK,) if preview else (),
+        (_GOLDEN_SIGNALS_ASK,),
+        (_BOTTLENECK_ASK,) if preview else (),
+        (_NEIGHBOURS_ASK, _CHANGE_ASK),
+    )
+    return "\n".join(ask for group in asks for ask in group)
+
+
+def _instruction(preview: bool) -> str:
+    """What this specialist is asked to look for, in the terms of this platform."""
+    return f"""
 You are an APM specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
 
@@ -60,20 +150,7 @@ window: what moved, by how much, and when it moved relative to the alerts.
 
 The tools you have are Datadog's:
 
-- `{METRIC_CONTEXT_TOOL}` tells you which metrics exist for a service and
-  what tags they carry.
-- `{METRIC_TOOL}` returns a metric's values over a time range.
-- `{BOTTLENECK_TOOL}` breaks a service's latency down into where the time was
-  spent, when you have seen latency move and want to say where it went.
-- `{WATCHDOG_TOOL}` returns the anomalies the platform itself already detected
-  for a service over a time range.
-- `{DEPENDENCIES_TOOL}` names the service's immediate upstream and downstream
-  neighbours.
-- `{CHANGES_TOOL}` returns the deployments, feature-flag changes and
-  configuration changes recorded for a service over a time range.
-- `{CHANGE_SEARCH_TOOL}` searches those same changes in plain language, for
-  when you want the ones that could plausibly explain a movement you have
-  already observed rather than all of them.
+{_tools_described(preview)}
 
 Ask `{METRIC_CONTEXT_TOOL}` which metrics the service reports before you
 query one. Do not guess a metric name: a name this service does not report
@@ -89,21 +166,7 @@ service you were told about and the window you were given.
 
 What to report:
 
-- Anything the platform already flagged for this service over the window. It
-  detected it independently of you, so it is worth reporting whether or not it
-  matches what you went looking for.
-- The golden signals over the window, and when each movement began relative to
-  the alerts. If they held steady, say so — an unremarkable service is a
-  useful answer.
-- What the service's immediate neighbours were doing over the same window,
-  where the platform can say. Go one hop only: a neighbour is context for this
-  service's behaviour, and you are not investigating it. Do not investigate a
-  neighbour in its own right, and do not follow the dependency graph beyond
-  those immediate neighbours.
-- Whether a change to the service landed close enough to the alerts to be
-  worth a reader's attention, and when it landed. A change near the alerts is
-  a coincidence in time that you observed. It is not a cause, and you must not
-  present it as one.
+{_what_to_report(preview)}
 
 Rules you must follow:
 
@@ -161,20 +224,46 @@ class ReportedFindings(BaseModel):
     )
 
 
-APM_SPECIALIST = Specialist(
-    name="apm_specialist",
-    signal=Signal.APM,
-    instruction=APM_INSTRUCTION,
-    output_schema=ReportedFindings,
-    toolsets=(
-        Toolset(
-            name=CORE_TOOLSET,
-            tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL),
-        ),
+def apm_specialist(*, preview: bool) -> Specialist:
+    """Declare the APM specialist for an account with or without Preview access.
+
+    Args:
+        preview: Whether the account may reach the ``apm`` toolset.
+
+    Returns:
+        The declaration, reaching only tools the account can actually call and
+        instructed only in what those tools can establish.
+    """
+    core = Toolset(
+        name=CORE_TOOLSET,
+        tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL)
+        + (() if preview else (EVENTS_TOOL,)),
+    )
+    if not preview:
+        return _declared(core)
+    return _declared(
+        core,
         Toolset(
             name=APM_TOOLSET,
             tools=(BOTTLENECK_TOOL, WATCHDOG_TOOL, CHANGES_TOOL, CHANGE_SEARCH_TOOL),
         ),
-    ),
-)
+    )
+
+
+def _declared(*toolsets: Toolset) -> Specialist:
+    """The declaration around whichever toolsets the account turned out to have."""
+    preview = any(toolset.name == APM_TOOLSET for toolset in toolsets)
+    return Specialist(
+        name="apm_specialist",
+        signal=Signal.APM,
+        instruction=_instruction(preview),
+        output_schema=ReportedFindings,
+        toolsets=toolsets,
+    )
+
+
+APM_SPECIALIST = apm_specialist(preview=APM_TOOLSET_AVAILABLE)
 """The APM specialist as the crew sees it: one declaration, nothing else."""
+
+APM_INSTRUCTION = APM_SPECIALIST.instruction
+"""What the specialist is asked, for the access this deployment actually has."""
