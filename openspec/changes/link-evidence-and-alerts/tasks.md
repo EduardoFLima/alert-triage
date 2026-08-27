@@ -85,21 +85,46 @@ of the module's own path, per AGENTS.md.
 - [x] 7.2 In `tests/integration/investigation/adapters/datadog/test_logs_specialist_live.py`,
   assert an address built from a real retrieval answers, and record in the test
   what key the live payload identifies an entry by — the design's open question.
-- [ ] 7.3 Run the live checks against an account and note the outcome in the
+- [x] 7.3 Run the live checks against an account and note the outcome in the
   change before archiving. A URL form that fails here is the one thing no fake
   establishes.
 
-  **Not yet run.** The checks are written and skip cleanly without credentials;
-  the environment this change was implemented in has no Datadog or model key,
-  so nothing has followed a built URL against a real account. Both URL forms
-  the change ships — `/monitors/{id}` and the Log Explorer search — are
-  therefore still established only as strings a unit test composed, which is
-  exactly the standing this change exists to raise. Run
-  `uv run pytest tests/integration/triage/adapters/datadog
-  tests/integration/investigation/adapters/datadog` with
-  `DD_API_KEY`, `DD_APP_KEY` and `GOOGLE_API_KEY` set, and record here what
-  answered and which key a live log payload identifies an entry by — the
-  second test prints it.
+  **Run against a real account. Both URL forms open.** Six of the seven checks
+  passed and one skipped; nothing failed. The declared log tools exist on
+  Datadog's server and its filter admits them, and a real model given the
+  instruction calls them. A single-instant window over a service with ~26k
+  errors in six hours produced four pattern findings with counts and start
+  times, over a window the model widened itself.
+
+  The alert link — `/monitors/{id}` scoped by `from_ts`/`to_ts` — opens, as
+  does the Log Explorer search built for a retrieval. The account under test is
+  served from a sub-domain of its own rather than `app`, so these were the
+  first links established against a host `DD_WEB_SUBDOMAIN` resolved.
+
+  **The open question is answered, and the answer is "none of them".** A live
+  `search_datadog_logs` result arrives as the raw MCP envelope — a payload
+  whose only keys are `content` and `isError`, everything inside a single text
+  block. Nothing unwraps it, so no discrete items are retained,
+  `call-N/item-M` never resolves, and every retrieval degrades to the
+  retrieval-level `call-N` address. `ITEM_KEYS` and per-item links are
+  unexercised code.
+
+  Nothing breaks: with no items to point at, the model cites `call-N`, which
+  is what the citation rules already ask of it, and that address opens. The
+  optimisation is simply never taken.
+
+  `test_what_key_a_live_log_payload_identifies_an_item_by` therefore always
+  skips, and it skips saying the logs were quiet — which is misleading, since
+  it does so just as readily against a service logging thousands of errors.
+  Unwrapping the envelope, and making that skip say what actually happened,
+  are follow-up work rather than part of this change.
+
+  Reproduce with `uv run --env-file .env pytest
+  tests/integration/triage/adapters/datadog
+  tests/integration/investigation/adapters/datadog -rs`, with `DD_API_KEY` and
+  `DD_APP_KEY` set and a way to reach a model — `GOOGLE_API_KEY`,
+  `GEMINI_API_KEY`, or `GOOGLE_GENAI_USE_ENTERPRISE` for the enterprise
+  platform. See [`docs/live-testing.md`](../../../docs/live-testing.md).
 
 ## 8. Close the change
 
