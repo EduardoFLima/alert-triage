@@ -118,18 +118,23 @@ and because a test that has never failed has not been shown to test anything.
 - [ ] 9.3 Run it against a real account. Record which toolsets resolved — in
       particular whether `apm` is reachable and named as expected — and how many
       tool calls each specialist made.
-- [ ] 9.4 If `apm` is unreachable, it now costs two specialists rather than one:
-      drop its four tools from the APM declaration, keeping the golden signals
-      and dependencies from `core`, and drop `apm_query_trace` from the trace
-      declaration, leaving it to read a whole trace rather than rank it. Note
-      the fallback in design.md.
+- [x] 9.4 `apm` is unreachable on this account: it is Preview and access was not
+      granted. Both specialists now build from `APM_TOOLSET_AVAILABLE` in
+      `specialists/preview.py`, which drives toolsets and instruction together so
+      neither can claim a tool the other lacks. Deploy correlation survives on
+      `core` through `search_datadog_events`; latency breakdown and Watchdog
+      anomalies have no `core` substitute and leave the instruction. Recorded in
+      design.md. Flipping the switch to `True` is the whole re-enablement.
+- [ ] 9.8 When Preview access is granted, flip `APM_TOOLSET_AVAILABLE` and run
+      9.3 again. The unit tests already assert both shapes, so the only thing
+      unproven at that point is whether the server admits the four `apm` names.
 - [ ] 9.5 Record the live run's tool-call counts in the change, as the first
       real evidence for `max_tool_calls_per_agent` and the open question about
       `search_datadog_hosts`.
-- [ ] 9.6 Confirm the four tools added after the docs check are real:
-      `get_datadog_metric_context` on `core`, and `apm_search_watchdog_stories`,
-      `semantic_search_change_stories` and `apm_query_trace` on `apm`. A
-      published name is not an admitted one, and these have never run.
+- [ ] 9.6 Confirm the `core` tools added after the docs check are real:
+      `get_datadog_metric_context` and `search_datadog_events`. A published name
+      is not an admitted one, and neither has ever run. The three `apm` names
+      wait on 9.8.
 - [ ] 9.7 Check whether metric discovery actually changes what the APM and
       infrastructure specialists report. The claim is that a guessed metric name
       returns empty and now reads as a quiet signal; the live run is where that
