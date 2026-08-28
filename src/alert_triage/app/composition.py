@@ -35,6 +35,7 @@ from alert_triage.investigation.adapters.adk.investigator import (
     run_with_adk,
 )
 from alert_triage.investigation.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.datadog.links import DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
 from alert_triage.investigation.ports.investigator import Investigator
 from alert_triage.notification.adapters.email.notifier import EmailNotifier
@@ -198,6 +199,7 @@ def build_investigator(
 
     return AdkInvestigator(
         crew=crew_for(investigation.specialists),
+        links=DatadogLinks(datadog_connection.web_host),
         run_specialist=run_with_adk(
             Deployment(
                 endpoint=mcp_endpoint(datadog_connection.site),

@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import sys
@@ -42,13 +43,22 @@ def _lint_imports() -> str:
 
 
 def _report() -> subprocess.CompletedProcess[str]:
-    """Run every contract in ``.importlinter`` and hand back the whole report."""
+    """Run every contract in ``.importlinter`` and hand back the whole report.
+
+    ``NO_COLOR`` because the report is parsed, not read: import-linter colours
+    the verdict even when its output is captured, and an escape sequence
+    between the contract's name and ``KEPT`` is enough for the parse below to
+    find nothing. A version that ignored the convention would leave this test
+    failing loudly rather than passing silently, which is the direction this
+    test exists to fail in.
+    """
     return subprocess.run(
         [_lint_imports()],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, "NO_COLOR": "1"},
     )
 
 

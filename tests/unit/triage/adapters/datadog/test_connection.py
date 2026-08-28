@@ -3,6 +3,7 @@ import pytest
 from alert_triage.configuration.port import ConfigError
 from alert_triage.triage.adapters.datadog.connection import (
     DEFAULT_SITE,
+    DEFAULT_WEB_SUBDOMAIN,
     DatadogConnection,
     resolve_connection,
 )
@@ -28,6 +29,27 @@ def test_credentials_resolve_from_the_environment() -> None:
     assert connection == DatadogConnection(
         site="datadoghq.com", api_key="api-key", app_key="app-key"
     )
+
+
+def test_the_web_subdomain_falls_back_to_the_documented_default() -> None:
+    connection = resolve_connection(env=CREDENTIALS)
+
+    assert connection.web_subdomain == DEFAULT_WEB_SUBDOMAIN == "app"
+    assert connection.web_host == "app.datadoghq.com"
+
+
+def test_an_organisation_on_its_own_subdomain_is_addressed_there() -> None:
+    connection = resolve_connection(
+        env=CREDENTIALS | {"DD_SITE": "datadoghq.eu", "DD_WEB_SUBDOMAIN": "foobar"}
+    )
+
+    assert connection.web_host == "foobar.datadoghq.eu"
+
+
+def test_the_web_subdomain_is_independent_of_the_region() -> None:
+    connection = resolve_connection(env=CREDENTIALS | {"DD_SITE": "datadoghq.eu"})
+
+    assert connection.web_host == "app.datadoghq.eu"
 
 
 def test_missing_credentials_are_reported_as_required() -> None:

@@ -42,6 +42,7 @@ from alert_triage.triage.adapters.datadog.connection import (
     API_KEY_VARIABLE,
     APP_KEY_VARIABLE,
     SITE_VARIABLE,
+    WEB_SUBDOMAIN_VARIABLE,
 )
 from alert_triage.triage.adapters.sqlite import LEDGER_PATH_VARIABLE
 
@@ -58,6 +59,7 @@ CONNECTION_VARIABLES = (
     API_KEY_VARIABLE,
     APP_KEY_VARIABLE,
     SITE_VARIABLE,
+    WEB_SUBDOMAIN_VARIABLE,
     MODEL_API_KEY_VARIABLE,
     ENTERPRISE_VARIABLE,
     PROJECT_VARIABLE,

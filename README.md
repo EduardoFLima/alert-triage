@@ -102,7 +102,8 @@ A run reads everything it needs from its environment:
 - `SCOPE_OWNER` — whose alerts are in scope. Mandatory, and the one setting
   that may instead live in `config.yaml`.
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
-  authenticates with. `DD_SITE` if the account is not on `datadoghq.com`.
+  authenticates with. `DD_SITE` if the account is not on `datadoghq.com`, and
+  `DD_WEB_SUBDOMAIN` if its web app is not served from `app`.
 - `GOOGLE_API_KEY` — what the model an investigation reasons on costs to
   reach. A deployment on the enterprise platform sets
   `GOOGLE_GENAI_USE_ENTERPRISE=true` instead and needs no key.
@@ -140,8 +141,31 @@ Useful selections while working:
 ```bash
 uv run pytest -m unit            # fast set: no network, no external service
 uv run pytest -m integration     # integration-scope tests only
-uv run ruff format src tests     # apply formatting
+uv run pytest --no-cov           # skip coverage; the tightest red/green loop
+uv run pytest -x --lf            # stop at the first failure, then retry just it
+uv run pytest -rs                # say which tests skipped, and why
+uv run ruff check --fix src tests   # apply the fixable lint
+uv run ruff format src tests        # apply formatting
+uv run lint-imports                 # the architecture contracts, on their own
 ```
+
+Scope markers come from the directory a test lives in, never from a decorator,
+so `-m unit` and `-m integration` need nothing kept in sync by hand.
+
+Narrow further by path or by name — a file, a single test, or every test whose
+name matches:
+
+```bash
+uv run pytest tests/unit/triage/domain/test_what_a_report_says.py
+uv run pytest tests/unit/triage/domain/test_incident.py::test_an_incident_that_has_never_been_reported_says_so
+uv run pytest -k "link or address"
+```
+
+Seven tests are gated on real credentials and skip without them, which is why
+a fresh clone and CI stay green — they cover what no fake can answer, like
+whether a URL this project composes is a route the platform actually accepts.
+How to run them, and how to point them at an existing `.env`, is in
+[`docs/live-testing.md`](docs/live-testing.md).
 
 Engineering practices — TDD, clean code, the import rule — are in
 [`AGENTS.md`](AGENTS.md), which applies to humans and coding agents alike.

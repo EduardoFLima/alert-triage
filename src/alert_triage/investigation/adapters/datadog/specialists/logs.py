@@ -24,8 +24,13 @@ LOGS_TOOLSET = "core"
 """The toolset on the platform's server holding its log tools."""
 
 LOG_SEARCH_TOOL = "search_datadog_logs"
-LOG_AGGREGATE_TOOL = "aggregate_datadog_logs"
+LOG_ANALYSIS_TOOL = "analyze_datadog_logs"
 """The log tools this specialist may reach, and the only ones.
+
+Named for analysis rather than aggregation, after the tool it holds. That also
+keeps the constant clear of this project's own use of "aggregate", which is a
+grain of evidence — a result with no discrete items to cite — and not a kind of
+tool.
 
 Widening this is a word in the declaration below. It is also the one thing a
 fake cannot verify — that these names exist and that the filter admits them is
@@ -42,24 +47,38 @@ find: what recurs, how often, and when it started relative to the alerts.
 
 The tools you have are Datadog's:
 
-- `{LOG_SEARCH_TOOL}` returns individual log events matching a query.
-- `{LOG_AGGREGATE_TOOL}` counts them, grouped, when you want the shape of a
-  pattern rather than its instances.
+- `{LOG_SEARCH_TOOL}` returns individual log events matching a Datadog log
+  query. Its `use_log_patterns` returns clusters of similar messages instead of
+  raw events, which is what recurs, already grouped — usually the quickest way
+  to the answer you are being asked for.
+- `{LOG_ANALYSIS_TOOL}` runs SQL over a virtual `logs` table holding the events
+  its own Datadog log query admits, when you want the shape of a pattern —
+  a count, a breakdown by status or host — rather than its instances.
 
-Both take a Datadog log query. That syntax is `service:checkout status:error`
-— facets joined by spaces, `-` to negate, `*` to wildcard, `@` for attributes
-from structured logs (`@http.status_code:503`), and `AND`/`OR` where you need
-them explicit. Always scope the query to the service you were told about and
-the window you were given.
+A Datadog log query is `service:checkout status:error` — facets joined by
+spaces, `-` to negate, `*` to wildcard, `@` for attributes from structured logs
+(`@http.status_code:503`), and `AND`/`OR` where you need them explicit. Always
+scope the query to the service you were told about and the window you were
+given.
+
+The window you are given may be a single instant: a one-alert incident has an
+identical start and end. Treat it as the moment the trouble is centred on and
+look at a span bracketing it — the surrounding minutes to hours — never an
+empty range. A time range whose end does not lie after its start returns
+nothing.
+
+Widen it in the `from` and `to` arguments, never in SQL. Those two are what
+decide which events the table holds, so a time predicate written into the query
+narrows what has already been selected rather than reaching further back.
 
 Rules you must follow:
 
 - Search before you report. You may search more than once, narrowing your
   query as you learn what the service is logging.
 - Every result you are given back is identified. A retrieval is `call-N`, and
-  each individual entry within it is `call-N/item-M`. Cite what shows your
-  observation: `call-N/item-M` for a pattern you saw in particular entries,
-  and `call-N` for an aggregate, where there are no individual entries to
+  each individual item within it is `call-N/item-M`. Cite what shows your
+  observation: `call-N/item-M` for a pattern you saw in particular items,
+  and `call-N` for an aggregate, where there are no individual items to
   point at. Cite at most {MAX_EXAMPLES_PER_FINDING} per observation, choosing
   ones that represent the pattern. An observation citing neither will be
   discarded.
@@ -86,12 +105,12 @@ class LogsFinding(BaseModel):
         description="What was observed: the pattern, its rate, and when it began."
     )
     occurrences: int = Field(
-        description="How many matching entries were seen in total.", ge=0
+        description="How many matching items were seen in total.", ge=0
     )
     cites: list[str] = Field(
         description=(
             "What shows this pattern, by the identifiers you were given: "
-            "`call-N/item-M` for individual entries, `call-N` for an aggregate. "
+            "`call-N/item-M` for individual items, `call-N` for an aggregate. "
             f"At most {MAX_EXAMPLES_PER_FINDING} of them."
         )
     )
@@ -111,6 +130,6 @@ LOGS_SPECIALIST = Specialist(
     signal=Signal.LOGS,
     instruction=LOGS_INSTRUCTION,
     output_schema=ReportedFindings,
-    toolsets=(Toolset(name=LOGS_TOOLSET, tools=(LOG_SEARCH_TOOL, LOG_AGGREGATE_TOOL)),),
+    toolsets=(Toolset(name=LOGS_TOOLSET, tools=(LOG_SEARCH_TOOL, LOG_ANALYSIS_TOOL)),),
 )
 """The Logs specialist as the crew sees it: one declaration, nothing else."""

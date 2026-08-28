@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from alert_triage.configuration.adapters.env_file import (
     DEFAULT_ENV_FILE,
     resolve_environment,
@@ -74,9 +72,9 @@ def test_a_name_the_file_leaves_unset_is_absent_rather_than_empty(
 
 
 def test_the_environment_is_read_from_the_process_by_default(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, process_environment: dict[str, str]
 ) -> None:
-    monkeypatch.setenv("SCOPE_OWNER", "from-the-process")
+    process_environment["SCOPE_OWNER"] = "from-the-process"
 
     environment = resolve_environment(_write(tmp_path, "DD_API_KEY=from-the-file\n"))
 

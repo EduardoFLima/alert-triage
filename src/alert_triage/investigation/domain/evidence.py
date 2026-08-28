@@ -59,7 +59,7 @@ def findings_from(
     """Build findings from what a specialist reported, keeping only what checks out.
 
     Args:
-        payloads: What the agent produced, one entry per finding.
+        payloads: What the agent produced, one per finding.
         retrieved: What this investigation actually retrieved.
         signal: The dimension the specialist that reported these looked at.
 

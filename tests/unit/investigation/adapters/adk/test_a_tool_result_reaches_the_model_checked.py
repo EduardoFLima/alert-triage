@@ -12,8 +12,8 @@ import pytest
 
 from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
-    calls_logged,
-    evidence_kept,
+    keep_evidence_callback,
+    log_tool_call,
 )
 from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED, findings_from
@@ -38,7 +38,7 @@ PERMITTED = frozenset({"search_datadog_logs", "aggregate_datadog_logs"})
 
 
 def _after(retrieved: Retrieved, response: Any, tool: _Tool | None = None) -> Any:
-    return evidence_kept(retrieved, PERMITTED)(
+    return keep_evidence_callback(retrieved, PERMITTED)(
         tool=tool or _Tool(),
         args={"query": "service:checkout status:error"},
         tool_context=None,
@@ -178,7 +178,7 @@ def test_the_call_is_logged_before_it_is_made_and_nothing_else_happens(
 ) -> None:
     """Slice 12's seat, with a test already on it."""
     with caplog.at_level(logging.INFO):
-        refused = calls_logged()(
+        refused = log_tool_call()(
             tool=_Tool(), args={"query": "status:error"}, tool_context=None
         )
 
@@ -204,3 +204,59 @@ def test_a_framework_tool_that_fails_is_not_a_failed_retrieval() -> None:
     _after(retrieved, {"error": "transfer refused"}, _Tool("transfer_to_agent"))
 
     assert retrieved.failures == ()
+
+
+class _Args:
+    """Keeps what a retrieval was told the tool was called with."""
+
+    def __init__(self) -> None:
+        self.seen: list[Any] = []
+
+    def to_retrieval(self, args: Any) -> str | None:
+        self.seen.append(args)
+        return "https://platform/search"
+
+    def to_item(self, payload: Any, within: str | None) -> str | None:
+        return within
+
+
+def test_the_arguments_a_tool_was_called_with_reach_what_keeps_its_result() -> None:
+    """The query is in them, and a retrieval is addressed by its query."""
+    links = _Args()
+    retrieved = Retrieved(link=links)
+
+    _after(retrieved, _result("OOMKilled"))
+
+    assert links.seen == [{"query": "service:checkout status:error"}]
+
+
+def test_a_failed_retrieval_is_still_refused_rather_than_addressed() -> None:
+    """Nothing was retrieved, so there is nothing to go and look at."""
+    links = _Args()
+    retrieved = Retrieved(link=links)
+
+    offered = _after(retrieved, {"isError": True, "content": []})
+
+    assert offered["retrieval_failed"] is True
+    assert links.seen == []
+    assert retrieved.resolve("call-1") is None
+
+
+def test_the_model_is_shown_no_address_it_could_copy_into_a_finding() -> None:
+    """The one field a reader trusts most, kept out of the one place least trusted."""
+    retrieved = Retrieved(link=_Args())
+
+    offered = _after(retrieved, _result("OOMKilled"))
+
+    (item,) = offered["items"]
+    assert set(item) == {"id", "instant", "summary", "data"}
+    assert "https://" not in str(offered)
+
+
+def test_an_aggregate_is_offered_without_an_address_either() -> None:
+    retrieved = Retrieved(link=_Args())
+
+    offered = _after(retrieved, {"content": [{"type": "text", "text": '{"count": 4}'}]})
+
+    assert set(offered) == {"call", "items", "summary", "data", "cite_as"}
+    assert "https://" not in str(offered)

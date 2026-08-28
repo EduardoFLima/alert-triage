@@ -153,21 +153,30 @@ def _finding_lines(finding: Finding) -> list[str]:
     occurrences = f"seen {finding.occurrences} time" + (
         "" if finding.occurrences == 1 else "s"
     )
-    return [
-        f"- [{finding.signal}] {finding.observation} ({occurrences})",
-        *(f"    {_evidence_line(item)}" for item in finding.examples),
-    ]
+    lines = [f"- [{finding.signal}] {finding.observation} ({occurrences})"]
+    for item in finding.examples:
+        lines.extend(f"    {line}" for line in _evidence_lines(item))
+    return lines
 
 
-def _evidence_line(item: EvidenceItem) -> str:
+def _evidence_lines(item: EvidenceItem) -> list[str]:
     """One piece of evidence, reproduced as the platform reported it.
 
     An item with no instant is an aggregate — a graph, a map, a count over a
     window — and reads as one rather than as a line missing its timestamp.
+
+    An address the platform gave for it stands on a line of its own, below what
+    was retrieved rather than inside it. A channel that turns addresses into
+    links finds a whole one, and one that does not shows a reader something
+    they can copy — and neither ends up inside the text a summary is shortened
+    within, which is a link leading somewhere the evidence is not.
     """
-    if item.instant is None:
-        return item.summary
-    return f"{item.instant.isoformat()} {item.summary}"
+    read = (
+        item.summary
+        if item.instant is None
+        else f"{item.instant.isoformat()} {item.summary}"
+    )
+    return [read] if item.url is None else [read, item.url]
 
 
 def _subject(incident: Incident) -> str:
