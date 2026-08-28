@@ -140,7 +140,7 @@ def test_a_retrieval_with_no_query_is_still_addressed() -> None:
     address = _links().to_retrieval({}, tool=LOG_SEARCH)
 
     assert address is not None
-    assert address.startswith("https://app.datadoghq.com/logs?")
+    assert address.startswith("https://app.datadoghq.com/logs")
 
 
 def test_an_account_on_another_site_never_receives_a_com_address() -> None:

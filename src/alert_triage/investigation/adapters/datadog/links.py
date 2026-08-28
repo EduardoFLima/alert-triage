@@ -31,10 +31,13 @@ page is the whole point: the broken link this replaced degraded to nowhere.
 deserves one name.
 """
 
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 from urllib.parse import quote, urlencode
+
+from alert_triage.investigation.contract import InvestigationTarget
 
 LOG_EXPLORER_PATH = "logs"
 TRACE_EXPLORER_PATH = "apm/traces"
@@ -84,10 +87,34 @@ catalogue is where a reader would look one up anyway.
 SERVICE_KEYS = ("service", "service_name", "serviceName", "filter_service")
 """What a tool called the service it was asked about."""
 
-PAGE_DESTINATIONS = {
+METRIC_QUERY = re.compile(
+    r"^\s*(?P<agg>[a-z0-9_]+):(?P<metric>[^{}\s]+)\{(?P<scope>[^{}]*)\}"
+)
+"""How a Datadog metric query names its aggregator, its metric and its scope.
+
+The three the metric explorer wants under parameters of its own, which is why
+the query the model composed is taken apart rather than passed along whole. A
+query this cannot read costs the metric, never the link: the explorer still
+opens on the incident's service and window.
+"""
+
+EXPLORER_AGGREGATOR = "avg"
+"""What the explorer is told to aggregate by when the query named nothing."""
+
+METRIC_DESTINATIONS = {
     "search_datadog_metrics": METRIC_EXPLORER_PATH,
     "get_datadog_metric": METRIC_EXPLORER_PATH,
     "get_datadog_metric_context": METRIC_EXPLORER_PATH,
+}
+"""Tools whose evidence is one metric, opened on that metric over the window.
+
+The explorer wants the metric, its scope and its aggregator under parameters of
+their own, so the query the model composed is taken apart rather than passed
+along. This is the one destination here established from neither the platform's
+documentation nor its account.
+"""
+
+PAGE_DESTINATIONS = {
     "search_datadog_hosts": HOST_LIST_PATH,
 }
 """Tools whose product page is documented but whose query parameters are not.
@@ -99,6 +126,7 @@ the syntax of is how a link arrives at a product with a filter it cannot parse.
 DATADOG_DESTINATIONS = (
     SEARCHABLE_DESTINATIONS
     | SERVICE_SCOPED_DESTINATIONS
+    | METRIC_DESTINATIONS
     | PAGE_DESTINATIONS
     | dict.fromkeys(SERVICE_DESTINATIONS, SERVICE_PAGE_PATH)
 )
@@ -158,39 +186,66 @@ class DatadogLinks:
         """
         self._web_host = web_host
 
-    def to_retrieval(self, args: Mapping[str, Any], *, tool: str) -> str | None:
+    def to_retrieval(
+        self,
+        args: Mapping[str, Any],
+        *,
+        tool: str,
+        about: InvestigationTarget | None = None,
+    ) -> str | None:
         """Where the retrieval one tool produced is opened.
 
         Args:
-            args: What the tool was called with. The query and the window are
-                read out of it; what cannot be read is left off rather than
-                guessed.
-            tool: What produced the retrieval, which is what decides the
-                product it opens in.
+            args: What the tool was called with.
+            tool: What produced the retrieval, which decides the product.
+            about: What the investigation concerns. The service and the window
+                come from here rather than from ``args``, because a tool called
+                without either still produced evidence about one service over
+                one window and a reader following the link wants both.
 
         Returns:
-            That product's address for this retrieval, or ``None`` where this
-            project has established no page for the tool.
+            That product's address, filtered to the incident, or ``None`` where
+            this project has established no page for the tool.
         """
+        service = _first(args, SERVICE_KEYS) or (about.service if about else None)
+        window = _window(args) or _window_of(about)
         if tool in SEARCHABLE_DESTINATIONS:
-            return self._searched(SEARCHABLE_DESTINATIONS[tool], args)
-        service = _first(args, SERVICE_KEYS)
+            return self._filtered(
+                SEARCHABLE_DESTINATIONS[tool],
+                _first(args, QUERY_KEYS) or _scope(service),
+                window,
+            )
         if tool in SERVICE_SCOPED_DESTINATIONS:
-            return self._scoped(SERVICE_SCOPED_DESTINATIONS[tool], service)
+            return self._filtered(
+                SERVICE_SCOPED_DESTINATIONS[tool], _scope(service), window
+            )
         if tool in SERVICE_DESTINATIONS:
-            return self._service_page(service)
+            return self._service_page(service, window)
+        if tool in METRIC_DESTINATIONS:
+            return self._metric(
+                METRIC_DESTINATIONS[tool], _first(args, QUERY_KEYS), service, window
+            )
         page = PAGE_DESTINATIONS.get(tool)
-        return None if page is None else f"https://{self._web_host}/{page}"
+        return None if page is None else self._filtered(page, _scope(service), window)
 
-    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+    def to_item(
+        self,
+        payload: Any,
+        within: str | None,
+        *,
+        tool: str,
+        about: InvestigationTarget | None = None,
+    ) -> str | None:
         """Where one retrieved item is opened.
 
         Args:
             payload: The item as the platform returned it.
             within: Where the retrieval it came from is opened, which is what
                 an item the payload does not name falls back to.
-            tool: What produced it, which is what decides whether its product
-                can open one item at all.
+            tool: What produced it, which decides whether its product can open
+                one item at all.
+            about: What the investigation concerns. Unused here — an item is
+                addressed within a retrieval already filtered to it.
 
         Returns:
             The address of that item, of the retrieval it came from, or
@@ -203,32 +258,78 @@ class DatadogLinks:
             return within
         return f"{within}&{urlencode({'event': item})}"
 
-    def _searched(self, path: str, args: Mapping[str, Any]) -> str:
-        """One product's search, carrying the query and window it ran over."""
-        parameters: dict[str, str] = {"query": _first(args, QUERY_KEYS) or ""}
-        window = _window(args)
-        if window is not None:
-            parameters["from_ts"], parameters["to_ts"] = window
-        parameters["live"] = "false"
-        return f"https://{self._web_host}/{path}?{urlencode(parameters)}"
+    def _filtered(
+        self, path: str, query: str | None, window: tuple[str, str] | None
+    ) -> str:
+        """One product, narrowed to what the incident is about and when."""
+        return f"https://{self._web_host}/{path}{_parameters(query, window)}"
 
-    def _scoped(self, path: str, service: str | None) -> str:
-        """One product narrowed to the service that alerted, where it was named."""
-        page = f"https://{self._web_host}/{path}"
-        if service is None:
-            return page
-        return f"{page}?{urlencode({'query': f'service:{service}'})}"
-
-    def _service_page(self, service: str | None) -> str:
+    def _service_page(self, service: str | None, window: tuple[str, str] | None) -> str:
         """One service's own page, or the catalogue when the tool named none."""
         if service is None:
-            return f"https://{self._web_host}/{SERVICE_CATALOGUE_PATH}"
+            return self._filtered(SERVICE_CATALOGUE_PATH, None, window)
         named = quote(f"service:{service}", safe="")
-        return f"https://{self._web_host}/{SERVICE_PAGE_PATH}/{named}"
+        page = f"https://{self._web_host}/{SERVICE_PAGE_PATH}/{named}"
+        return f"{page}{_parameters(None, window)}"
+
+    def _metric(
+        self,
+        path: str,
+        query: str | None,
+        service: str | None,
+        window: tuple[str, str] | None,
+    ) -> str:
+        """The explorer opened on the metric that was queried, over the window.
+
+        The metric, its scope and its aggregator go under parameters of their
+        own rather than travelling as the query the model wrote, which is the
+        one form here read from neither the documentation nor the account.
+        """
+        parsed = METRIC_QUERY.match(query or "")
+        parameters: dict[str, str] = {}
+        if parsed is not None:
+            parameters["exp_metric"] = parsed["metric"]
+            parameters["exp_agg"] = parsed["agg"]
+            scope = parsed["scope"].strip()
+            parameters["exp_scope"] = (
+                scope if scope and scope != "*" else _scope(service) or ""
+            )
+        else:
+            parameters["exp_scope"] = _scope(service) or ""
+            parameters["exp_agg"] = EXPLORER_AGGREGATOR
+        if window is not None:
+            parameters["start"], parameters["end"] = window
+        return f"https://{self._web_host}/{path}?{urlencode(parameters)}"
 
     def _anchors_items(self, tool: str) -> bool:
         """Whether this tool's product is documented to open one named item."""
         return SEARCHABLE_DESTINATIONS.get(tool) in ITEM_ANCHORED_PATHS
+
+
+def _scope(service: str | None) -> str | None:
+    """The service as every explorer's query language states one."""
+    return None if service is None else f"service:{service}"
+
+
+def _parameters(query: str | None, window: tuple[str, str] | None) -> str:
+    """The filters an explorer is opened under, as a query string."""
+    parameters: dict[str, str] = {}
+    if query is not None:
+        parameters["query"] = query
+    if window is not None:
+        parameters["from_ts"], parameters["to_ts"] = window
+        parameters["live"] = "false"
+    return f"?{urlencode(parameters)}" if parameters else ""
+
+
+def _window_of(about: InvestigationTarget | None) -> tuple[str, str] | None:
+    """The incident's own window, which every address is pinned to."""
+    if about is None:
+        return None
+    return (
+        str(int(about.window.start.timestamp() * 1000)),
+        str(int(about.window.end.timestamp() * 1000)),
+    )
 
 
 def _first(source: Any, keys: tuple[str, ...]) -> str | None:

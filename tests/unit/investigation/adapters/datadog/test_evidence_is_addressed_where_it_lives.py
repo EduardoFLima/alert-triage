@@ -149,4 +149,6 @@ def test_host_evidence_still_opens_the_host_list_rather_than_the_pod_explorer() 
         {"service": "some-service"}, tool="search_datadog_hosts"
     )
 
-    assert address == f"https://{HOST}/infrastructure"
+    assert address is not None
+    assert address.startswith(f"https://{HOST}/infrastructure?")
+    assert "orchestration" not in address

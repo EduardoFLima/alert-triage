@@ -234,10 +234,12 @@ def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
 class _Links:
     """A platform's addresses, standing in for the one bound to a real site."""
 
-    def to_retrieval(self, args: Any, *, tool: str) -> str | None:
+    def to_retrieval(self, args: Any, *, tool: str, about: Any = None) -> str | None:
         return "https://platform/search"
 
-    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+    def to_item(
+        self, payload: Any, within: str | None, *, tool: str, about: Any = None
+    ) -> str | None:
         return within
 
 

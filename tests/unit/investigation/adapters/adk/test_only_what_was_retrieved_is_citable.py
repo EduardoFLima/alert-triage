@@ -145,10 +145,12 @@ class _Links:
     establish is that an address, once built, reaches the evidence.
     """
 
-    def to_retrieval(self, args: Any, *, tool: str) -> str | None:
+    def to_retrieval(self, args: Any, *, tool: str, about: Any = None) -> str | None:
         return f"https://platform/search?query={args.get('query', '')}"
 
-    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+    def to_item(
+        self, payload: Any, within: str | None, *, tool: str, about: Any = None
+    ) -> str | None:
         item = payload.get("id") if isinstance(payload, dict) else None
         return f"https://platform/logs?event={item}" if item else within
 
@@ -156,10 +158,12 @@ class _Links:
 class _NamesTheTool:
     """A linker that reports which tool it was told produced the retrieval."""
 
-    def to_retrieval(self, args: Any, *, tool: str) -> str | None:
+    def to_retrieval(self, args: Any, *, tool: str, about: Any = None) -> str | None:
         return f"https://platform/{tool}"
 
-    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+    def to_item(
+        self, payload: Any, within: str | None, *, tool: str, about: Any = None
+    ) -> str | None:
         return within
 
 

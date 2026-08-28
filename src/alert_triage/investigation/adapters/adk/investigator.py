@@ -94,7 +94,7 @@ class AdkInvestigator:
             InvestigatorError: The investigation could not be completed —
                 a specialist errored, or nothing could be retrieved at all.
         """
-        retrieved = Retrieved(link=self._links)
+        retrieved = Retrieved(link=self._links, about=target)
         found = self._report(target, retrieved)
         if retrieved.failures and not retrieved.retrievals:
             raise InvestigatorError(

@@ -212,11 +212,13 @@ class _Args:
     def __init__(self) -> None:
         self.seen: list[Any] = []
 
-    def to_retrieval(self, args: Any, *, tool: str) -> str | None:
+    def to_retrieval(self, args: Any, *, tool: str, about: Any = None) -> str | None:
         self.seen.append(args)
         return "https://platform/search"
 
-    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+    def to_item(
+        self, payload: Any, within: str | None, *, tool: str, about: Any = None
+    ) -> str | None:
         return within
 
 

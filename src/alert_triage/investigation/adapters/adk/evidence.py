@@ -26,7 +26,7 @@ from alert_triage.investigation.adapters.adk.normalisation import (
     readable,
     summarise,
 )
-from alert_triage.investigation.contract import EvidenceItem
+from alert_triage.investigation.contract import EvidenceItem, InvestigationTarget
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
 
 _log = logging.getLogger(__name__)
@@ -62,13 +62,31 @@ class Links(Protocol):
     its products on different pages and the tool is what says which one. This
     module does not know what any of them are — it passes the name across and
     the adapter decides, or decides there is nowhere honest to send a reader.
+
+    Both are also told what the investigation is about, because an address
+    filtered to nothing opens a product rather than the evidence in it. A tool
+    called without a service or a window still produced evidence about one
+    service over one window, and the target is where those are known.
     """
 
-    def to_retrieval(self, args: Mapping[str, Any], *, tool: str) -> str | None:
+    def to_retrieval(
+        self,
+        args: Mapping[str, Any],
+        *,
+        tool: str,
+        about: InvestigationTarget | None,
+    ) -> str | None:
         """Where the retrieval this tool produced is opened."""
         ...
 
-    def to_item(self, payload: Any, within: str | None, *, tool: str) -> str | None:
+    def to_item(
+        self,
+        payload: Any,
+        within: str | None,
+        *,
+        tool: str,
+        about: InvestigationTarget | None,
+    ) -> str | None:
         """Where this item is opened, or ``within`` when it names no item."""
         ...
 
@@ -81,13 +99,19 @@ class Retrieved:
     a stale identifier from an earlier incident cannot resolve.
     """
 
-    def __init__(self, link: Links | None = None) -> None:
+    def __init__(
+        self, link: Links | None = None, about: InvestigationTarget | None = None
+    ) -> None:
         """Start with nothing retrieved, nothing citable, and nothing failed.
 
         Args:
             link: How this deployment's platform addresses what it returns.
                 Absent, every piece of evidence is kept without an address.
+            about: What this investigation concerns. It is what every address
+                is filtered by, so that a link opens on the incident rather
+                than on the product the evidence happened to come from.
         """
+        self._about = about
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
@@ -157,14 +181,17 @@ class Retrieved:
 
     def _address_of(self, args: Mapping[str, Any], tool: str) -> str | None:
         """Where the retrieval this tool produced is opened."""
-        return None if self._link is None else self._link.to_retrieval(args, tool=tool)
+        if self._link is None:
+            return None
+        return self._link.to_retrieval(args, tool=tool, about=self._about)
 
     def _item_addresses(self, within: str | None, tool: str) -> Linker | None:
         """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None
-        return lambda payload: link.to_item(payload, within, tool=tool)
+        about = self._about
+        return lambda payload: link.to_item(payload, within, tool=tool, about=about)
 
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any
