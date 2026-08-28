@@ -28,7 +28,7 @@ ABOUT = InvestigationTarget(
     service="checkout", window=Window(start=NOON, end=LATER), alert_count=3
 )
 
-FILTERED = (
+SERVICE_SCOPED = (
     "search_datadog_logs",
     "search_datadog_spans",
     "get_datadog_trace",
@@ -36,8 +36,19 @@ FILTERED = (
     "search_datadog_k8s_resources",
     "describe_datadog_k8s_resource",
     "search_datadog_hosts",
+)
+"""Products whose evidence is about a service, and which are narrowed to it."""
+
+METRIC_TOOLS = (
+    "search_datadog_metrics",
+    "get_datadog_metric_context",
     "get_datadog_metric",
 )
+"""Metrics are not necessarily a service's. A host or pod metric carries no
+``service`` tag at all, so scoping one to the service that alerted graphs
+nothing — see the scope tests below."""
+
+FILTERED = SERVICE_SCOPED + METRIC_TOOLS
 
 
 def _address(tool: str, args: dict[str, object] | None = None) -> str:
@@ -58,9 +69,21 @@ def test_every_address_is_pinned_to_the_incidents_window(tool: str) -> None:
     }
 
 
-@pytest.mark.parametrize("tool", FILTERED)
-def test_every_address_names_the_service_the_incident_is_about(tool: str) -> None:
+@pytest.mark.parametrize("tool", SERVICE_SCOPED)
+def test_a_services_evidence_names_the_service_the_incident_is_about(
+    tool: str,
+) -> None:
     assert "checkout" in unquote(_address(tool))
+
+
+@pytest.mark.parametrize("tool", FILTERED)
+def test_no_address_is_ever_built_without_a_period(tool: str) -> None:
+    """Whatever else a link carries or does not, it opens on the right period."""
+    values = {
+        value for values in _parameters(_address(tool, {})).values() for value in values
+    }
+
+    assert {FROM_MS, TO_MS} <= values
 
 
 def test_a_log_address_carries_the_query_the_model_actually_searched() -> None:
@@ -88,16 +111,30 @@ def test_a_metric_address_names_the_metric_that_was_queried() -> None:
     assert parameters["exp_agg"] == ["avg"]
 
 
-def test_a_metric_address_scopes_to_the_service_when_the_query_did_not() -> None:
+def test_a_metric_keeps_the_scope_it_was_gathered_under() -> None:
+    """A pod metric carries no service tag; scoping it to one graphs nothing."""
+    address = _address(
+        "get_datadog_metric",
+        {"query": "avg:kubernetes.memory.usage{pod_name:checkout-7f4b}"},
+    )
+
+    assert _parameters(address)["exp_scope"] == ["pod_name:checkout-7f4b"]
+    assert "service:checkout" not in unquote(address)
+
+
+def test_a_metric_gathered_across_everything_stays_across_everything() -> None:
+    """`*` is a scope the model chose, not an absence to fill in."""
     address = _address("get_datadog_metric", {"query": "avg:system.cpu.user{*}"})
 
     assert _parameters(address)["exp_metric"] == ["system.cpu.user"]
-    assert "checkout" in unquote(address)
+    assert _parameters(address)["exp_scope"] == ["*"]
 
 
 def test_a_metric_address_still_opens_when_the_query_cannot_be_read() -> None:
-    """A query in a shape nobody anticipated costs the metric, not the link."""
+    """A query in a shape nobody anticipated costs the metric, not the period."""
     address = _address("get_datadog_metric", {"query": "!!!"})
+    parameters = _parameters(address)
 
     assert address.startswith(f"https://{HOST}/metric/explorer")
-    assert "checkout" in unquote(address)
+    assert "exp_scope" not in parameters
+    assert parameters["start"] == [FROM_MS]

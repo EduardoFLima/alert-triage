@@ -98,9 +98,6 @@ query this cannot read costs the metric, never the link: the explorer still
 opens on the incident's service and window.
 """
 
-EXPLORER_AGGREGATOR = "avg"
-"""What the explorer is told to aggregate by when the query named nothing."""
-
 METRIC_DESTINATIONS = {
     "search_datadog_metrics": METRIC_EXPLORER_PATH,
     "get_datadog_metric": METRIC_EXPLORER_PATH,
@@ -223,7 +220,7 @@ class DatadogLinks:
             return self._service_page(service, window)
         if tool in METRIC_DESTINATIONS:
             return self._metric(
-                METRIC_DESTINATIONS[tool], _first(args, QUERY_KEYS), service, window
+                METRIC_DESTINATIONS[tool], _first(args, QUERY_KEYS), window
             )
         page = PAGE_DESTINATIONS.get(tool)
         return None if page is None else self._filtered(page, _scope(service), window)
@@ -273,30 +270,29 @@ class DatadogLinks:
         return f"{page}{_parameters(None, window)}"
 
     def _metric(
-        self,
-        path: str,
-        query: str | None,
-        service: str | None,
-        window: tuple[str, str] | None,
+        self, path: str, query: str | None, window: tuple[str, str] | None
     ) -> str:
         """The explorer opened on the metric that was queried, over the window.
 
         The metric, its scope and its aggregator go under parameters of their
         own rather than travelling as the query the model wrote, which is the
         one form here read from neither the documentation nor the account.
+
+        The scope is reproduced rather than improved on. A metric is not
+        necessarily a service's — a host or pod metric carries no ``service``
+        tag at all — so narrowing one to the service that alerted would graph
+        nothing, and ``*`` is a scope the model chose rather than an absence to
+        fill in. A query this cannot read loses the metric and keeps the
+        period, which every address has.
         """
-        parsed = METRIC_QUERY.match(query or "")
         parameters: dict[str, str] = {}
+        parsed = METRIC_QUERY.match(query or "")
         if parsed is not None:
             parameters["exp_metric"] = parsed["metric"]
             parameters["exp_agg"] = parsed["agg"]
             scope = parsed["scope"].strip()
-            parameters["exp_scope"] = (
-                scope if scope and scope != "*" else _scope(service) or ""
-            )
-        else:
-            parameters["exp_scope"] = _scope(service) or ""
-            parameters["exp_agg"] = EXPLORER_AGGREGATOR
+            if scope:
+                parameters["exp_scope"] = scope
         if window is not None:
             parameters["start"], parameters["end"] = window
         return f"https://{self._web_host}/{path}?{urlencode(parameters)}"
