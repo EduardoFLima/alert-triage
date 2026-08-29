@@ -59,14 +59,23 @@ derived from it, so a report's claimed scope is a record of what ran rather than
 a tuple the composition root passes in — which is what retires `SIGNALS_EXAMINED`
 and the `examined=` argument on `build_report`.
 
-**The ceiling lives in the manager's `before_tool_callback`, refusing rather
+**The budget lives in the manager's `before_tool_callback`, refusing rather
 than counting.** Same seat, same reason, as the per-agent bound slice 12 will
 put there: a callback can decline the call, whereas a coordinator counting
 afterwards has already paid for it. The refusal text is shaped like
 `RETRIEVAL_FAILED` — explicit that the consultation did not happen — because a
 terse error is exactly what a model reads as "that specialist found nothing".
-The ceiling is `len(crew)`, stated in code as the crew's own size rather than a
-number, so a fifth specialist raises it by existing.
+
+**The budget counts consultations, not specialists, and is stated in code at 8.**
+Bounding each specialist to one consultation would forbid the manager's best
+move: reading an answer and going back for the detail it now knows to ask for.
+So the bound is on hops in total, and 8 is what `docs/vision.md` already
+documents for `max_tool_calls_per_agent` applied to a manager — four specialists
+reachable with four questions left over. It is stated in code and read from
+configuration in slice 12, exactly as slice 7 handled the MCP timeouts: stating
+a bound is this slice's, tuning it is not. Deriving it from `len(crew)` was the
+first draft and is wrong for the same reason: a crew-sized budget is a
+once-each rule wearing a number.
 
 **The contract publishes a `Diagnosis`; the port returns one.** `Findings` gains
 `consulted`, and a new frozen value carries the headline, the account, the
@@ -128,14 +137,17 @@ reached, not for a model that decided not to ask.
   change.
 - **The manager can consult specialists in parallel if ADK issues concurrent
   tool calls.** `Retrieved` numbers retrievals sequentially and is shared. →
-  The ceiling and the instruction both push toward one consultation at a time,
+  The budget and the instruction both push toward one consultation at a time,
   and slice 8 already carries this as a known constraint. If the live run shows
   concurrent calls, the fix is to serialise in the callback, not to make the
   evidence store thread-safe for a manager that should not be racing anyway.
-- **Cost is now the manager's decision, and a manager may consult everyone every
-  time.** → The ceiling bounds the worst case at today's cost plus two reasoning
-  calls; the saving is real only if the routing is any good, which is
-  unmeasurable until slice 10. Stated rather than claimed.
+- **Cost is now the manager's decision, and a budget of 8 over a crew of four
+  bounds the worst case at twice today's specialist calls, plus two reasoning
+  calls.** → Permitting the second question is what buys that headroom, and a
+  manager spending all of it on every incident would cost more than the fixed
+  walk it replaced. The saving is real only if the routing is any good, which is
+  unmeasurable until slice 10; task 8.4 is what turns the worst case into a
+  measured one. Stated rather than claimed.
 - **Two more model calls per incident, both without tools.** → They replace
   formatting work that cost nothing, and buy the two things a reader actually
   wanted. Cheap relative to a specialist, which pays for tool calls as well.
@@ -164,7 +176,10 @@ nothing to apply to.
   and slice 10 answers "does the manager want a stronger model" with numbers.
   Until then `crew_for` refuses `diagnostician` by name, which is accurate but
   will read as a bug to the first operator who tries it.
-- Whether one consultation per specialist is enough, or whether a manager
-  narrowing its question and re-asking is worth the calls. The ceiling permits a
-  re-ask today; whether it earns its place is a routing-quality question and so
-  slice 10's.
+- Whether 8 is the right budget, and whether the same key can serve both a
+  specialist's searches and a manager's consultations — `docs/vision.md` leaves
+  the second open on purpose. Both want the harness's numbers rather than a
+  guess, so both are slice 10's to answer and slice 12's to wire.
+- Whether re-asking a specialist is worth its calls in practice. It is permitted
+  and bounded; whether managers actually use it well is routing quality, which
+  is slice 10's.

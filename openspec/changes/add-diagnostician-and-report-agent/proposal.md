@@ -35,9 +35,12 @@ needed, and what was concluded from them — do not exist until it lands.
   `Finding`, `EvidenceItem` and `Signal` to build a body, and the composition
   root stops passing `SIGNALS_EXAMINED` — an investigation now says what it
   consulted rather than being told what the crew declares.
-- **A consultation ceiling, not a circuit breaker.** A manager may consult no
-  more specialists than the crew declares, refused deterministically rather
-  than by the model's goodwill. The configurable bound is slice 12's.
+- **A consultation budget, not a circuit breaker.** One investigation may make
+  a bounded number of specialist consultations in total — the manager may go
+  back to a specialist with a narrower question, and what is bounded is how many
+  such questions an incident may cost, not how many a given specialist may take.
+  Refused deterministically rather than by the model's goodwill, at the value
+  `docs/vision.md` already documents. The configurable bound is slice 12's.
 - **BREAKING for the port, not for the run**: `Investigator.investigate`
   returns a diagnosis carrying the findings rather than the findings alone.
   `AlertSource`, `TriageLedger`, `Notifier`, `TriageReport` and every
@@ -57,7 +60,7 @@ at.
   incident, for the record of which signals were consulted, for a hypothesis
   with an explicit confidence level grounded in surviving findings, for the
   account a report agent writes and what it may not write, and for the
-  consultation ceiling. Modifies "An investigation returns findings, not a
+  consultation budget. Modifies "An investigation returns findings, not a
   conclusion", which this slice is the reversal of, and the requirement that a
   caller cannot observe how many specialists ran — a caller now learns which
   were consulted, and must.
@@ -87,8 +90,8 @@ at.
 
 - **Configurable circuit breakers.** Slice 12 owns `max_tool_calls_per_agent`
   and the question of whether one key can bound both a specialist's searches
-  and a manager's consultations. This slice ships the ceiling that costs
-  nothing to state and leaves the tunable one alone.
+  and a manager's consultations. This slice states the budget in code, as slice
+  7 did for the MCP timeouts, and leaves the operator setting alone.
 - **A model of the Diagnostician's or the Report agent's own.** Both take the
   deployment's default, exactly as the four specialists do, for the reason
   slice 8 gave: slice 10 exists to replace guesses like it with numbers.

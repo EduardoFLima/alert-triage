@@ -13,9 +13,14 @@ being edited. Which specialists were offered and which were consulted SHALL
 both be observable from outside the investigation, so that the choice can be
 examined rather than taken on trust.
 
-A specialist SHALL be consulted at most once for a given question, and consulting
-one SHALL NOT hand control away from the deciding component: it reads what came
-back and decides what to do next.
+A specialist MAY be consulted more than once, with a different question each
+time: reading what came back and going back to the same specialist for the
+detail it now knows to ask for is the reasoning this design exists to allow, not
+a loop to be prevented. What bounds it is the budget below, on consultations as
+a whole rather than per specialist.
+
+Consulting a specialist SHALL NOT hand control away from the deciding
+component: it reads what came back and decides what to do next.
 
 #### Scenario: Only the signals an incident needs
 - **WHEN** an incident's evidence is plainly confined to one or two signals
@@ -27,6 +32,12 @@ back and decides what to do next.
   another signal
 - **THEN** the specialist for that signal is consulted next, rather than a
   fixed order being followed
+
+#### Scenario: A specialist is asked a second question
+- **WHEN** what a specialist reported raises a narrower question for that same
+  specialist
+- **THEN** it is consulted again with the new question, and both consultations
+  contribute their findings
 
 #### Scenario: Every specialist is available to be chosen
 - **WHEN** a further specialist is added to the crew
@@ -151,34 +162,44 @@ gathered before any of it was worded.
 - **THEN** the system composes the account itself and the report is still
   delivered, carrying the same hypothesis, findings, and evidence
 
-### Requirement: An investigation consults no more specialists than the crew declares
+### Requirement: An investigation makes a bounded number of specialist consultations
 The system SHALL bound how many specialist consultations one investigation may
-make, and SHALL refuse a consultation beyond that bound in terms the reasoning
-cannot read as a specialist that found nothing. The bound SHALL be at least the
-number of specialists declared, so that an incident needing every signal can
-still have every signal.
+make in total, counting every consultation rather than every specialist, and
+SHALL refuse a consultation beyond that bound in terms the reasoning cannot read
+as a specialist that found nothing.
+
+The bound SHALL exceed the number of specialists declared, so that an incident
+needing every signal can have every signal and still have questions left for the
+ones whose answers raised more. A bound that admitted each specialist exactly
+once would forbid the second question rather than bound it.
 
 A refused consultation SHALL be recorded, and an investigation that hit the
 bound SHALL be reported as one that could not consult everything it wanted
-rather than as one that chose not to.
+rather than as one that chose not to. The investigation SHALL still conclude on
+what it gathered before the refusal, because the findings already in hand are no
+less true for the budget having run out.
 
-This bound is not the operator-configurable breaker: it is the ceiling that
-stops one incident costing an unbounded number of model calls, and SHALL hold
-whether or not a breaker is configured.
+This bound is not the operator-configurable breaker: it is what stops one
+incident costing an unbounded number of model calls, and SHALL hold whether or
+not a breaker is configured.
 
 #### Scenario: A manager that will not stop
-- **WHEN** the reasoning keeps consulting specialists past the ceiling
+- **WHEN** the reasoning keeps consulting specialists past the bound
 - **THEN** the further consultations are refused, the refusals are recorded,
   and the investigation concludes on what it already has
 
 #### Scenario: A refusal is not a quiet specialist
-- **WHEN** a consultation is refused for hitting the ceiling
+- **WHEN** a consultation is refused for hitting the bound
 - **THEN** what the reasoning is given back states that the consultation did
   not happen, and cannot be read as a specialist that reported nothing
 
 #### Scenario: Every signal is still reachable
 - **WHEN** an incident genuinely needs every declared specialist
-- **THEN** every one of them can be consulted without hitting the ceiling
+- **THEN** every one of them can be consulted without hitting the bound
+
+#### Scenario: Room for a second question
+- **WHEN** every declared specialist has been consulted once
+- **THEN** consultations remain for the follow-up questions their answers raised
 
 ### Requirement: A finding is an observation with the evidence behind it
 A finding SHALL be an observation about the incident, carrying the evidence it

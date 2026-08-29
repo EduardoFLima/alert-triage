@@ -48,17 +48,27 @@ is cheaper to discover before six modules depend on it.
       all discarded still records that specialist as consulted.
 - [ ] 3.3 Implement `Consulted` beside `Retrieved`. Green.
 
-## 4. The ceiling
+## 4. The consultation budget
 
-- [ ] 4.1 Failing test that a consultation beyond `len(crew)` is refused in the
+- [ ] 4.1 Failing test that the budget counts consultations rather than
+      specialists: the same specialist consulted twice with different questions
+      spends two of it and is refused neither time.
+- [ ] 4.2 Failing test that a consultation beyond the budget is refused in the
       manager's `before_tool_callback`, the refusal is recorded, and the
       specialist is not run.
-- [ ] 4.2 Failing test that the refusal text states the consultation did not
+- [ ] 4.3 Failing test that the refusal text states the consultation did not
       happen and cannot be read as a specialist reporting nothing — assert
       against the wording, as the `RETRIEVAL_FAILED` tests already do.
-- [ ] 4.3 Failing test that an incident needing every declared specialist can
-      consult every one of them without being refused.
-- [ ] 4.4 Implement the ceiling from the crew's own size. Green.
+- [ ] 4.4 Failing test that an incident needing every declared specialist
+      consults every one of them without being refused, and still has
+      consultations left for their follow-up questions.
+- [ ] 4.5 Failing test that an investigation which hit the budget still
+      concludes on the findings it gathered before the refusal, and is reported
+      as having been cut short rather than as having chosen to stop.
+- [ ] 4.6 Implement the budget as a stated constant of 8, documented as what
+      `docs/vision.md`'s `max_tool_calls_per_agent` means for a manager whose
+      tools are specialists, and as slice 12's to read from configuration.
+      Green.
 
 ## 5. The two reasoners
 
@@ -68,10 +78,12 @@ is cheaper to discover before six modules depend on it.
       which `Specialist` still refuses. Implement it.
 - [ ] 5.2 Failing tests for the Diagnostician declaration's instruction: consult
       only the signals this incident needs; choose the next specialist from what
-      the last one reported; reason across the findings rather than restating
-      one; state a confidence level from the declared set; conclude on what is
-      already gathered when a consultation is refused; never name evidence it
-      was not shown; recommend no action.
+      the last one reported; go back to a specialist with a narrower question
+      where its answer raised one, spending the budget on questions worth
+      asking; reason across the findings rather than restating one; state a
+      confidence level from the declared set; conclude on what is already
+      gathered when a consultation is refused; never name evidence it was not
+      shown; recommend no action.
 - [ ] 5.3 Failing test that the Diagnostician's output schema offers no field an
       agent could write evidence into, and that its confidence field admits only
       the declared levels.
@@ -152,9 +164,10 @@ is cheaper to discover before six modules depend on it.
       survives the agent-tool hop, or whether findings must be collected from
       the specialist's own `after_agent_callback` instead. Record the answer in
       design.md.
-- [ ] 8.4 Record which specialists the manager consulted and how many
-      consultations it made, as the first real evidence for slice 12's
-      `max_tool_calls_per_agent` applied to a manager.
+- [ ] 8.4 Record which specialists the manager consulted, how many
+      consultations it made, and how many of those were second questions to a
+      specialist it had already asked — the first real evidence for whether 8 is
+      the right budget and whether re-asking earns its calls.
 - [ ] 8.5 Record whether the manager issued concurrent consultations, which is
       the risk design.md leaves open against the shared evidence store.
 - [ ] 8.6 Record whether the Report agent's account reproduced evidence despite
