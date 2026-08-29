@@ -49,6 +49,8 @@ def test_without_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
         "search_datadog_metrics",
         "search_datadog_service_dependencies",
         "search_datadog_events",
+        "list_datadog_skills",
+        "load_datadog_skill",
     }
 
 
@@ -82,6 +84,8 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
             "get_datadog_metric_context",
             "search_datadog_metrics",
             "search_datadog_service_dependencies",
+            "list_datadog_skills",
+            "load_datadog_skill",
         }
         | PREVIEW_TOOLS
     )

@@ -45,6 +45,8 @@ def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
         "search_datadog_hosts",
         "search_datadog_k8s_resources",
         "describe_datadog_k8s_resource",
+        "list_datadog_skills",
+        "load_datadog_skill",
     }
 
 

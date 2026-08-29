@@ -16,7 +16,10 @@ answer is retained as a retrieval that found nothing.
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
+    SKILL_LIST_TOOL,
+    SKILL_LOAD_TOOL,
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
@@ -61,6 +64,8 @@ The tools you have are Datadog's:
   the deployment has them.
 - `{K8S_DESCRIBE_TOOL}` returns one such workload in full, including its
   restarts and why it was last rescheduled.
+
+{CONSULT_THE_PLATFORM}
 
 Ask `{METRIC_SEARCH_TOOL}` which metrics are reported before you query one,
 and read the name you query out of what it answers. Do not guess a metric
@@ -153,7 +158,14 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     toolsets=(
         Toolset(
             name=CORE_TOOLSET,
-            tools=(METRIC_TOOL, METRIC_SEARCH_TOOL, METRIC_CONTEXT_TOOL, HOSTS_TOOL),
+            tools=(
+                METRIC_TOOL,
+                METRIC_SEARCH_TOOL,
+                METRIC_CONTEXT_TOOL,
+                HOSTS_TOOL,
+                SKILL_LIST_TOOL,
+                SKILL_LOAD_TOOL,
+            ),
         ),
         Toolset(name=KUBERNETES_TOOLSET, tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL)),
     ),

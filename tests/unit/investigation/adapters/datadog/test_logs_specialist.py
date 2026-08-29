@@ -12,6 +12,9 @@ from alert_triage.investigation.adapters.datadog.specialists.logs import (
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.evidence import findings_from
 
+GUIDANCE_TOOLS = {"list_datadog_skills", "load_datadog_skill"}
+"""What every specialist reaches to ask the platform how its tools are queried."""
+
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 
@@ -102,13 +105,24 @@ def test_the_declaration_names_its_toolset_and_its_log_tools() -> None:
     (toolset,) = LOGS_SPECIALIST.toolsets
 
     assert toolset.name == "core"
-    assert toolset.tools == ("search_datadog_logs", "analyze_datadog_logs")
+    assert toolset.tools == (
+        "search_datadog_logs",
+        "analyze_datadog_logs",
+        "list_datadog_skills",
+        "load_datadog_skill",
+    )
 
 
 def test_the_declaration_reaches_no_tool_outside_it() -> None:
+    """Log tools, and the platform's account of how to query them.
+
+    The two skill tools are the exception the rule needed: they are not log
+    tools and are not meant to be, because how a log query is written is
+    Datadog's to state rather than this instruction's.
+    """
     permitted = {tool for toolset in LOGS_SPECIALIST.toolsets for tool in toolset.tools}
 
-    assert all("log" in tool for tool in permitted)
+    assert all("log" in tool for tool in permitted - GUIDANCE_TOOLS)
 
 
 def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:

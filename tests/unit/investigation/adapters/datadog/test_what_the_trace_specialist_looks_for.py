@@ -37,7 +37,12 @@ def test_without_preview_it_reaches_the_core_toolset_alone() -> None:
     without = trace_specialist(preview=False)
 
     assert {toolset.name for toolset in without.toolsets} == {"core"}
-    assert _tools(without) == {"search_datadog_spans", "get_datadog_trace"}
+    assert _tools(without) == {
+        "search_datadog_spans",
+        "get_datadog_trace",
+        "list_datadog_skills",
+        "load_datadog_skill",
+    }
 
 
 def test_without_preview_ranking_is_neither_permitted_nor_named() -> None:
@@ -63,6 +68,8 @@ def test_with_preview_it_reaches_both_the_core_and_apm_toolsets() -> None:
         "search_datadog_spans",
         "get_datadog_trace",
         "apm_query_trace",
+        "list_datadog_skills",
+        "load_datadog_skill",
     }
 
 

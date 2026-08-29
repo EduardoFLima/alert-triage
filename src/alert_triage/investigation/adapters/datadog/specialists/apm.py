@@ -24,7 +24,10 @@ grain.
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
+    SKILL_LIST_TOOL,
+    SKILL_LOAD_TOOL,
 )
 from alert_triage.investigation.adapters.datadog.specialists.preview import (
     APM_TOOLSET_AVAILABLE,
@@ -163,6 +166,8 @@ The tools you have are Datadog's:
 
 {_tools_described(preview)}
 
+{CONSULT_THE_PLATFORM}
+
 Ask `{METRIC_SEARCH_TOOL}` which metrics the service reports before you query
 one, and read the name you query out of what it answers. Do not guess a metric
 name: a name this service does not report comes back empty, and an empty
@@ -251,6 +256,8 @@ def apm_specialist(*, preview: bool) -> Specialist:
                     METRIC_SEARCH_TOOL,
                     METRIC_CONTEXT_TOOL,
                     DEPENDENCIES_TOOL,
+                    SKILL_LIST_TOOL,
+                    SKILL_LOAD_TOOL,
                 ),
             ),
             Toolset(
@@ -274,6 +281,8 @@ def apm_specialist(*, preview: bool) -> Specialist:
                 METRIC_CONTEXT_TOOL,
                 DEPENDENCIES_TOOL,
                 EVENTS_TOOL,
+                SKILL_LIST_TOOL,
+                SKILL_LOAD_TOOL,
             ),
         ),
         preview=preview,
