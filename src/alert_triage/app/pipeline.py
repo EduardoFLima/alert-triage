@@ -237,6 +237,12 @@ def _investigated(
     if not decision.should_investigate:
         return None, None
     try:
+        _log.info(
+            "\n\n\n=== STARTING INVESTIGATION ===\nService: %s\nStarted: %s\n\n\n",
+            incident.service,
+            incident.window.start,
+        )
+
         findings = investigator.investigate(incident.investigation_target)
     except InvestigatorError as error:
         _log.error("Investigating %s failed: %s", incident.service, error)
@@ -258,9 +264,10 @@ def _delivered(
 ) -> tuple[bool, RunFailure | None]:
     """Deliver a report worth sending, and say whether a channel took it.
 
-    Findings are worth sending — including empty ones, which say the logs were
-    searched and were clean. A failed investigation is not: "these alerts fired
-    and we could not look at them" carries nothing a team can act on, so it
+    Findings are worth sending — including empty ones, which say the signals
+    the investigation covers were examined and were clean. A failed
+    investigation is not: "these alerts fired and we could not look at them"
+    carries nothing a team can act on, so it
     waits for the retry. Once the attempts are spent that wait would be
     forever, so the alerts go out without findings rather than not at all.
 
@@ -277,6 +284,7 @@ def _delivered(
         )
         return False, None
     try:
+        _log.info("\n\n\n=== REPORTING ===\n\n\n")
         notifier.deliver(build_report(incident, findings))
     except NotifierError as error:
         _log.error("Reporting %s failed: %s", incident.service, error)

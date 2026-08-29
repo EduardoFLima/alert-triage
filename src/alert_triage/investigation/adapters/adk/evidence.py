@@ -250,6 +250,10 @@ def _failure_in(result: Any) -> str | None:
     Three shapes, and each is a failure the model must not read as an answer:
     the server refused the call, ADK converted an exception into a result, or
     what came back carries nothing that can be read at all.
+
+    The last of those is checked after an empty answer has been let through,
+    because "there are none" and "this could not be read" are different facts
+    and only the second is a failure.
     """
     if isinstance(result, dict):
         if result.get("isError"):
@@ -257,9 +261,33 @@ def _failure_in(result: Any) -> str | None:
         error = result.get("error")
         if error is not None:
             return str(error)
+        if _answered_with_nothing(result):
+            return None
     if readable(result) is None:
         return "the platform's answer carried nothing that could be read"
     return None
+
+
+def _answered_with_nothing(result: dict[str, Any]) -> bool:
+    """Whether the platform answered this call, and the answer was empty.
+
+    A signal a deployment does not have — no container workload, no
+    instrumented traces, no host metrics for a managed service — comes back
+    as an answer with nothing in it. Recording that as a failure would mark
+    every investigation on such a deployment incomplete, which is the
+    incompleteness marker losing its meaning for the deployments most likely
+    to need it.
+
+    An empty answer is distinguishable from an unreadable one by its shape:
+    the server either gave structure that happens to be empty, or explicitly
+    returned no content at all. A result carrying content that reads as
+    nothing is neither, and stays a failure.
+    """
+    structured = result.get("structuredContent")
+    if isinstance(structured, dict | list):
+        return not structured
+    content = result.get("content")
+    return isinstance(content, list) and not content
 
 
 def _detail(result: dict[str, Any]) -> str:

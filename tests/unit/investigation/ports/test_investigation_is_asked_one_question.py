@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -22,7 +22,7 @@ class _Investigator:
 def _target() -> InvestigationTarget:
     return InvestigationTarget(
         service="checkout",
-        window=Window(start=NOON, end=NOON),
+        window=Window(start=NOON, end=NOON + timedelta(minutes=20)),
         alert_count=2,
     )
 

@@ -25,11 +25,29 @@ a report a human will read.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
 from alert_triage.shared.window import Window
+
+MINIMUM_EVIDENCE_SPAN = timedelta(minutes=5)
+"""The shortest period an investigation will ask the platform about.
+
+An incident of a single alert spans an instant, and an instant is not a period
+any query accepts: Datadog answers a metric query whose end is not after its
+start with a 400, which arrives as a failed retrieval and marks the whole
+investigation incomplete. Since most incidents open on one alert, that was most
+investigations.
+
+Widening is not a workaround for the platform's strictness — the platform is
+right. Evidence is wanted *around* the problem, and a window with no width
+excludes the lead-up, which is the half that usually explains it.
+
+A domain constant rather than a configured value, for the reason
+``MAX_EXAMPLES_PER_FINDING`` is one: it is what makes a question answerable at
+all, not a knob an operator tunes per team.
+"""
 
 MAX_EXAMPLES_PER_FINDING = 10
 """How many pieces of evidence a finding illustrates its pattern with.
@@ -62,6 +80,18 @@ class InvestigationTarget:
     window: Window
     alert_count: int
 
+    def __post_init__(self) -> None:
+        """Widen a window too narrow for the platform to answer a question about."""
+        span = self.window.end - self.window.start
+        if span >= MINIMUM_EVIDENCE_SPAN:
+            return
+        margin = (MINIMUM_EVIDENCE_SPAN - span) / 2
+        object.__setattr__(
+            self,
+            "window",
+            Window(start=self.window.start - margin, end=self.window.end + margin),
+        )
+
     def describe(self) -> str:
         """State the target to a specialist, in terms any of them can use."""
         return (
@@ -80,6 +110,9 @@ class Signal(StrEnum):
     """
 
     LOGS = "logs"
+    APM = "apm"
+    TRACE = "trace"
+    INFRASTRUCTURE = "infrastructure"
 
 
 @dataclass(frozen=True)

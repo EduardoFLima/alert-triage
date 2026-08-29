@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Mapping
 from contextlib import closing
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,7 +30,7 @@ from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment
 from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
-from alert_triage.investigation.adapters.adk.crew import crew_for
+from alert_triage.investigation.adapters.adk.crew import SIGNALS_EXAMINED, crew_for
 from alert_triage.investigation.adapters.adk.investigator import (
     AdkInvestigator,
     run_with_adk,
@@ -99,7 +100,7 @@ def execute(
             ),
             notifier=notifier,
             investigator=investigator,
-            build_report=build_report,
+            build_report=partial(build_report, examined=SIGNALS_EXAMINED),
             config=config,
             now=now,
             new_id=_new_id,

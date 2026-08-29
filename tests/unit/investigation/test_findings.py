@@ -201,3 +201,25 @@ def test_incompleteness_is_independent_of_whether_anything_was_found() -> None:
 
 def test_retrieval_failures_default_to_none_at_all() -> None:
     assert Findings().retrieval_failures == ()
+
+
+def test_every_signal_a_specialist_reports_under_is_named() -> None:
+    """One member per specialist: a finding says which dimension it came from."""
+    assert {signal.value for signal in Signal} == {
+        "logs",
+        "apm",
+        "trace",
+        "infrastructure",
+    }
+
+
+def test_a_finding_names_the_signal_it_was_drawn_from() -> None:
+    for signal in Signal:
+        finding = Finding(
+            signal=signal,
+            observation="something moved",
+            occurrences=1,
+            examples=(_item(),),
+        )
+
+        assert finding.signal is signal

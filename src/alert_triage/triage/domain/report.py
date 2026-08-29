@@ -6,7 +6,9 @@ triage's own facts. Delivering what comes out is the notification context's
 work, and ``TriageReport`` is the contract it publishes for the purpose.
 """
 
-from alert_triage.investigation.contract import EvidenceItem, Finding, Findings
+from collections.abc import Sequence
+
+from alert_triage.investigation.contract import EvidenceItem, Finding, Findings, Signal
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
@@ -16,9 +18,28 @@ NOT_INVESTIGATED = (
     "report lists what fired and nothing more."
 )
 
-NOTHING_NOTABLE = (
-    "The logs around these alerts were searched and nothing notable was found."
+NOTHING_NOTABLE_TEMPLATE = (
+    "The {signals} around these alerts were examined and nothing notable was found."
 )
+"""What a clean investigation says, once it says what it covered.
+
+Built from the signals the investigation examined rather than fixed, because
+"nothing notable" is only interpretable against a scope: a reader told the logs
+were clean draws a different conclusion from one told that the logs, the golden
+signals, the traces and the infrastructure were all clean. Whoever calls this
+states the scope, so a crew that grows widens the sentence and a report never
+claims a signal nobody looked at.
+"""
+
+NOTHING_EXAMINED = (
+    "No signal was examined around these alerts, so nothing notable could be found."
+)
+"""What is said when an investigation completed having looked at nothing.
+
+Only reachable from a deployment configured with no specialists at all. It is
+still worded rather than left to the template, because a sentence naming an
+empty list of signals is how a report starts lying about its scope.
+"""
 
 EVIDENCE_INCOMPLETE = (
     "Part of the evidence this investigation asked for could not be gathered, so "
@@ -56,7 +77,12 @@ def _build_pass_through_report(incident: Incident) -> TriageReport:
     )
 
 
-def build_report(incident: Incident, findings: Findings | None) -> TriageReport:
+def build_report(
+    incident: Incident,
+    findings: Findings | None,
+    *,
+    examined: Sequence[Signal],
+) -> TriageReport:
     """Build the report an incident has earned, given what was learned about it.
 
     The presence of findings is the whole decision. ``None`` means no
@@ -70,22 +96,27 @@ def build_report(incident: Incident, findings: Findings | None) -> TriageReport:
         incident: The incident to report.
         findings: What the investigation came back with, or ``None`` when none
             completed.
+        examined: The signals the investigation looks at, so that what it found
+            can be read against what it covered. Stated by the caller because
+            which specialists a deployment runs is not triage's to know.
 
     Returns:
         The report to deliver.
     """
     if findings is None:
         return _build_pass_through_report(incident)
-    return _build_investigated_report(incident, findings)
+    return _build_investigated_report(incident, findings, examined)
 
 
-def _build_investigated_report(incident: Incident, findings: Findings) -> TriageReport:
+def _build_investigated_report(
+    incident: Incident, findings: Findings, examined: Sequence[Signal]
+) -> TriageReport:
     """Build the report for an incident an investigation actually looked at.
 
     States what was found and the records behind it, and still lists the alerts
     — a reader wants both the evidence and the thing that woke them up. Empty
-    findings are reported as the result they are: the logs were searched and
-    were clean, which is news rather than an empty section.
+    findings are reported as the result they are: these signals were examined
+    and were clean, which is news rather than an empty section.
 
     Offers no hypothesis, root cause, or confidence level. Nothing in this
     slice produces one, and a report that implied otherwise would be the
@@ -94,6 +125,7 @@ def _build_investigated_report(incident: Incident, findings: Findings) -> Triage
     Args:
         incident: The incident to report, with the alerts absorbed so far.
         findings: What the investigation came back with.
+        examined: The signals the investigation looks at.
 
     Returns:
         A report naming the service, stating the findings with their evidence,
@@ -103,7 +135,7 @@ def _build_investigated_report(incident: Incident, findings: Findings) -> Triage
         incident_id=incident.id,
         service=incident.service,
         subject=_investigated_subject(incident, findings),
-        body=_investigated_body(incident, findings),
+        body=_investigated_body(incident, findings, examined),
     )
 
 
@@ -118,13 +150,15 @@ def _investigated_subject(incident: Incident, findings: Findings) -> str:
     return f"[alert-triage] {_one_line(incident.service)}: {found}"
 
 
-def _investigated_body(incident: Incident, findings: Findings) -> str:
+def _investigated_body(
+    incident: Incident, findings: Findings, examined: Sequence[Signal]
+) -> str:
     """Lead with what was found, then the alerts that prompted looking."""
     lines = [
         f"{_alert_count(len(incident.alerts))} fired for service "
         f"{incident.service} since {incident.window.start.isoformat()}.",
         "",
-        *_findings_lines(findings),
+        *_findings_lines(findings, examined),
         "",
         "Alerts:",
         *(_alert_line(alert) for alert in incident.alerts),
@@ -132,7 +166,7 @@ def _investigated_body(incident: Incident, findings: Findings) -> str:
     return "\n".join(lines)
 
 
-def _findings_lines(findings: Findings) -> list[str]:
+def _findings_lines(findings: Findings, examined: Sequence[Signal]) -> list[str]:
     """Every finding with its count and the evidence that shows it.
 
     Led by the incompleteness note where there is one: a reader deciding how
@@ -141,11 +175,33 @@ def _findings_lines(findings: Findings) -> list[str]:
     """
     lines = [] if findings.complete else [EVIDENCE_INCOMPLETE, ""]
     if not findings.anything_notable:
-        return [*lines, NOTHING_NOTABLE]
+        return [*lines, nothing_notable(examined)]
     lines.append("What the investigation found:")
     for finding in findings.findings:
         lines.extend(("", *_finding_lines(finding)))
     return lines
+
+
+def nothing_notable(examined: Sequence[Signal]) -> str:
+    """Say that nothing was found, and what was looked at to find nothing in.
+
+    Args:
+        examined: The signals the investigation looks at.
+
+    Returns:
+        The sentence a clean investigation is reported with.
+    """
+    if not examined:
+        return NOTHING_EXAMINED
+    return NOTHING_NOTABLE_TEMPLATE.format(signals=_listed(examined))
+
+
+def _listed(signals: Sequence[Signal]) -> str:
+    """Name the signals in the one form a sentence can carry."""
+    named = [signal.value for signal in signals]
+    if len(named) == 1:
+        return named[0]
+    return f"{', '.join(named[:-1])} and {named[-1]}"
 
 
 def _finding_lines(finding: Finding) -> list[str]:
