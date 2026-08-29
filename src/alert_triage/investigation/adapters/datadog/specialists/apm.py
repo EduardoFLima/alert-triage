@@ -40,16 +40,22 @@ APM_TOOLSET = "apm"
 """
 
 METRIC_TOOL = "get_datadog_metric"
+METRIC_SEARCH_TOOL = "search_datadog_metrics"
 METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
 DEPENDENCIES_TOOL = "search_datadog_service_dependencies"
 EVENTS_TOOL = "search_datadog_events"
 """The tools every account has, whatever its Preview access.
 
-``METRIC_CONTEXT_TOOL`` is what keeps a guessed metric name from reading as a
+``METRIC_SEARCH_TOOL`` is what keeps a guessed metric name from reading as a
 healthy service. A metric query the platform has never heard of comes back
 empty, and an empty answer is deliberately not a failure — so without a way to
 ask which metrics a service actually reports, the specialist cannot tell "this
 service is fine" from "I made that name up".
+
+``METRIC_CONTEXT_TOOL`` is the second half of that: it takes one metric name
+and answers with its unit, its type and the tags it carries. It enumerates
+nothing, and a specialist told otherwise asks it for a service's whole
+catalogue — which it has no argument for, so the retrieval is refused.
 
 ``EVENTS_TOOL`` carries deploy correlation on an account without Preview. It
 returns deployments, infrastructure changes and monitor alerts rather than the
@@ -70,8 +76,10 @@ assumptions this declaration is.
 """
 
 _CORE_TOOLS_DESCRIBED = f"""\
-- `{METRIC_CONTEXT_TOOL}` tells you which metrics exist for a service and
-  what tags they carry.
+- `{METRIC_SEARCH_TOOL}` lists the metrics that exist, filtered by name or by
+  tag — `service:the-service` is how you narrow it to one service's.
+- `{METRIC_CONTEXT_TOOL}` takes one metric you have already found and tells
+  you its unit, its type and what tags it carries.
 - `{METRIC_TOOL}` returns a metric's values over a time range.
 - `{DEPENDENCIES_TOOL}` names the service's immediate upstream and downstream
   neighbours."""
@@ -155,11 +163,12 @@ The tools you have are Datadog's:
 
 {_tools_described(preview)}
 
-Ask `{METRIC_CONTEXT_TOOL}` which metrics the service reports before you
-query one. Do not guess a metric name: a name this service does not report
-comes back empty, and an empty answer means the service does not report it,
-which is not the same as the service being healthy. If you find yourself
-reporting that a signal was quiet, be sure you asked for a metric that exists.
+Ask `{METRIC_SEARCH_TOOL}` which metrics the service reports before you query
+one, and read the name you query out of what it answers. Do not guess a metric
+name: a name this service does not report comes back empty, and an empty
+answer means the service does not report it, which is not the same as the
+service being healthy. If you find yourself reporting that a signal was quiet,
+be sure you asked for a metric that exists.
 
 {METRIC_QUERY_DIALECT}
 
@@ -237,7 +246,12 @@ def apm_specialist(*, preview: bool) -> Specialist:
         return _declared(
             Toolset(
                 name=CORE_TOOLSET,
-                tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL),
+                tools=(
+                    METRIC_TOOL,
+                    METRIC_SEARCH_TOOL,
+                    METRIC_CONTEXT_TOOL,
+                    DEPENDENCIES_TOOL,
+                ),
             ),
             Toolset(
                 name=APM_TOOLSET,
@@ -254,7 +268,13 @@ def apm_specialist(*, preview: bool) -> Specialist:
     return _declared(
         Toolset(
             name=CORE_TOOLSET,
-            tools=(METRIC_TOOL, METRIC_CONTEXT_TOOL, DEPENDENCIES_TOOL, EVENTS_TOOL),
+            tools=(
+                METRIC_TOOL,
+                METRIC_SEARCH_TOOL,
+                METRIC_CONTEXT_TOOL,
+                DEPENDENCIES_TOOL,
+                EVENTS_TOOL,
+            ),
         ),
         preview=preview,
     )
