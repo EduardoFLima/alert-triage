@@ -160,14 +160,6 @@ reached, not for a model that decided not to ask.
   rendering, which has its own requirement and its own scenarios. Those tests
   move verbatim rather than being rewritten.
 
-## Migration Plan
-
-The `triage-run` delta modifies **A report says which signals were examined**,
-which is a requirement of the unarchived `add-remaining-specialists` change
-rather than of `openspec/specs/triage-run/spec.md`. That change is implemented
-and merged; archive it before archiving this one, or the modification has
-nothing to apply to.
-
 ## Open Questions
 
 - Whether the Diagnostician and the Report agent should be nameable under

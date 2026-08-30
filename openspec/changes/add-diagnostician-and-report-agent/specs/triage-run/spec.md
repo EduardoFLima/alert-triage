@@ -128,7 +128,7 @@ which they were told.
 An investigation that consulted no signal at all SHALL be reported as such, and
 SHALL NOT be reported as one that found nothing notable.
 
-#### Scenario: Nothing notable across the signals consulted
+#### Scenario: Nothing notable across several signals
 - **WHEN** an investigation consults several specialists and finds nothing
   notable in any of them
 - **THEN** the report says nothing notable was found and names the signals that

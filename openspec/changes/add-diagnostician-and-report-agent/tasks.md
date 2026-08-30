@@ -188,6 +188,3 @@ is cheaper to discover before six modules depend on it.
 - [ ] 9.6 Confirm `README.md` and `docs/configuration.md` say nothing that the
       moved report rendering or the concluded report has made untrue. The
       architecture diagram is deliberately left alone — slice 15.
-- [ ] 9.7 Archive `add-remaining-specialists` before archiving this change: its
-      `A report says which signals were examined` is what section 7's delta
-      modifies. See design.md, Migration Plan.
