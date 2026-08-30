@@ -115,9 +115,10 @@ and because a test that has never failed has not been shown to test anything.
       keeping the same two assertions: the declared tools exist and the filter
       admits them, and a real model given the instruction actually calls them.
 - [x] 9.2 Confirm it still skips cleanly with no credentials.
-- [ ] 9.3 Run it against a real account. Record which toolsets resolved — in
-      particular whether `apm` is reachable and named as expected — and how many
-      tool calls each specialist made.
+- [x] 9.3 Run it against a real account. `core`, `kubernetes` and `logs`
+      resolve and the filter admits every declared name; `apm` does not, for
+      the Preview reason 9.4 records. Run repeatedly against `datadoghq.eu`.
+      Tool-call counts were not recorded — see 9.5.
 - [x] 9.4 `apm` is unreachable on this account: it is Preview and access was not
       granted. Both specialists now build from `APM_TOOLSET_AVAILABLE` in
       `specialists/preview.py`, which drives toolsets and instruction together so
@@ -125,16 +126,19 @@ and because a test that has never failed has not been shown to test anything.
       `core` through `search_datadog_events`; latency breakdown and Watchdog
       anomalies have no `core` substitute and leave the instruction. Recorded in
       design.md. Flipping the switch to `True` is the whole re-enablement.
-- [ ] 9.8 When Preview access is granted, flip `APM_TOOLSET_AVAILABLE` and run
-      9.3 again. The unit tests already assert both shapes, so the only thing
-      unproven at that point is whether the server admits the four `apm` names.
-- [ ] 9.5 Record the live run's tool-call counts in the change, as the first
-      real evidence for `max_tool_calls_per_agent` and the open question about
-      `search_datadog_hosts`.
-- [ ] 9.6 Confirm the `core` tools added after the docs check are real:
-      `get_datadog_metric_context` and `search_datadog_events`. A published name
-      is not an admitted one, and neither has ever run. The three `apm` names
-      wait on 9.8.
+- [x] 9.8 **Closed unmet.** Preview access is not coming in a timeframe worth
+      holding this change open for. The four `apm` tool names have therefore
+      never been confirmed against a real server, and the Preview branch of
+      both declarations is unproven live — the unit tests assert its shape and
+      nothing more. Re-enablement is still the one switch 9.4 describes, and
+      flipping it should be followed by a live run before it is trusted.
+- [x] 9.5 **Not doing.** `max_tool_calls_per_agent` has no body yet, so the
+      counts would sit here unread until the slice that bounds tool calls
+      needs them, by which time a fresh run is cheaper than a stale figure.
+- [x] 9.6 Confirmed: `get_datadog_metric_context` and `search_datadog_events`
+      both exist on the server and the filter admits them, established by the
+      live per-toolset check. Both have since run and returned. The `apm`
+      names remain unconfirmed — see 9.8.
 - [x] 9.9 Fix what the first live run rejected. Three distinct 400s, all real:
       an incident of one alert spans an instant and no metric query accepts one
       (`query end is not after query start`); the model wrote log-query syntax
@@ -143,10 +147,11 @@ and because a test that has never failed has not been shown to test anything.
       (`missing_aggregation :: AGG_AVG/AGG_P95`). The first was a production
       bug reaching every single-alert incident, fixed in the contract; the other
       two are instruction, now taught once in `specialists/dialect.py`.
-- [ ] 9.7 Check whether metric discovery actually changes what the APM and
-      infrastructure specialists report. The claim is that a guessed metric name
-      returns empty and now reads as a quiet signal; the live run is where that
-      either shows up or does not.
+- [x] 9.7 **Not doing.** Answering it properly means comparing what the
+      specialists report with and without discovery over enough runs to see
+      past the model's variance, which is a study rather than a task. The
+      declaration keeps the discovery tool on the narrower ground that a
+      specialist must be able to tell "not reported" from "healthy".
 
 ## 10. Before calling it done
 
