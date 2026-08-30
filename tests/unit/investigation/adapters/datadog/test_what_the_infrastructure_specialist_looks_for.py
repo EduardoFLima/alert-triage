@@ -40,11 +40,19 @@ def test_the_declaration_reaches_the_core_and_kubernetes_toolsets() -> None:
 def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
     assert _permitted() == {
         "get_datadog_metric",
+        "search_datadog_metrics",
         "get_datadog_metric_context",
         "search_datadog_hosts",
         "search_datadog_k8s_resources",
         "describe_datadog_k8s_resource",
+        "list_datadog_skills",
+        "load_datadog_skill",
     }
+
+
+def test_the_declaration_can_list_the_metrics_a_host_or_service_reports() -> None:
+    """Metric context answers about a metric you name; it enumerates none."""
+    assert "search_datadog_metrics" in _permitted()
 
 
 def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
@@ -52,8 +60,18 @@ def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
     assert "get_datadog_metric_context" in _permitted()
 
 
+def test_the_instruction_asks_the_listing_tool_which_metrics_are_reported() -> None:
+    """The failure this prevents: metric context asked to enumerate a service.
+
+    Asked for everything a service reports it has no such argument, so a model
+    told to ask it that sends `*` as the metric name and the platform refuses
+    the retrieval.
+    """
+    assert "ask `search_datadog_metrics` which metrics" in _flowed()
+
+
 def test_the_instruction_says_to_discover_a_metric_before_querying_it() -> None:
-    assert "get_datadog_metric_context" in INFRASTRUCTURE_INSTRUCTION
+    assert "search_datadog_metrics" in INFRASTRUCTURE_INSTRUCTION
     assert "guess" in _flowed()
 
 

@@ -23,6 +23,11 @@ nowhere to write a waterfall into.
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    CONSULT_THE_PLATFORM,
+    SKILL_LIST_TOOL,
+    SKILL_LOAD_TOOL,
+)
 from alert_triage.investigation.adapters.datadog.specialists.preview import (
     APM_TOOLSET_AVAILABLE,
 )
@@ -60,6 +65,8 @@ The tools you have are Datadog's:
   see what a single request actually spent its time on.
 {RANKING_TOOL}
 {ORDERING}
+
+{CONSULT_THE_PLATFORM}
 
 A span query is facets joined by spaces —
 `service:checkout status:error`, `service:checkout @duration:>2s` for the slow
@@ -126,6 +133,7 @@ def _instruction(preview: bool) -> str:
     return _INSTRUCTION_TEMPLATE.format(
         SPAN_SEARCH_TOOL=SPAN_SEARCH_TOOL,
         TRACE_TOOL=TRACE_TOOL,
+        CONSULT_THE_PLATFORM=CONSULT_THE_PLATFORM,
         MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
         RANKING_TOOL=f"{_RANKING_TOOL_DESCRIBED}\n" if preview else "",
         ORDERING=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
@@ -173,7 +181,10 @@ def trace_specialist(*, preview: bool) -> Specialist:
         The declaration, reaching only tools the account can actually call and
         instructed only in what those tools can establish.
     """
-    core = Toolset(name=CORE_TOOLSET, tools=(SPAN_SEARCH_TOOL, TRACE_TOOL))
+    core = Toolset(
+        name=CORE_TOOLSET,
+        tools=(SPAN_SEARCH_TOOL, TRACE_TOOL, SKILL_LIST_TOOL, SKILL_LOAD_TOOL),
+    )
     ranking = (Toolset(name=APM_TOOLSET, tools=(TRACE_QUERY_TOOL,)),) if preview else ()
     return Specialist(
         name="trace_specialist",

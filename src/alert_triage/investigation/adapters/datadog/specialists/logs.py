@@ -17,6 +17,11 @@ either grain.
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+    CONSULT_THE_PLATFORM,
+    SKILL_LIST_TOOL,
+    SKILL_LOAD_TOOL,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -54,6 +59,8 @@ The tools you have are Datadog's:
 - `{LOG_ANALYSIS_TOOL}` runs SQL over a virtual `logs` table holding the events
   its own Datadog log query admits, when you want the shape of a pattern —
   a count, a breakdown by status or host — rather than its instances.
+
+{CONSULT_THE_PLATFORM}
 
 A Datadog log query is `service:checkout status:error` — facets joined by
 spaces, `-` to negate, `*` to wildcard, `@` for attributes from structured logs
@@ -130,6 +137,16 @@ LOGS_SPECIALIST = Specialist(
     signal=Signal.LOGS,
     instruction=LOGS_INSTRUCTION,
     output_schema=ReportedFindings,
-    toolsets=(Toolset(name=LOGS_TOOLSET, tools=(LOG_SEARCH_TOOL, LOG_ANALYSIS_TOOL)),),
+    toolsets=(
+        Toolset(
+            name=LOGS_TOOLSET,
+            tools=(
+                LOG_SEARCH_TOOL,
+                LOG_ANALYSIS_TOOL,
+                SKILL_LIST_TOOL,
+                SKILL_LOAD_TOOL,
+            ),
+        ),
+    ),
 )
 """The Logs specialist as the crew sees it: one declaration, nothing else."""

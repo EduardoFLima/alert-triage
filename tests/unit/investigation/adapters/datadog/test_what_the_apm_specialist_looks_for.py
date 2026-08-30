@@ -46,8 +46,11 @@ def test_without_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
     assert _permitted(apm_specialist(preview=False)) == {
         "get_datadog_metric",
         "get_datadog_metric_context",
+        "search_datadog_metrics",
         "search_datadog_service_dependencies",
         "search_datadog_events",
+        "list_datadog_skills",
+        "load_datadog_skill",
     }
 
 
@@ -79,7 +82,10 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
         == {
             "get_datadog_metric",
             "get_datadog_metric_context",
+            "search_datadog_metrics",
             "search_datadog_service_dependencies",
+            "list_datadog_skills",
+            "load_datadog_skill",
         }
         | PREVIEW_TOOLS
     )
@@ -90,13 +96,30 @@ def test_with_preview_change_stories_supersede_raw_events() -> None:
     assert "search_datadog_events" not in _permitted(apm_specialist(preview=True))
 
 
+def test_the_declaration_can_list_the_metrics_a_service_reports() -> None:
+    """Metric context answers about a metric you name; it enumerates none."""
+    assert "search_datadog_metrics" in _permitted(APM_SPECIALIST)
+
+
 def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
     """A guessed metric name comes back empty, which now reads as a quiet signal."""
     assert "get_datadog_metric_context" in _permitted(APM_SPECIALIST)
 
 
+def test_the_instruction_asks_the_listing_tool_which_metrics_exist() -> None:
+    """The failure this prevents: metric context asked to enumerate a service.
+
+    Asked for a whole service's metrics it has no such argument, so a model
+    told to ask it that sends `*` as the metric name and the platform refuses
+    the retrieval.
+    """
+    flowed = " ".join(APM_INSTRUCTION.lower().split())
+
+    assert "ask `search_datadog_metrics` which metrics" in flowed
+
+
 def test_the_instruction_says_to_discover_a_metric_before_querying_it() -> None:
-    ordering = APM_INSTRUCTION.index("get_datadog_metric_context")
+    ordering = APM_INSTRUCTION.index("search_datadog_metrics")
 
     assert ordering < APM_INSTRUCTION.index("Rules you must follow")
     assert "guess" in APM_INSTRUCTION.lower()

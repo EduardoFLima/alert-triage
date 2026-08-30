@@ -12,6 +12,41 @@ query — they look alike and are not — and each paragraph below is one 400 it
 came back with.
 """
 
+SKILL_LIST_TOOL = "list_datadog_skills"
+SKILL_LOAD_TOOL = "load_datadog_skill"
+"""How the platform publishes the grammars its own tools are queried in.
+
+Named here rather than in each specialist because every specialist that
+queries anything reaches both, and because this is the module that exists to
+answer "how is a query written on this platform" — which these two answer
+better than a transcription can.
+"""
+
+CONSULT_THE_PLATFORM = f"""
+This platform documents how its own tools are queried, and that documentation
+is the authority on syntax — not your recollection of it, and not the shape of
+a query you wrote for a different tool.
+
+- `{SKILL_LIST_TOOL}` lists the guides it publishes.
+- `{SKILL_LOAD_TOOL}` loads one, by the name the listing gave it. A guide may
+  point you at a further reference of its own; load that one the same way,
+  passing the path it named you.
+
+Load the guide covering a tool before you write your first query with it. The
+tools here take several different query languages — one takes SQL over a
+virtual table, another a tag filter, another a metric expression — and they
+look enough alike that a query written in the wrong one is accepted by you and
+refused by the platform. A refusal costs a retrieval; loading a guide costs a
+call.
+""".strip()
+"""Where a specialist is told to find the grammar rather than be given it.
+
+Shared by every specialist that queries anything, which is all of them. What
+each one then loads is the model's to decide from the listing: naming a guide
+here would be the transcription this replaced, one indirection out, and stale
+the day the platform renames it.
+"""
+
 METRIC_QUERY_DIALECT = """
 A metric query is an aggregator, a metric name, and a scope in braces:
 `avg:system.cpu.user{service:checkout}`. Use `sum:...{service:checkout}.as_count()`
