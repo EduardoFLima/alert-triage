@@ -202,8 +202,9 @@ carry.
 
 It is also what makes the routing gradeable. "Did it consult the right
 specialists for this incident" is a question with a right answer on a recorded
-incident, and it is the first thing the evaluation harness asks — which is why
-that harness now comes after the Diagnostician rather than before it.
+incident, and it is the first thing the [evaluation
+harness](#evaluation-harness) asks — which is why that harness is worth
+building only once there is a manager making the choice.
 
 Deploy-version comparisons (item: "did this start after a deploy") need no
 separate version-control integration for v1. Datadog answers the question
@@ -325,7 +326,8 @@ contributor when a port was fully implemented; nothing tells them whether
 their instruction is any good. The answer to that is an evaluation harness,
 not a port — recorded incidents with expected findings, replayed against a
 whole investigation. It is owed to the Datadog specialists just as much,
-which is why it is a slice of its own rather than a nicety.
+which is why it is a named [next step](#evaluation-harness) rather than a
+nicety — outside the MVP, but the first thing after it.
 
 ### Re-notification
 
@@ -420,10 +422,10 @@ tool, and no manager. What they now bound has moved:
     now bound a call. Both are set explicitly beside the connection, so
     ADK's own defaults — five seconds to connect and five minutes to read —
     cannot apply by accident to a bound stated as thirty seconds. Reading
-    them from config is slice 12's wiring.
+    them from config is slice 11's wiring.
   - `max_mcp_retries` is **superseded**. ADK's toolset already rebuilds a
     dead session and retries once, and there is no seam to make that count
-    configurable short of reimplementing the toolset. Slice 12 removes the
+    configurable short of reimplementing the toolset. Slice 11 removes the
     key rather than leaving an operator setting that does nothing.
 
 ## Config file
@@ -588,6 +590,11 @@ GCP (Cloud Run job or GKE) — GCP is the target landscape.
 
 ## Explicitly deferred (roadmap, not v1 scope)
 
+Individual capabilities left out of v1. The two larger items that follow the
+MVP as a whole — measuring investigation quality, and remembering what past
+investigations concluded — are under [Next steps](#next-steps-roadmap-after-the-mvp)
+after the slice order.
+
 - FinOps agent (cost-impact or cost-anomaly investigation). Datadog's
   `cost_recommendations` makes this a specialist declaration rather than an
   integration, which lowers its cost considerably.
@@ -643,7 +650,7 @@ question rather than a feature:
   `Notifier` port is one-way by design, and acknowledgement is inbound.
   Polling for reactions keeps the scheduled-job shape; a webhook does not —
   it turns a job that runs and exits into a service that must be reachable,
-  which is a deployment change (slice 14), not just a port.
+  which is a deployment change (slice 13), not just a port.
 
 Two failure modes worth designing against from the start:
 
@@ -653,7 +660,7 @@ Two failure modes worth designing against from the start:
   when the incident closes — so that going quiet is always a decision
   someone made recently.
 - **A worsening incident must break through.** Acknowledgement suppresses the
-  routine repeat, not the escalation path (slice 11). If severity crosses a
+  routine repeat, not the escalation path (slice 10). If severity crosses a
   threshold or the blast radius grows, that is new information and the ack
   should not hold it back.
 
@@ -706,9 +713,9 @@ testable, building only on the slices before it.
    It belongs to this slice because this slice is what made it necessary.
    Retiring the port grew the ADK adapter to a third of all adapter code, and
    a flat `adapters/` that groups by "this is an integration" was then filing
-   an agent subsystem beside a sixty-line dotenv wrapper. Slice 10's harness is
-   not an adapter and had nowhere to go; slices 8 and 9 take investigation
-   from one specialist to six. Doing it here rather than later meant moving a
+   an agent subsystem beside a sixty-line dotenv wrapper. The evaluation
+   harness is not an adapter and had nowhere to go either; slices 8 and 9 take
+   investigation from one specialist to six. Doing it here rather than later meant moving a
    third of the code that a later cut would have had to move.
 
    Two anticorruption layers keep the contexts acyclic: `InvestigationTarget`
@@ -736,47 +743,31 @@ testable, building only on the slices before it.
    signal that was clean. Testable against canned findings, with the routing
    testable by asserting which specialists a stubbed manager was offered and
    which it called.
-10. **Evaluation harness** — recorded incidents replayed against a whole
-    investigation, so quality is measurable rather than felt. A case is
-    captured once from the live platform — every tool declaration, call, and
-    result — and replayed from disk thereafter, so the platform's answer is
-    fixed and a change in the score is a change in the instruction, the
-    routing, or the model rather than in Datadog.
-
-    Ordered after the crew rather than before it. The judgements most worth
-    grading are which specialists an incident needed and what the
-    Diagnostician concluded from them, and neither exists until slice 9;
-    grading a lone specialist first would mean inventing a standard for a
-    whole investigation and then revising it once the manager arrived. It
-    settles the questions slice 6 left open — which model to default to, and
-    how many examples a finding should carry — and gives slice 12 evidence
-    where it currently has guesses. Testable as a scoring run over recorded
-    cases.
-11. **Escalation path** — severity/threshold rule + critical-services
+10. **Escalation path** — severity/threshold rule + critical-services
     overrides, bypassing batching. Testable as rule-engine unit tests.
-12. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
+11. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
     trip → partial report + auto-escalate. The per-agent bound sits in
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.
-13. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
+12. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
     deliberate lint error, a type error, and a boundary violation on a scratch
     branch and confirm each produces a red run naming the rule, the expression,
     and the offending import, then delete the branch. Deferred out of slice 0
     because it is the one check that cannot be proven locally — it needs real
     runs on the remote. Criteria VLD-002…VLD-004 in
     `docs/spec-process-cicd-ci.md`.
-14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
+13. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.
-15. **README architecture diagram rework** — the diagram the bounded-context
+14. **README architecture diagram rework** — the diagram the bounded-context
     restructure left behind states the shape correctly and reads poorly: four
     nested subgraphs, an enclosing box for configuration, and a rung per layer
     inside each context, all competing for the same glance. Deliberately last,
     because every slice before it changes what the picture has to say. Slice 9
     moves report formatting into an agent, which dissolves triage's deep read
     of investigation's vocabulary and so redraws one of the two cross-context
-    edges. Slice 11 adds a path that bypasses batching entirely, which the
-    current picture has nowhere to put. Slice 14 introduces a deployment story
+    edges. Slice 10 adds a path that bypasses batching entirely, which the
+    current picture has nowhere to put. Slice 13 introduces a deployment story
     a reader will want to see and there is no version of that in it today.
     Redrawing before those land is redrawing twice, and a diagram is the one
     artefact where being out of date is worse than being ugly.
@@ -789,3 +780,97 @@ testable, building only on the slices before it.
     conventions above; the acceptance is a reader who has not seen the codebase
     reaching the right mental model unaided, which is a judgement rather than a
     test, so it does not gate a green build.
+
+## Next steps (roadmap, after the MVP)
+
+The slices above are what it takes to have the thing working: alerts in,
+investigated, a report out. What follows is what it takes to have it working
+*well*. Neither entry can be built usefully before there is a running system to
+measure and a history to remember, which is why both sit after the slice order
+rather than inside it. They are ordered with respect to each other — memory
+depends on the harness, for the reason given below.
+
+### Evaluation harness
+
+Recorded incidents replayed against a whole investigation, so quality is
+measurable rather than felt. A case is captured once from the live platform —
+every tool declaration, call, and result — and replayed from disk thereafter,
+so the platform's answer is fixed and a change in the score is a change in the
+instruction, the routing, or the model rather than in Datadog.
+
+The judgements most worth grading are which specialists an incident needed and
+what the Diagnostician concluded from them, so the crew has to exist first.
+Grading a lone specialist would mean inventing a standard for a whole
+investigation and then revising it the moment the manager arrived. It settles
+the questions slice 6 left open — which model to default to, and how many
+examples a finding should carry — and gives slice 11 evidence where it
+currently has guesses.
+
+Out of the MVP rather than in it, because an MVP is judged by whether a human
+opening the report finds it useful, and that judgement is available by reading
+one. Measuring it is what you need in order to *improve* it deliberately, and
+that is a problem worth having only once something is running to improve.
+Testable as a scoring run over recorded cases.
+
+### Memory — what past investigations learned
+
+The ledger remembers what was *reported*. Nothing remembers what was
+*learned*. So a problem that recurs every week is investigated from scratch
+every week, at full model cost, and may reach a different conclusion than last
+time for no reason other than sampling. The knowledgeable human this project
+stands in for does not work that way: the third time they see a symptom they
+recognise it, and most of their speed comes from that rather than from
+searching faster.
+
+Memory is that record — what an investigation concluded, against what
+signature, and what happened afterwards — kept so that a later investigation
+can find it.
+
+It belongs to `investigation`, not to triage. What is remembered is findings
+and hypotheses, which are investigation's own vocabulary; holding them in
+triage would mean triage learning that vocabulary, and the contract exists
+precisely so it does not have to. So: a `Memory` port declared in
+investigation, written at the end of an investigation and read by the
+Diagnostician as one more tool it may call — the same shape a specialist
+already has, which means the manager decides per incident whether prior
+knowledge is worth consulting rather than paying for a lookup every time.
+
+The payoff is routing before it is confidence. A Diagnostician that knows this
+signature has recurred three times, and what each turned out to be, can skip
+the specialists that found nothing on any of them — and the cost of an
+investigation is dominated by which specialists run. Better-grounded
+hypotheses are the second benefit, not the first.
+
+Four things to design against from the start:
+
+- **A memory is a hypothesis, not a fact.** This system deliberately produces
+  a hypothesis with a confidence level rather than a verdict. Storing one and
+  then leaning on it is how an unexamined guess becomes permanent truth. A
+  memory has to carry the confidence it was formed with and whether a human
+  ever confirmed it — which is the same missing input as
+  [Acknowledgement](#acknowledgement--the-missing-input), and the reason these
+  two are related rather than independent.
+- **Anchoring is the failure mode, not a wrong memory.** A Diagnostician told
+  "last time it was the database" may stop looking. Memory should bias which
+  signals get consulted and never substitute for consulting them: a recalled
+  cause enters as a lead that a specialist must corroborate against today's
+  evidence, carrying its own citation. A finding that cites only a memory is
+  not a finding, by the same rule that already discards one citing nothing.
+- **Recall is a matching problem, and the grouping key does not solve it.**
+  Service plus time window says two alerts are the same incident. It says
+  nothing about two incidents a month apart being the same *problem*. That
+  needs a notion of similarity over the alert signature and the findings.
+  Start with the cheapest thing that could work — service, monitor identity,
+  and signal — and let the harness say whether it has to be cleverer.
+- **A fixed problem makes its memory wrong.** A memory's value decays, and a
+  deploy is the event most likely to invalidate one outright. The
+  change-story tools the APM specialist already reaches are what would notice,
+  so invalidation is a rule over evidence the system already gathers rather
+  than a new integration.
+
+Ordered after the harness deliberately. "Does memory make investigations
+faster and more accurate" is exactly the question a scoring run over recorded
+cases answers, and without it memory is a plausible-sounding change nobody can
+tell is working — including in the direction where anchoring quietly makes it
+worse. Building the harness first is what makes memory an experiment rather
+than a belief.
