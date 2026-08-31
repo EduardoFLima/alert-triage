@@ -41,6 +41,14 @@ objects, and this project reads a name off the first and nothing off the
 second, so a unit test drives the callback with no framework at all.
 """
 
+OnToolError = Callable[..., dict[str, Any] | None]
+"""How ADK offers a tool's failure before it re-raises it.
+
+A callback returning a record answers the call with it instead; returning
+``None`` lets the failure propagate, which for an unhandled tool error means
+ending the whole run.
+"""
+
 BeforeTool = Callable[..., dict[str, Any] | None]
 """How ADK offers a tool call for inspection before it is made.
 

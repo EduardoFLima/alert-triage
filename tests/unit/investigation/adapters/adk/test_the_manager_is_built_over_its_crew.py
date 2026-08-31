@@ -109,3 +109,12 @@ def test_a_reasoner_takes_the_deployments_model() -> None:
     agent = build_reasoner(REPORT_WRITER, _deployment())
 
     assert agent.model == "gemini-2.5-flash"
+
+
+def test_the_manager_answers_a_failed_consultation_rather_than_letting_it_raise() -> (
+    None
+):
+    """Unhandled, a tool error ends the run and takes every finding with it."""
+    manager = _manager()
+
+    assert manager.on_tool_error_callback is not None

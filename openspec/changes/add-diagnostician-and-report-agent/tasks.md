@@ -173,9 +173,19 @@ is cheaper to discover before six modules depend on it.
       tools you need", and beside "stop as soon as you can" a flash model takes
       the first answer and finalises. A manager that answers with no conclusion
       at all is now a warning rather than silence.
-- [ ] 8.3 Run it again and confirm the two fixes: the manager consults more than
-      one specialist where the incident warrants it, and a conclusion it reaches
-      survives into the report. Establish the gate from section 1
+- [x] 8.8 A specialist answered in prose where its schema was asked for, and
+      `AgentTool` validated it and raised. ADK catches a tool error, offers it to
+      `on_tool_error_callback`, and re-raises when nobody answers — so one
+      specialist's bad turn ended the whole investigation and took every other
+      specialist's findings with it. The manager now carries that callback: a
+      failed consultation is answered in the same terms as a refused one, kept
+      to the consultation that had it, and recorded so the report says the
+      investigation was incomplete. A failure in anything that is not a
+      specialist is still left to raise.
+- [ ] 8.3 Run it again and confirm the three fixes: the manager consults more than
+      one specialist where the incident warrants it, a conclusion it reaches
+      survives into the report, and a specialist that cannot answer costs its own
+      consultation rather than the run. Establish the gate from section 1
       against the real framework: whether the specialist's structured report
       survives the agent-tool hop, or whether findings must be collected from
       the specialist's own `after_agent_callback` instead. Record the answer in

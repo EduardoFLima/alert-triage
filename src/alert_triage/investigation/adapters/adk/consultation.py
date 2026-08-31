@@ -21,6 +21,7 @@ from typing import Any
 from alert_triage.investigation.adapters.adk.evidence import (
     AfterTool,
     BeforeTool,
+    OnToolError,
     Retrieved,
     named_tool,
 )
@@ -57,6 +58,26 @@ CONSULTATION_REFUSED = (
 Deliberately verbose, for the reason ``RETRIEVAL_FAILED`` is: the one thing that
 must not happen is a model reading a refusal as a specialist that came back
 empty, and a terse error is exactly what invites that reading.
+"""
+
+CONSULTATION_FAILED = (
+    "This consultation did not answer. The specialist was asked and something "
+    "went wrong before it could report — it has told you nothing, and that is "
+    "not the same as telling you there was nothing to find. Conclude nothing "
+    "about that signal in either direction. Consult a different specialist, or "
+    "ask this one again."
+)
+"""What a manager is handed when a consultation fails outright.
+
+A specialist answering in prose where its schema was asked for raises inside the
+framework, and an unhandled tool error ends the whole investigation — one
+specialist's bad turn costing every other specialist's work. Answering the
+manager instead keeps the failure where it belongs, on the one consultation that
+had it.
+
+Worded like the refusal above and for the same reason: a model reading "that
+call failed" as "that signal is clean" is the misreading this whole context is
+built to prevent.
 """
 
 
@@ -131,6 +152,25 @@ class Consulted:
     def exhausted(self) -> bool:
         """Whether this investigation has spent the questions it is allowed."""
         return len(self._order) >= MAX_CONSULTATIONS
+
+    def fail(self, name: str, error: Exception) -> dict[str, Any]:
+        """Record a consultation that could not answer, and say so unmistakably.
+
+        Args:
+            name: The specialist that was asked and could not report.
+            error: What went wrong, for whoever tunes the investigation.
+
+        Returns:
+            The answer the manager is given in place of the report.
+        """
+        reason = f"the {name} was consulted and could not answer: {error}"
+        self._refusals.append(reason)
+        _log.warning("A consultation failed: %s", reason)
+        return {
+            "consultation_failed": True,
+            "detail": reason,
+            "read_this_as": CONSULTATION_FAILED,
+        }
 
     def refuse(self, name: str) -> dict[str, Any]:
         """Record a consultation that may not be made, and answer it unmistakably.
@@ -272,3 +312,35 @@ def bound_consultations_callback(consulted: Consulted) -> BeforeTool:
         return None
 
     return _bounded
+
+
+def failed_consultation_callback(consulted: Consulted) -> OnToolError:
+    """The callback that keeps a specialist's failure to that specialist.
+
+    Without one, the framework re-raises: a single specialist answering in prose
+    where its schema was asked for ends the whole investigation, and every other
+    specialist's work goes with it. That is the wrong blast radius — a
+    consultation that could not answer is exactly the case the manager is
+    equipped to route around, so it is told, and it decides.
+
+    Only a specialist's failure is answered. Anything else — a framework tool,
+    the one that collects the structured answer — is left to raise, because a
+    failure there is not a consultation that went wrong and swallowing it would
+    hide a real fault.
+
+    Args:
+        consulted: This investigation's record of what was asked.
+
+    Returns:
+        The ``on_tool_error_callback`` to register on the manager.
+    """
+
+    def _failed(
+        *, tool: Any, args: dict[str, Any], tool_context: Any, error: Exception
+    ) -> dict[str, Any] | None:
+        name = named_tool(tool)
+        if consulted.named(name) is None:
+            return None
+        return consulted.fail(name, error)
+
+    return _failed

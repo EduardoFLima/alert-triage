@@ -127,3 +127,87 @@ def test_the_bound_leaves_room_for_a_second_question_after_the_whole_crew() -> N
 
     assert _ask(consulted, "logs_specialist") is None
     assert len(CREW) < MAX_CONSULTATIONS
+
+
+def test_a_specialist_that_answered_unusably_does_not_end_the_investigation() -> None:
+    """A specialist's bad turn is its own failure, not the investigation's.
+
+    One agent writing prose where its schema was asked for must not cost every
+    other agent's work.
+    """
+    from alert_triage.investigation.adapters.adk.consultation import (
+        failed_consultation_callback,
+    )
+
+    consulted = _consulted()
+    on_error = failed_consultation_callback(consulted)
+
+    answer = on_error(
+        tool=_Tool("logs_specialist"),
+        args={"request": "look"},
+        tool_context=None,
+        error=ValueError("1 validation error for ReportedFindings"),
+    )
+
+    assert answer is not None
+    assert answer["consultation_failed"] is True
+
+
+def test_a_failed_consultation_reads_as_a_failure_not_as_a_quiet_specialist() -> None:
+    from alert_triage.investigation.adapters.adk.consultation import (
+        failed_consultation_callback,
+    )
+
+    consulted = _consulted()
+    on_error = failed_consultation_callback(consulted)
+
+    answer = on_error(
+        tool=_Tool("logs_specialist"),
+        args={},
+        tool_context=None,
+        error=ValueError("invalid json"),
+    )
+
+    assert answer is not None
+    read_as = answer["read_this_as"]
+    assert "did not answer" in read_as
+    assert "not" in read_as and "nothing" in read_as
+
+
+def test_a_failed_consultation_is_recorded_so_the_report_says_so() -> None:
+    from alert_triage.investigation.adapters.adk.consultation import (
+        failed_consultation_callback,
+    )
+
+    consulted = _consulted()
+    on_error = failed_consultation_callback(consulted)
+
+    on_error(
+        tool=_Tool("logs_specialist"),
+        args={},
+        tool_context=None,
+        error=ValueError("invalid json"),
+    )
+
+    assert len(consulted.refusals) == 1
+    assert "logs_specialist" in consulted.refusals[0]
+
+
+def test_an_error_from_something_that_is_not_a_specialist_is_left_to_raise() -> None:
+    """A framework tool failing is not a consultation that went wrong."""
+    from alert_triage.investigation.adapters.adk.consultation import (
+        failed_consultation_callback,
+    )
+
+    consulted = _consulted()
+    on_error = failed_consultation_callback(consulted)
+
+    assert (
+        on_error(
+            tool=_Tool("set_model_response"),
+            args={},
+            tool_context=None,
+            error=ValueError("boom"),
+        )
+        is None
+    )

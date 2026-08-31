@@ -20,6 +20,7 @@ from alert_triage.investigation.adapters.adk.consultation import (
     Consulted,
     bound_consultations_callback,
     collect_findings_callback,
+    failed_consultation_callback,
 )
 from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
@@ -177,11 +178,14 @@ def build_manager(
     to keep. As tools, the specialists answer and the manager decides what to
     ask next.
 
-    Its two callbacks are the ones a manager needs and a specialist does not:
-    one bounds how many questions this incident may cost, and the other keeps
-    each specialist's report — checked — before the manager reads it. The
-    manager reaches no platform of its own, so neither contends with the
-    evidence callbacks its specialists carry.
+    Its three callbacks are the ones a manager needs and a specialist does not.
+    One bounds how many questions this incident may cost. One keeps each
+    specialist's report — checked — before the manager reads it. And one keeps a
+    specialist's failure to that specialist: unhandled, a tool error re-raises
+    and ends the investigation, so one agent answering in prose where its schema
+    was asked for would cost every other agent's work. The manager reaches no
+    platform of its own, so none of the three contends with the evidence
+    callbacks its specialists carry.
 
     Args:
         crew: The specialists to offer, every one of them.
@@ -211,4 +215,5 @@ def build_manager(
         ],
         before_tool_callback=bound_consultations_callback(consulted),
         after_tool_callback=collect_findings_callback(consulted),
+        on_tool_error_callback=failed_consultation_callback(consulted),
     )
