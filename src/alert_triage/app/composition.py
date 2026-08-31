@@ -17,7 +17,6 @@ import uuid
 from collections.abc import Mapping
 from contextlib import closing
 from datetime import datetime
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -30,7 +29,7 @@ from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment
 from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
-from alert_triage.investigation.adapters.adk.crew import SIGNALS_EXAMINED, crew_for
+from alert_triage.investigation.adapters.adk.crew import crew_for
 from alert_triage.investigation.adapters.adk.investigator import (
     AdkInvestigator,
     run_with_adk,
@@ -100,7 +99,7 @@ def execute(
             ),
             notifier=notifier,
             investigator=investigator,
-            build_report=partial(build_report, examined=SIGNALS_EXAMINED),
+            build_report=build_report,
             config=config,
             now=now,
             new_id=_new_id,
@@ -166,9 +165,11 @@ def build_investigator(
     notifier.
 
     What is supplied here is a deployment: where the platform is, what
-    authenticates against it, and how a specialist reaches the model it
-    reasons on. No tool is named — which tools a specialist may reach is its
-    declaration's business, and adding one changes nothing here.
+    authenticates against it, and how an agent reaches the model it reasons on.
+    No tool is named — which tools a specialist may reach is its declaration's
+    business, and adding one changes nothing here. Nor is any routing: which
+    specialists an incident needs is the manager's decision, made per incident,
+    and this only says which ones exist to be chosen from.
 
     The model's credential is checked here rather than beside the other
     startup checks because this is what needs it: a deployment that stops
@@ -198,19 +199,18 @@ def build_investigator(
         """The model a specialist reasons on, built where it named its own."""
         return default if named is None else build_model(named, access)
 
+    deployment = Deployment(
+        endpoint=mcp_endpoint(datadog_connection.site),
+        headers=mcp_headers(
+            api_key=datadog_connection.api_key,
+            app_key=datadog_connection.app_key,
+        ),
+        model_for=_model_for,
+    )
     return AdkInvestigator(
         crew=crew_for(investigation.specialists),
         links=DatadogLinks(datadog_connection.web_host),
-        run_specialist=run_with_adk(
-            Deployment(
-                endpoint=mcp_endpoint(datadog_connection.site),
-                headers=mcp_headers(
-                    api_key=datadog_connection.api_key,
-                    app_key=datadog_connection.app_key,
-                ),
-                model_for=_model_for,
-            )
-        ),
+        run_diagnostician=run_with_adk(deployment),
     )
 
 

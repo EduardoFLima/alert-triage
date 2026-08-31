@@ -24,6 +24,8 @@ from alert_triage.configuration.settings import (
     Scope,
 )
 from alert_triage.investigation.contract import (
+    Confidence,
+    Diagnosis,
     EvidenceItem,
     Finding,
     Findings,
@@ -126,13 +128,13 @@ class FakeInvestigator:
     arc — fail, fail, succeed — as the list it reads like.
     """
 
-    outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
+    outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
         """Answer with the next outcome, remembering what it was asked about."""
         self.asked.append(target)
-        outcome = self.outcomes.pop(0) if self.outcomes else Findings()
+        outcome = self.outcomes.pop(0) if self.outcomes else _diagnosed(Findings())
         if isinstance(outcome, InvestigatorError):
             raise outcome
         return outcome
@@ -195,19 +197,14 @@ def _ids() -> Callable[[], str]:
     return lambda: f"incident-{next(counter)}"
 
 
-def _build_report(incident: Incident, findings: Findings | None) -> TriageReport:
+def _build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
     """A builder standing in for the one the composition root injects."""
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
         subject=f"{incident.service}: {len(incident.alerts)} alert(s)",
-        body=NOT_INVESTIGATED if findings is None else _found(findings),
+        body=NOT_INVESTIGATED if diagnosis is None else diagnosis.account,
     )
-
-
-def _found(findings: Findings) -> str:
-    """What a report built from findings says, in as little as a test needs."""
-    return "\n".join(finding.observation for finding in findings.findings) or CLEAN
 
 
 def _run(
@@ -235,7 +232,7 @@ def test_a_due_incident_is_investigated_and_its_findings_reported(
 ) -> None:
     source = FakeAlertSource([_alert("a")])
     notifier = FakeNotifier()
-    investigator = FakeInvestigator([_findings("OOMKilled recurs")])
+    investigator = FakeInvestigator([_diagnosed(_findings("OOMKilled recurs"))])
 
     _run(source, FakeLedger(), notifier, config, investigator=investigator)
 
@@ -309,7 +306,7 @@ def test_a_retry_that_succeeds_reports_and_clears_the_attempts(
     source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
     ledger = FakeLedger([already])
     notifier = FakeNotifier()
-    investigator = FakeInvestigator([_findings("found it")])
+    investigator = FakeInvestigator([_diagnosed(_findings("found it"))])
 
     outcome = _run(source, ledger, notifier, config, investigator=investigator)
 
@@ -330,7 +327,7 @@ def test_a_successful_investigation_whose_delivery_fails_keeps_its_attempts(
     source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
     ledger = FakeLedger([already])
     notifier = FakeNotifier(undeliverable=frozenset({"checkout"}))
-    investigator = FakeInvestigator([_findings("found it")])
+    investigator = FakeInvestigator([_diagnosed(_findings("found it"))])
 
     _run(source, ledger, notifier, config, investigator=investigator)
 
@@ -344,7 +341,7 @@ def test_an_investigation_that_found_nothing_notable_is_still_delivered(
     """'We looked and it is clean' is a result, not a failure."""
     source = FakeAlertSource([_alert("a")])
     notifier = FakeNotifier()
-    investigator = FakeInvestigator([Findings()])
+    investigator = FakeInvestigator([_diagnosed(Findings())])
 
     outcome = _run(source, FakeLedger(), notifier, config, investigator=investigator)
 
@@ -400,7 +397,11 @@ def test_one_groups_investigation_failure_leaves_the_others_their_reports(
     )
     notifier = FakeNotifier()
     investigator = FakeInvestigator(
-        [_findings("first"), InvestigatorError("down"), _findings("third")]
+        [
+            _diagnosed(_findings("first")),
+            InvestigatorError("down"),
+            _diagnosed(_findings("third")),
+        ]
     )
 
     outcome = _run(source, FakeLedger(), notifier, config, investigator=investigator)
@@ -408,3 +409,14 @@ def test_one_groups_investigation_failure_leaves_the_others_their_reports(
     assert len(notifier.delivered) == 2
     assert outcome.delivered == 2
     assert not outcome.successful
+
+
+def _diagnosed(findings: Findings) -> Diagnosis:
+    """What a completed investigation hands the run back."""
+    return Diagnosis(
+        headline="checkout: something happened",
+        account="\n".join(one.observation for one in findings.findings) or CLEAN,
+        hypothesis="an upstream dependency is slow" if findings.findings else None,
+        confidence=Confidence.MEDIUM if findings.findings else None,
+        findings=findings,
+    )

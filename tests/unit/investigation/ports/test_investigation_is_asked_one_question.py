@@ -2,7 +2,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.investigation.contract import Findings, InvestigationTarget
+from alert_triage.investigation.contract import (
+    Diagnosis,
+    Findings,
+    InvestigationTarget,
+)
 from alert_triage.investigation.ports.investigator import (
     Investigator,
     InvestigatorError,
@@ -15,8 +19,18 @@ NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 class _Investigator:
     """Everything the port asks of an implementation, and nothing more."""
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
-        return Findings()
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
+        return _nothing_found()
+
+
+def _nothing_found() -> Diagnosis:
+    return Diagnosis(
+        headline="checkout: nothing notable",
+        account="Nothing notable was found.",
+        hypothesis=None,
+        confidence=None,
+        findings=Findings(),
+    )
 
 
 def _target() -> InvestigationTarget:
@@ -53,4 +67,4 @@ def test_an_investigation_is_asked_about_a_target_and_not_about_an_incident() ->
         NOON,
         2,
     )
-    assert _Investigator().investigate(target) == Findings()
+    assert _Investigator().investigate(target).findings == Findings()

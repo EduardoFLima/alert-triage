@@ -41,8 +41,12 @@ objects, and this project reads a name off the first and nothing off the
 second, so a unit test drives the callback with no framework at all.
 """
 
-BeforeTool = Callable[..., None]
-"""How ADK offers a tool call for inspection before it is made."""
+BeforeTool = Callable[..., dict[str, Any] | None]
+"""How ADK offers a tool call for inspection before it is made.
+
+A callback returning a record skips the call and uses that record as its
+result, which is what lets a refusal be a refusal rather than a tally.
+"""
 
 
 class Links(Protocol):
@@ -215,7 +219,7 @@ def keep_evidence_callback(
     def _kept(
         *, tool: Any, args: dict[str, Any], tool_context: Any, tool_response: Any
     ) -> dict[str, Any] | None:
-        name = _named(tool)
+        name = named_tool(tool)
         if name not in permitted:
             return None
         failure = _failure_in(tool_response)
@@ -238,7 +242,7 @@ def log_tool_call() -> BeforeTool:
     """
 
     def _logged(*, tool: Any, args: dict[str, Any], tool_context: Any) -> None:
-        _log.info("A specialist is calling %s with %r", _named(tool), args)
+        _log.info("A specialist is calling %s with %r", named_tool(tool), args)
         return None
 
     return _logged
@@ -296,6 +300,10 @@ def _detail(result: dict[str, Any]) -> str:
     return "" if said is None else summarise(said)
 
 
-def _named(tool: Any) -> str:
-    """What to call the tool in a log line or a failure record."""
+def named_tool(tool: Any) -> str:
+    """What to call the tool in a log line or a failure record.
+
+    Shared with the consultation callbacks, which sit on the same seat for a
+    manager whose tools are its specialists and need the same answer.
+    """
     return str(getattr(tool, "name", tool))

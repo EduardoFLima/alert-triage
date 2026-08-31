@@ -1,28 +1,30 @@
-"""The Investigator implemented as a crew of specialists — today, one.
+"""The Investigator implemented as a manager and the crew it may consult.
 
-The crew is a tuple of declarations and this module walks it. It learns no
-tool name, no tool signature, and no query dialect: those belong to the
-declaration, which is what makes adding a specialist an edit to one file that
-this one never sees. Every finding names the signal its specialist reports
-under, so several specialists' work stays legible without the result changing
-shape.
+The crew is no longer walked. Every specialist is offered to a manager, which
+consults the ones this incident needs and chooses each from what the last one
+reported. The coordinator here learns no tool name, no tool signature, and no
+query dialect — those belong to the declarations — and it learns no routing
+either, which belongs to the manager.
 
-Two boundaries are drawn here and nowhere else. Every specialist reaches the
+Three boundaries are drawn here and nowhere else. Every specialist reaches the
 platform through its own filtered MCP toolset, so what it may ask is what its
-declaration named. And every result crosses ``Retrieved`` on the way back,
-which is what makes citations checkable, fabrications inert, and — the
-property this slice turns on — a failed retrieval impossible to read as a
-service that had nothing to say.
+declaration named. Every tool result crosses ``Retrieved`` on the way back,
+which is what makes citations checkable and a failed retrieval impossible to
+read as a quiet service. And every specialist's report crosses ``Consulted``
+before the manager reads it, so what reaches a report is what was checked rather
+than what the manager remembered.
 
-Three outcomes, and only three. Some retrievals failed and findings were
-produced: findings, marked incomplete. Every retrieval failed: a failure, so
-the caller retries on the next run rather than reporting a service as clean. No
-retrieval attempted: an ordinary result, because a model that chose not to
-look did look and found nothing to ask about.
+The outcomes are unchanged from the walk, plus one. Some retrievals failed and
+findings were produced: findings, marked incomplete. Every retrieval failed: a
+failure, so the caller retries rather than reporting a service as clean. No
+retrieval attempted: an ordinary result. And now — no specialist consulted at
+all: also an ordinary result, with no signal claimed and no hypothesis, because
+a manager that chose not to ask is not a platform that could not be reached, and
+failing would cost a team its alerts over a model's judgement.
 
-How a specialist is actually driven is injected rather than hard-wired, so
-everything either side of the model call is exercised by unit tests with no
-model and no network.
+How the manager and the wording are actually driven is injected rather than
+hard-wired, so everything either side of the model calls is exercised by unit
+tests with no model and no network.
 """
 
 import asyncio
@@ -30,143 +32,216 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from alert_triage.investigation.adapters.adk.agent import Deployment, build_agent
+from alert_triage.investigation.adapters.adk.agent import (
+    Deployment,
+    build_manager,
+)
+from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Links, Retrieved
 from alert_triage.investigation.contract import (
-    Finding,
+    Confidence,
+    Diagnosis,
     Findings,
     InvestigationTarget,
 )
-from alert_triage.investigation.domain.evidence import findings_from
+from alert_triage.investigation.domain import account
 from alert_triage.investigation.domain.specialist import Specialist
 from alert_triage.investigation.ports.investigator import InvestigatorError
 
 _log = logging.getLogger(__name__)
 
-RunSpecialist = Callable[[Specialist, Retrieved, str], dict[str, Any]]
-"""How a specialist is driven: given its declaration, this investigation's
-evidence, and what to look into, report what it found.
+RunDiagnostician = Callable[
+    [Sequence[Specialist], Consulted, Retrieved, str], dict[str, Any]
+]
+"""How the manager is driven: offered a crew, it consults and concludes.
 
-An argument rather than a detail so that a test can stand in for the model. The
-production implementation builds the agent from the declaration and runs it;
-both return the same payload shape, which is what ``findings_from`` checks.
+An argument rather than a detail so that a test can stand in for the model and
+assert what the manager was offered against what it chose to consult. The
+production implementation builds an agent whose tools are the crew; a test's
+consults whichever specialists it names.
 """
 
 
 class AdkInvestigator:
-    """An investigation run by a crew of specialists, behind the port."""
+    """An investigation routed by a manager over a crew, behind the port."""
 
     def __init__(
         self,
         *,
         crew: Sequence[Specialist],
-        run_specialist: RunSpecialist,
+        run_diagnostician: RunDiagnostician,
         links: Links | None = None,
     ) -> None:
-        """Build an investigator over one crew and one way of running a specialist.
+        """Build an investigator over one crew, one manager, and one writer.
 
         Args:
-            crew: The specialists to run, in the order to run them.
-            run_specialist: How one specialist is driven for one target.
+            crew: The specialists to offer, every one of them.
+            run_diagnostician: How the manager is driven for one target.
             links: How this deployment's platform addresses what it returns.
-                One per deployment, reaching every investigation's evidence.
                 Absent, evidence is gathered and reported without addresses.
         """
         self._crew = tuple(crew)
-        self._run_specialist = run_specialist
+        self._run_diagnostician = run_diagnostician
         self._links = links
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
-        """Investigate one target and report what was found.
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
+        """Investigate one target and report what was found and concluded.
 
-        A fresh ``Retrieved`` per call is what scopes citations to this
-        investigation: an identifier the model remembers from another
-        investigation resolves to nothing and its finding is dropped.
+        A fresh ``Retrieved`` and ``Consulted`` per call is what scopes both
+        citations and claimed coverage to this investigation: an identifier the
+        model remembers from another incident resolves to nothing, and a signal
+        consulted last time is not one consulted this time.
 
         Args:
             target: What to investigate.
 
         Returns:
-            The findings whose evidence the platform actually returned, marked
-            incomplete if part of the evidence could not be gathered.
+            The findings whose evidence the platform actually returned, the
+            signals consulted to gather them, and the conclusion drawn across
+            them.
 
         Raises:
-            InvestigatorError: The investigation could not be completed —
-                a specialist errored, or nothing could be retrieved at all.
+            InvestigatorError: The investigation could not be completed — the
+                manager errored, or nothing could be retrieved at all.
         """
         retrieved = Retrieved(link=self._links)
-        found = self._report(target, retrieved)
+        consulted = Consulted(offered=self._crew, retrieved=retrieved)
+        concluded = self._concluded(target, consulted, retrieved)
         if retrieved.failures and not retrieved.retrievals:
             raise InvestigatorError(
                 f"No evidence could be gathered for {target.service}: "
                 f"{'; '.join(retrieved.failures)}"
             )
-        return Findings(findings=found, retrieval_failures=retrieved.failures)
+        findings = Findings(
+            findings=consulted.findings,
+            retrieval_failures=retrieved.failures + consulted.refusals,
+            consulted=consulted.signals,
+        )
+        _log.info(
+            "Investigated %s: consulted %s, %d finding(s)",
+            target.service,
+            ", ".join(consulted.order) or "nobody",
+            len(findings.findings),
+        )
+        return self._worded(target, findings, concluded)
 
-    def _report(
-        self, target: InvestigationTarget, retrieved: Retrieved
-    ) -> tuple[Finding, ...]:
-        """Run every specialist over one target and collect what checks out."""
-        prompt = target.describe()
-        found: list[Finding] = []
-        for specialist in self._crew:
-            found.extend(self._from(specialist, target, retrieved, prompt))
-        return tuple(found)
-
-    def _from(
+    def _concluded(
         self,
-        specialist: Specialist,
         target: InvestigationTarget,
+        consulted: Consulted,
         retrieved: Retrieved,
-        prompt: str,
-    ) -> tuple[Finding, ...]:
-        """What one specialist reported, minus whatever it could not evidence."""
+    ) -> dict[str, Any]:
+        """Run the manager over the crew, and say what it concluded."""
         try:
-            reported = self._run_specialist(specialist, retrieved, prompt)
+            return self._run_diagnostician(
+                self._crew, consulted, retrieved, target.describe()
+            )
         except Exception as error:
             raise InvestigatorError(
-                f"The {specialist.name} investigating {target.service} failed: {error}"
+                f"The investigation of {target.service} failed: {error}"
             ) from error
-        return findings_from(
-            _reported_findings(reported), retrieved, specialist.signal
-        ).findings
+
+    def _worded(
+        self,
+        target: InvestigationTarget,
+        findings: Findings,
+        concluded: dict[str, Any],
+    ) -> Diagnosis:
+        """Turn what was found and concluded into the account a reader receives.
+
+        The conclusion is offered to ``Diagnosis`` rather than decided here:
+        that value drops a hypothesis with no surviving finding beneath it, and
+        it is the last place the discipline can still be applied.
+        """
+        hypothesis = _hypothesis_in(concluded)
+        confidence = _confidence_in(concluded)
+        headline, narrative = self._words(target, findings, hypothesis, confidence)
+        return Diagnosis(
+            headline=headline,
+            account=(
+                account.compose(narrative, findings, confidence)
+                if narrative
+                else account.without_words(hypothesis, confidence, findings)
+            ),
+            hypothesis=hypothesis,
+            confidence=confidence,
+            findings=findings,
+        )
+
+def _hypothesis_in(concluded: Any) -> str | None:
+    """What the manager concluded, or ``None`` where it said nothing usable."""
+    if not isinstance(concluded, dict):
+        return None
+    hypothesis = concluded.get("hypothesis")
+    if not isinstance(hypothesis, str) or not hypothesis.strip():
+        return None
+    return hypothesis.strip()
 
 
-def _reported_findings(reported: Any) -> list[Any]:
-    """Read the findings out of what a specialist reported, however little that is."""
-    if not isinstance(reported, dict):
-        return []
-    findings = reported.get("findings")
-    return findings if isinstance(findings, list) else []
+def _confidence_in(concluded: Any) -> Confidence | None:
+    """The declared level the manager named, or ``None`` if it named another.
+
+    A level outside the declared set is reported as no level, for the reason an
+    unresolvable citation drops a finding: a confidence nobody can compare is
+    not a confidence, and inventing a nearest match would be this system putting
+    words in its own mouth.
+    """
+    if not isinstance(concluded, dict):
+        return None
+    named = concluded.get("confidence")
+    try:
+        return Confidence(named) if isinstance(named, str) else None
+    except ValueError:
+        _log.warning(
+            "The diagnostician named a confidence level nobody declared: %r",
+            named,
+        )
+        return None
 
 
-def run_with_adk(deployment: Deployment) -> RunSpecialist:
-    """Drive a specialist with a real model against a real platform.
+def _one_line(headline: Any) -> str:
+    """Flatten whatever the writer produced into the one line a channel carries."""
+    if not isinstance(headline, str):
+        return ""
+    return " ".join(headline.split())
+
+
+def run_with_adk(deployment: Deployment) -> RunDiagnostician:
+    """Drive the manager with a real model over a real crew.
 
     ADK is asynchronous underneath; the event loop is owned here so that the
     port, the run, and the composition root all stay synchronous.
 
     Args:
-        deployment: Where the platform is, how to authenticate, and what a
-            specialist reasons on when it names no model of its own.
+        deployment: Where the platform is, how to authenticate, and what an
+            agent reasons on when it names no model of its own.
 
     Returns:
-        A callable that runs one specialist for one target and returns what it
-        reported.
+        A callable that runs one investigation's manager and returns what it
+        concluded.
     """
 
     def _run(
-        specialist: Specialist, retrieved: Retrieved, prompt: str
+        crew: Sequence[Specialist],
+        consulted: Consulted,
+        retrieved: Retrieved,
+        prompt: str,
     ) -> dict[str, Any]:
-        agent = build_agent(specialist, deployment, retrieved)
-        _log.info("Running the %s", specialist.name)
-        return asyncio.run(_reported(agent, prompt))
+        agent = build_manager(crew, deployment, consulted, retrieved)
+        _log.info("Running the diagnostician over %d specialist(s)", len(crew))
+        return asyncio.run(run_agent(agent, prompt))
 
     return _run
 
 
-async def _reported(agent: Any, prompt: str) -> dict[str, Any]:
-    """Run the agent to completion and hand back its structured output."""
+async def run_agent(agent: Any, prompt: str) -> dict[str, Any]:
+    """Run one agent to completion and hand back its structured answer.
+
+    The framework primitive both drivers are built on, and the seam an
+    integration test drives a lone agent through against a fake platform. Public
+    for that reason: what it does is run an agent, which is a thing worth being
+    able to do on its own.
+    """
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
@@ -186,7 +261,7 @@ async def _reported(agent: Any, prompt: str) -> dict[str, Any]:
 
 
 def _payload(event: Any) -> dict[str, Any]:
-    """Read the structured findings out of a final event, if it carries any."""
+    """Read the structured answer out of a final event, if it carries any."""
     content = getattr(event, "content", None)
     for part in getattr(content, "parts", None) or ():
         text = getattr(part, "text", None)

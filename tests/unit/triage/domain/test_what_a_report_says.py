@@ -1,40 +1,91 @@
 """What an incident is worth saying, given what was learned about it.
 
-Which report an incident earns is decided by whether findings exist, and the
-wording of each is asserted here: the pass-through report explains its own
-emptiness, and the investigated one leads with what was found.
+Which report an incident earns is decided by whether an investigation completed,
+and that decision is asserted here. What the investigation had to say for itself
+is not: it arrives already worded, and what an account shows is established
+beside the renderer that builds one.
+
+What is left here is what only triage knows — the subject that marks the sender,
+the alerts that fired, and the report of last resort for an incident nothing
+managed to look at.
 """
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from alert_triage.investigation.contract import EvidenceItem, Finding, Findings, Signal
+from alert_triage.investigation.contract import (
+    Confidence,
+    Diagnosis,
+    EvidenceItem,
+    Finding,
+    Findings,
+    Signal,
+)
+from alert_triage.investigation.domain.account import compose
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
-from alert_triage.triage.domain.report import (
-    EVIDENCE_INCOMPLETE,
-    NOT_INVESTIGATED,
-    build_report,
-)
+from alert_triage.triage.domain.report import NOT_INVESTIGATED, build_report
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
-
-
-def _uninvestigated(incident: Incident) -> TriageReport:
-    """The report an incident gets when no investigation ever completed."""
-    return build_report(incident, None, examined=EVERY_SIGNAL)
 
 
 EVERY_SIGNAL = tuple(Signal)
 
 
+def _uninvestigated(incident: Incident) -> TriageReport:
+    """The report an incident gets when no investigation ever completed."""
+    return build_report(incident, None)
+
+
+def _finding(observation: str = "OOMKilled recurs every 40s") -> Finding:
+    return Finding(
+        signal=Signal.LOGS,
+        observation=observation,
+        occurrences=47,
+        examples=(
+            EvidenceItem(
+                id="call-1/item-1",
+                instant=NOON,
+                summary="container OOMKilled",
+                payload={},
+            ),
+        ),
+    )
+
+
+def _diagnosis(
+    findings: Findings | None = None,
+    headline: str = "checkout is out of memory",
+    narrative: str = "The pods keep dying under load.",
+    hypothesis: str | None = "the container memory limit is too low",
+    confidence: Confidence | None = Confidence.HIGH,
+) -> Diagnosis:
+    """A diagnosis whose account is composed the way a real one is.
+
+    Worded through the real renderer rather than hand-written, so these
+    assertions are about what a report carries rather than about the fixture
+    that fed it.
+    """
+    found = (
+        findings
+        if findings is not None
+        else Findings(findings=(_finding(),), consulted=EVERY_SIGNAL)
+    )
+    return Diagnosis(
+        headline=headline,
+        account=compose(narrative, found, confidence),
+        hypothesis=hypothesis,
+        confidence=confidence,
+        findings=found,
+    )
+
+
 def _investigated(
-    incident: Incident,
-    findings: Findings,
-    examined: tuple[Signal, ...] = EVERY_SIGNAL,
+    incident: Incident, diagnosis: Diagnosis | None = None
 ) -> TriageReport:
     """The report an incident gets when one did."""
-    return build_report(incident, findings, examined=examined)
+    return build_report(incident, diagnosis or _diagnosis())
 
 
 def _incident(incident_id: str = "incident-1", service: str = "checkout") -> Incident:
@@ -144,49 +195,34 @@ def _item(
     )
 
 
-def _finding(
-    observation: str = "OOMKilled recurs every 40s",
-    occurrences: int = 47,
-    examples: tuple[EvidenceItem, ...] = (),
-) -> Finding:
-    return Finding(
-        signal=Signal.LOGS,
-        observation=observation,
-        occurrences=occurrences,
-        examples=examples or (_item(),),
+def test_a_report_announces_the_incident_in_the_investigations_words() -> None:
+    report = _investigated(_incident())
+
+    assert report.subject.endswith("checkout is out of memory")
+    assert report.subject.startswith("[alert-triage]")
+
+
+def test_an_investigated_report_carries_the_account_it_was_given() -> None:
+    report = _investigated(
+        _incident(), _diagnosis(narrative="The pods keep dying under load.")
     )
 
-
-def test_an_investigated_report_names_the_service_in_its_subject() -> None:
-    report = _investigated(_incident(), Findings(findings=(_finding(),)))
-
-    assert "checkout" in report.subject
+    assert "The pods keep dying under load." in report.body
 
 
-def test_an_investigated_report_states_what_was_found() -> None:
-    findings = Findings(findings=(_finding(observation="OOMKilled recurs every 40s"),))
+def test_an_investigated_report_states_the_confidence_it_was_given() -> None:
+    """Stated by the renderer, so it reaches a reader whatever the writer wrote."""
+    report = _investigated(_incident(), _diagnosis(confidence=Confidence.LOW))
 
-    body = _investigated(_incident(), findings).body
-
-    assert "OOMKilled recurs every 40s" in body
-
-
-def test_an_investigated_report_carries_the_evidence_behind_each_finding() -> None:
-    findings = Findings(
-        findings=(_finding(examples=(_item(summary="container OOMKilled"),)),)
-    )
-
-    body = _investigated(_incident(), findings).body
-
-    assert "container OOMKilled" in body
-    assert NOON.isoformat() in body
+    assert Confidence.LOW.value in report.body
+    assert Confidence.HIGH.value not in report.body
 
 
-def test_an_investigated_report_says_how_often_the_pattern_occurred() -> None:
-    """The count is what survives when only a handful of records travel with it."""
-    findings = Findings(findings=(_finding(occurrences=47),))
+def test_the_conclusion_does_not_displace_what_it_was_drawn_from() -> None:
+    report = _investigated(_incident(), _diagnosis())
 
-    assert "47" in _investigated(_incident(), findings).body
+    assert "OOMKilled recurs every 40s" in report.body
+    assert "container OOMKilled" in report.body
 
 
 def test_an_investigated_report_still_lists_the_alerts() -> None:
@@ -198,200 +234,60 @@ def test_an_investigated_report_still_lists_the_alerts() -> None:
         ),
     )
 
-    body = _investigated(incident, Findings(findings=(_finding(),))).body
-
-    assert "http://a" in body
-
-
-def test_an_investigation_that_found_nothing_notable_says_so() -> None:
-    """Not an empty section: 'we looked and it is clean' is the news."""
-    body = _investigated(_incident(), Findings()).body
-
-    assert "nothing notable" in body.lower()
-    assert NOT_INVESTIGATED not in body
-
-
-def test_an_investigation_that_found_nothing_names_every_signal_it_examined() -> None:
-    """'Nothing notable' is only interpretable against the scope it covered."""
-    body = _investigated(_incident(), Findings()).body.lower()
-
-    for signal in EVERY_SIGNAL:
-        assert signal.value in body
-
-
-def test_a_report_claims_no_signal_that_was_not_examined() -> None:
-    body = _investigated(
-        _incident(), Findings(), examined=(Signal.LOGS, Signal.TRACE)
-    ).body.lower()
-
-    assert Signal.APM.value not in body
-    assert Signal.INFRASTRUCTURE.value not in body
-
-
-def test_the_account_of_what_was_examined_widens_with_the_crew() -> None:
-    """A specialist joining the crew widens the wording rather than dating it."""
-    incident = _incident()
-
-    alone = _investigated(incident, Findings(), examined=(Signal.LOGS,)).body
-    whole = _investigated(incident, Findings(), examined=EVERY_SIGNAL).body
-
-    assert alone != whole
-    assert Signal.INFRASTRUCTURE.value in whole.lower()
-    assert Signal.INFRASTRUCTURE.value not in alone.lower()
-
-
-def test_an_investigated_report_offers_no_conclusion() -> None:
-    findings = Findings(findings=(_finding(),))
-
-    body = _investigated(_incident(), findings).body.lower()
-
-    assert "root cause" not in body
-    assert "confidence" not in body
-    assert "hypothesis" not in body
+    assert "http://a" in _investigated(incident).body
 
 
 def test_an_investigated_report_names_the_incident_it_was_built_from() -> None:
     incident = _incident()
 
-    report = _investigated(incident, Findings(findings=(_finding(),)))
+    report = _investigated(incident)
 
     assert (report.incident_id, report.service) == (incident.id, incident.service)
 
 
-def test_the_report_for_an_incident_is_chosen_by_whether_there_are_findings() -> None:
+def test_the_report_for_an_incident_is_chosen_by_whether_one_completed() -> None:
     """Why an investigation failed is the run's business; a report only knows if."""
     incident = _incident()
 
-    assert build_report(incident, None, examined=EVERY_SIGNAL) == _uninvestigated(
-        incident
-    )
-    assert build_report(incident, Findings(), examined=EVERY_SIGNAL) == _investigated(
-        incident, Findings()
-    )
+    assert build_report(incident, None) == _uninvestigated(incident)
+    assert build_report(incident, _diagnosis()) == _investigated(incident)
 
 
-def test_no_findings_is_not_the_same_as_findings_that_are_empty() -> None:
+def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
     """One says nobody looked; the other says somebody looked and it was clean."""
     incident = _incident()
-
-    assert (
-        build_report(incident, None, examined=EVERY_SIGNAL).body
-        != build_report(incident, Findings(), examined=EVERY_SIGNAL).body
+    clean = _diagnosis(
+        findings=Findings(consulted=EVERY_SIGNAL),
+        narrative="The logs, apm, trace and infrastructure were examined.",
+        hypothesis=None,
+        confidence=None,
     )
 
-
-def test_an_investigated_report_reads_an_aggregate_with_no_instant() -> None:
-    """A flame graph concerns a window, not a moment; it is still evidence."""
-    aggregate = EvidenceItem(
-        id="call-2",
-        instant=None,
-        summary="one handler holds 84% of the time",
-        payload={},
-    )
-
-    body = _investigated(
-        _incident(), Findings(findings=(_finding(examples=(aggregate,)),))
-    ).body
-
-    assert "one handler holds 84% of the time" in body
+    assert build_report(incident, None).body != build_report(incident, clean).body
 
 
-def test_a_report_whose_investigation_could_not_see_everything_says_so() -> None:
-    findings = Findings(
-        findings=(_finding(observation="OOMKilled recurs every 40s"),),
-        retrieval_failures=("the log aggregation was refused",),
-    )
+def test_the_last_resort_report_carries_no_hypothesis_and_no_confidence() -> None:
+    """Nothing produced one, and a report must never invent what it was not given."""
+    body = _uninvestigated(_incident()).body.lower()
 
-    body = _investigated(_incident(), findings).body
-
-    assert EVIDENCE_INCOMPLETE in body
-    assert "OOMKilled recurs every 40s" in body
+    assert NOT_INVESTIGATED in _uninvestigated(_incident()).body
+    assert "hypothesis" not in body
+    assert "confidence" not in body
 
 
-def test_an_incomplete_investigation_that_found_nothing_still_says_so() -> None:
-    """The dangerous report: nothing found, and part of the looking never happened."""
-    findings = Findings(retrieval_failures=("the log search was refused",))
+def test_the_report_does_not_pretend_to_conclude_on_a_failed_investigation() -> None:
+    incident = _incident()
 
-    body = _investigated(_incident(), findings).body
-
-    assert EVIDENCE_INCOMPLETE in body
+    assert _uninvestigated(incident).body != _investigated(incident).body
+    assert NOT_INVESTIGATED not in _investigated(incident).body
 
 
-def test_a_complete_investigation_carries_no_incompleteness_note() -> None:
-    notable = Findings(findings=(_finding(),))
-    quiet = Findings()
+def test_triage_does_not_read_the_investigations_vocabulary_to_build_a_body() -> None:
+    """The account arrives written; a finding's shape is no longer triage's business."""
+    import alert_triage.triage.domain.report as report_module
 
-    assert EVIDENCE_INCOMPLETE not in _investigated(_incident(), notable).body
-    assert EVIDENCE_INCOMPLETE not in _investigated(_incident(), quiet).body
+    source = Path(report_module.__file__).read_text()
 
-
-def test_incomplete_evidence_is_not_the_report_for_a_failed_investigation() -> None:
-    """One says part of the looking failed; the other says all of it did."""
-    incomplete = _investigated(
-        _incident(), Findings(retrieval_failures=("the log search was refused",))
-    ).body
-    uninvestigated = _uninvestigated(_incident()).body
-
-    assert NOT_INVESTIGATED not in incomplete
-    assert EVIDENCE_INCOMPLETE not in uninvestigated
-    assert NOT_INVESTIGATED in uninvestigated
-
-
-LOG_LINK = "https://app.datadoghq.com/logs?query=service%3Acheckout&event=AQAAA"
-
-
-def _evidence_lines(body: str) -> list[str]:
-    """The indented lines beneath a finding, which is where evidence renders."""
-    return [line.strip() for line in body.splitlines() if line.startswith("    ")]
-
-
-def test_evidence_carrying_an_address_renders_it_on_its_own_line() -> None:
-    """A reader who wants to see the finding for themselves goes from here."""
-    findings = Findings(
-        findings=(
-            _finding(examples=(_item(summary="container OOMKilled", url=LOG_LINK),)),
-        )
-    )
-
-    lines = _evidence_lines(_investigated(_incident(), findings).body)
-
-    assert lines == [f"{NOON.isoformat()} container OOMKilled", LOG_LINK]
-
-
-def test_evidence_with_no_address_renders_exactly_as_it_did_before() -> None:
-    """No address is a complete answer, and the report notes no absence."""
-    findings = Findings(findings=(_finding(examples=(_item(summary="OOMKilled"),)),))
-
-    lines = _evidence_lines(_investigated(_incident(), findings).body)
-
-    assert lines == [f"{NOON.isoformat()} OOMKilled"]
-
-
-def test_an_address_is_rendered_whole_beside_a_summary_that_was_shortened() -> None:
-    """The failure this exists to fix: half a URL still reads as a link."""
-    shortened = f"{'word ' * 60}…"
-    findings = Findings(
-        findings=(_finding(examples=(_item(summary=shortened, url=LOG_LINK),)),)
-    )
-
-    read, address = _evidence_lines(_investigated(_incident(), findings).body)
-
-    assert address == LOG_LINK
-    assert read.endswith("…")
-    assert LOG_LINK not in read
-
-
-def test_an_aggregates_address_stands_on_a_line_of_its_own_too() -> None:
-    """An item with no instant is an aggregate, and is still somewhere to go."""
-    aggregate = EvidenceItem(
-        id="call-1",
-        instant=None,
-        summary="4200 errors in the window",
-        payload={"count": 4200},
-        url=LOG_LINK,
-    )
-    findings = Findings(findings=(_finding(examples=(aggregate,)),))
-
-    lines = _evidence_lines(_investigated(_incident(), findings).body)
-
-    assert lines == ["4200 errors in the window", LOG_LINK]
+    assert "EvidenceItem" not in source
+    assert "Finding" not in source
+    assert "Signal" not in source

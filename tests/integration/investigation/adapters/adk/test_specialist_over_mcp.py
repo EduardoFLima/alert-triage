@@ -28,15 +28,22 @@ from google.genai import types
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from alert_triage.investigation.adapters.adk.agent import Deployment, connection_for
-from alert_triage.investigation.adapters.adk.investigator import (
-    AdkInvestigator,
-    run_with_adk,
+from alert_triage.investigation.adapters.adk.agent import (
+    Deployment,
+    build_agent,
+    connection_for,
 )
+from alert_triage.investigation.adapters.adk.consultation import Consulted
+from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.adapters.adk.investigator import run_agent
 from alert_triage.investigation.adapters.datadog.specialists.logs import (
     ReportedFindings,
 )
-from alert_triage.investigation.contract import InvestigationTarget, Signal
+from alert_triage.investigation.contract import (
+    Findings,
+    InvestigationTarget,
+    Signal,
+)
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.investigation.ports.investigator import InvestigatorError
@@ -159,11 +166,30 @@ def _deployment(platform: str, model: BaseLlm) -> Deployment:
 
 
 def _investigate(platform: str, model: _ScriptedModel) -> Any:
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=run_with_adk(_deployment(platform, model)),
+    """One specialist over one platform, driven the way a consultation drives it.
+
+    The manager is not the subject here — the specialist's reach into a real MCP
+    server is. So this builds the agent a consultation would build and runs it,
+    rather than paying for a manager to decide to.
+    """
+    retrieved = Retrieved()
+    consulted = Consulted(offered=(_specialist(),), retrieved=retrieved)
+    reported = asyncio.run(
+        run_agent(
+            build_agent(_specialist(), _deployment(platform, model), retrieved),
+            _target().describe(),
+        )
     )
-    return investigator.investigate(_target())
+    consulted.record(_specialist(), reported)
+    if retrieved.failures and not retrieved.retrievals:
+        raise InvestigatorError(
+            f"No evidence could be gathered: {'; '.join(retrieved.failures)}"
+        )
+    return Findings(
+        findings=consulted.findings,
+        retrieval_failures=retrieved.failures,
+        consulted=consulted.signals,
+    )
 
 
 def test_the_toolset_exposes_only_the_tools_the_declaration_named(

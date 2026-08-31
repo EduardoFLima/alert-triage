@@ -16,14 +16,24 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from alert_triage.investigation.adapters.adk.consultation import (
+    Consulted,
+    bound_consultations_callback,
+    collect_findings_callback,
+)
 from alert_triage.investigation.adapters.adk.evidence import (
     Retrieved,
     keep_evidence_callback,
     log_tool_call,
 )
+from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
+    DIAGNOSTICIAN,
+)
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from google.adk.agents import LlmAgent
     from google.adk.models import BaseLlm
     from google.adk.tools.mcp_tool.mcp_session_manager import (
@@ -129,4 +139,55 @@ def build_agent(
         after_tool_callback=keep_evidence_callback(
             retrieved, _permitted_tools(specialist)
         ),
+    )
+
+
+def build_manager(
+    crew: "Sequence[Specialist]",
+    deployment: Deployment,
+    consulted: Consulted,
+    retrieved: Retrieved,
+) -> "LlmAgent":
+    """Build the Diagnostician over the crew it may consult.
+
+    Each specialist is wrapped as a tool rather than made a sub-agent to hand
+    off to. Handing off would give the specialist the conversation and take from
+    the manager the thread it is reasoning on, which is the one thing it exists
+    to keep. As tools, the specialists answer and the manager decides what to
+    ask next.
+
+    Its two callbacks are the ones a manager needs and a specialist does not:
+    one bounds how many questions this incident may cost, and the other keeps
+    each specialist's report — checked — before the manager reads it. The
+    manager reaches no platform of its own, so neither contends with the
+    evidence callbacks its specialists carry.
+
+    Args:
+        crew: The specialists to offer, every one of them.
+        deployment: Where their platform is, how to authenticate, and what an
+            agent reasons on when it names no model of its own.
+        consulted: This investigation's record of what was asked.
+        retrieved: This investigation's evidence, which the specialists' own
+            callbacks close over.
+
+    Returns:
+        The manager, reaching its specialists and nothing else.
+    """
+    from google.adk.agents import LlmAgent
+    from google.adk.tools.agent_tool import AgentTool
+
+    return LlmAgent(
+        name=DIAGNOSTICIAN.name,
+        model=deployment.model_for(DIAGNOSTICIAN.model),
+        instruction=DIAGNOSTICIAN.instruction,
+        output_schema=DIAGNOSTICIAN.output_schema,
+        tools=[
+            AgentTool(
+                agent=build_agent(specialist, deployment, retrieved),
+                skip_summarization=True,
+            )
+            for specialist in crew
+        ],
+        before_tool_callback=bound_consultations_callback(consulted),
+        after_tool_callback=collect_findings_callback(consulted),
     )

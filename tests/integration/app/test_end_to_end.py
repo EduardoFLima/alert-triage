@@ -3,21 +3,22 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from functools import partial
 from pathlib import Path
 
 import pytest
 
 from alert_triage.app.pipeline import RunOutcome, run
 from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig, load_config
-from alert_triage.investigation.adapters.adk.crew import SIGNALS_EXAMINED
 from alert_triage.investigation.contract import (
+    Confidence,
+    Diagnosis,
     EvidenceItem,
     Finding,
     Findings,
     InvestigationTarget,
     Signal,
 )
+from alert_triage.investigation.domain.account import compose
 from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import NotifierError
@@ -117,7 +118,7 @@ def _run(
         ledger=ledger,
         notifier=notifier,
         investigator=investigator or FakeInvestigator(),
-        build_report=partial(build_report, examined=SIGNALS_EXAMINED),
+        build_report=build_report,
         config=config,
         now=at,
         new_id=new_id,
@@ -128,13 +129,13 @@ def _run(
 class FakeInvestigator:
     """The agent crew, standing in so no model or MCP server is involved."""
 
-    outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
+    outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
         """Answer with the next outcome, so a test spells out a run-by-run arc."""
         self.asked.append(target)
-        outcome = self.outcomes.pop(0) if self.outcomes else Findings()
+        outcome = self.outcomes.pop(0) if self.outcomes else _nothing_found()
         if isinstance(outcome, InvestigatorError):
             raise outcome
         return outcome
@@ -238,3 +239,23 @@ def test_a_report_that_could_not_be_delivered_goes_out_on_the_next_run(
     assert report.incident_id == recorded.id
     assert "Checkout alert a" in report.body
     assert "Checkout alert b" in report.body
+
+
+def _nothing_found() -> Diagnosis:
+    """What a completed investigation that found nothing hands back."""
+    return _diagnosed(
+        Findings(consulted=(Signal.LOGS,)), headline="checkout: nothing notable"
+    )
+
+
+def _diagnosed(
+    findings: Findings, headline: str = "checkout is timing out"
+) -> Diagnosis:
+    """A diagnosis over findings, worded the way a real investigation words one."""
+    return Diagnosis(
+        headline=headline,
+        account=compose("The service is timing out under load.", findings),
+        hypothesis="an upstream dependency is slow",
+        confidence=Confidence.MEDIUM,
+        findings=findings,
+    )

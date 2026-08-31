@@ -18,7 +18,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from alert_triage.configuration.port import Config
-from alert_triage.investigation.contract import Findings
+from alert_triage.investigation.contract import Diagnosis
 from alert_triage.investigation.ports.investigator import (
     Investigator,
     InvestigatorError,
@@ -33,14 +33,14 @@ from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
 _log = logging.getLogger(__name__)
 
-ReportBuilder = Callable[[Incident, Findings | None], TriageReport]
+ReportBuilder = Callable[[Incident, Diagnosis | None], TriageReport]
 """How an incident and what was learned about it become the report.
 
-``None`` findings mean no investigation of the incident ever completed, which
-is the only case the report of last resort is for. Deliberately a callable
-rather than a port: a port earns its keep once report generation can fail in a
-way a caller has to tell apart from the failures it already handles, and the
-builders this run is handed cannot fail at all.
+``None`` means no investigation of the incident ever completed, which is the
+only case the report of last resort is for. Deliberately a callable rather than
+a port: a port earns its keep once report generation can fail in a way a caller
+has to tell apart from the failures it already handles, and the builders this
+run is handed cannot fail at all.
 """
 
 
@@ -198,7 +198,9 @@ def _handle(
         max_attempts=config.investigation.max_attempts,
         new_id=new_id,
     )
-    findings, investigation_failure = _investigated(decision, investigator=investigator)
+    diagnosis, investigation_failure = _investigated(
+        decision, investigator=investigator
+    )
     incident = (
         decision.incident.investigation_failed()
         if investigation_failure is not None
@@ -206,7 +208,7 @@ def _handle(
     )
     delivered, delivery_failure = _delivered(
         incident,
-        findings,
+        diagnosis,
         should_report=decision.should_report,
         exhausted=incident.investigation_attempts >= config.investigation.max_attempts,
         notifier=notifier,
@@ -227,7 +229,7 @@ def _handle(
 
 def _investigated(
     decision: TriageDecision, *, investigator: Investigator
-) -> tuple[Findings | None, RunFailure | None]:
+) -> tuple[Diagnosis | None, RunFailure | None]:
     """Investigate the incident if it is owed one, and say what came back.
 
     A failure here is reported but never fatal: it costs the incident an
@@ -243,19 +245,21 @@ def _investigated(
             incident.window.start,
         )
 
-        findings = investigator.investigate(incident.investigation_target)
+        diagnosis = investigator.investigate(incident.investigation_target)
     except InvestigatorError as error:
         _log.error("Investigating %s failed: %s", incident.service, error)
         return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))
     _log.info(
-        "Investigated %s: %d finding(s)", incident.service, len(findings.findings)
+        "Investigated %s: %d finding(s)",
+        incident.service,
+        len(diagnosis.findings.findings),
     )
-    return findings, None
+    return diagnosis, None
 
 
 def _delivered(
     incident: Incident,
-    findings: Findings | None,
+    diagnosis: Diagnosis | None,
     *,
     should_report: bool,
     exhausted: bool,
@@ -264,8 +268,8 @@ def _delivered(
 ) -> tuple[bool, RunFailure | None]:
     """Deliver a report worth sending, and say whether a channel took it.
 
-    Findings are worth sending — including empty ones, which say the signals
-    the investigation covers were examined and were clean. A failed
+    A completed investigation is worth sending — including one that found
+    nothing, which says the signals it consulted were examined and were clean. A failed
     investigation is not: "these alerts fired and we could not look at them"
     carries nothing a team can act on, so it
     waits for the retry. Once the attempts are spent that wait would be
@@ -277,7 +281,7 @@ def _delivered(
     if not should_report:
         _log.info("Report suppressed for %s: inside its cooldown", incident.service)
         return False, None
-    if findings is None and not exhausted:
+    if diagnosis is None and not exhausted:
         _log.info(
             "Saying nothing about %s: investigation failed with attempts remaining",
             incident.service,
@@ -285,7 +289,7 @@ def _delivered(
         return False, None
     try:
         _log.info("\n\n\n=== REPORTING ===\n\n\n")
-        notifier.deliver(build_report(incident, findings))
+        notifier.deliver(build_report(incident, diagnosis))
     except NotifierError as error:
         _log.error("Reporting %s failed: %s", incident.service, error)
         return False, RunFailure(Stage.DELIVER, incident.service, str(error))

@@ -209,14 +209,24 @@ class Findings:
     part of what it asked for still has something to say about the rest, and a
     reader must be able to tell that account from one drawn on everything.
 
+    Which signals were consulted is the third fact, and it is not derivable from
+    the first two. A specialist the manager chose not to call reports nothing,
+    exactly as one that looked and found nothing does, and reading the second as
+    the first is how a report comes to claim the traces were clean when nobody
+    opened them. So what was asked is recorded rather than inferred.
+
     Attributes:
         findings: What was found, in the order the investigation reported it.
         retrieval_failures: Why each retrieval that failed did. Empty means
             everything the investigation asked for came back.
+        consulted: The signals this investigation actually asked about, each
+            once. Empty means none were, which is a real outcome and never a
+            shorthand for all of them.
     """
 
     findings: tuple[Finding, ...] = ()
     retrieval_failures: tuple[str, ...] = ()
+    consulted: tuple[Signal, ...] = ()
 
     @property
     def anything_notable(self) -> bool:
@@ -227,3 +237,68 @@ class Findings:
     def complete(self) -> bool:
         """Whether every retrieval the investigation asked for came back."""
         return not self.retrieval_failures
+
+
+class Confidence(StrEnum):
+    """How much weight an investigation puts on its own hypothesis.
+
+    A fixed set rather than free text, because a confidence level is only
+    comparable against the others: "fairly sure" tells a reader deciding whether
+    to get out of bed nothing they can act on, and tells an evaluation harness
+    nothing it can score. A level outside this set is reported as no level at
+    all, for the same reason an unresolvable citation drops a finding.
+    """
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+@dataclass(frozen=True)
+class Diagnosis:
+    """What one investigation came to, and everything it came to it on.
+
+    The conclusion travels with what it was drawn from, never instead of it. A
+    hypothesis is the most quotable thing this system produces and the least
+    checkable, so a reader is always given the findings beside it — which is
+    also what lets them disagree with it, the outcome this project prefers to a
+    verdict nobody can question.
+
+    Attributes:
+        headline: One line announcing the incident, which a channel presents as
+            a subject or a heading.
+        account: The report's prose: what is thought to be happening, what it
+            rests on, and what is worth checking. Already written, because
+            wording a report is investigation's work rather than triage's.
+        hypothesis: What the investigation thinks is going on, or ``None`` where
+            it could not say. Never a recommendation and never an instruction.
+        confidence: How much weight it puts on that, or ``None`` where there is
+            no hypothesis to weigh.
+        findings: What was observed and the evidence for it, with the signals
+            consulted to observe it.
+    """
+
+    headline: str
+    account: str
+    hypothesis: str | None
+    confidence: Confidence | None
+    findings: Findings
+
+    def __post_init__(self) -> None:
+        """Refuse a headline no channel could carry, and a conclusion nothing bears.
+
+        Dropping an unevidenced hypothesis here rather than trusting whoever
+        builds one is deliberate: this is the value a report is rendered from,
+        so it is the last place the discipline can still be enforced.
+        """
+        if not self.headline.strip():
+            raise ValueError("A diagnosis needs a headline to announce it")
+        if "\n" in self.headline or "\r" in self.headline:
+            raise ValueError(
+                "A diagnosis headline is a single line: put the detail in the account"
+            )
+        if not self.findings.findings:
+            object.__setattr__(self, "hypothesis", None)
+            object.__setattr__(self, "confidence", None)
+        if self.hypothesis is None:
+            object.__setattr__(self, "confidence", None)

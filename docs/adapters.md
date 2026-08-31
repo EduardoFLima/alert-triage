@@ -114,6 +114,15 @@ citation grains — all without constructing an agent or reaching a model.
 and its findings reach the report on their own; there is no set of four that
 must all exist before anything works.
 
+**Adding it to the crew offers it; it does not schedule it.** The diagnostician
+decides which specialists each incident needs and consults those, so a new
+declaration is available to be chosen rather than guaranteed to run. What gets
+it chosen is its `name` and its `instruction` — those are what the manager reads
+when deciding — so a specialist named for the signal it covers, whose
+instruction says plainly what it looks for, is one that gets asked. A
+specialist that never seems to be consulted is usually one whose declaration
+does not say what it is for.
+
 **Nothing here checks whether an instruction is any good.** The tests confirm
 what a specialist asks for and what it may reach, not whether asking that
 produces a useful investigation. Judging that is what the evaluation harness is
