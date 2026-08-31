@@ -175,7 +175,7 @@ is cheaper to discover before six modules depend on it.
 - [ ] 8.6 Record whether the Report agent's account reproduced evidence despite
       being told not to. If it did, the deterministic block below it is what
       keeps the report honest — note whether the duplication is bad enough to
-      warrant tightening the instruction in slice 10.
+      warrant tightening the instruction once the evaluation harness can score it.
 
 ## 9. Before calling it done
 

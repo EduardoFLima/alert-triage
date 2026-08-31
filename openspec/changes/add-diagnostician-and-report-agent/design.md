@@ -16,7 +16,8 @@ agents, and a report body that no longer comes from `triage/domain/report.py`.
 **Goals:**
 
 - Routing that is observable — offered and consulted are both readable from
-  outside — because slice 10 grades exactly that and cannot grade a decision it
+  outside — because the evaluation harness grades exactly that and cannot grade
+  a decision it
   cannot see.
 - A conclusion that cannot outlive its evidence, by the same mechanism that
   already stops a finding outliving its citations.
@@ -27,7 +28,7 @@ agents, and a report body that no longer comes from `triage/domain/report.py`.
 - Any change to `Retrieved`, `findings_from`, the evidence callbacks, or a
   specialist declaration. If routing needs a specialist edited, specialists were
   not the declarations slice 7 claimed.
-- Tuning any instruction. Slice 10.
+- Tuning any instruction. That waits on the evaluation harness.
 
 ## Decisions
 
@@ -146,14 +147,16 @@ reached, not for a model that decided not to ask.
   calls.** → Permitting the second question is what buys that headroom, and a
   manager spending all of it on every incident would cost more than the fixed
   walk it replaced. The saving is real only if the routing is any good, which is
-  unmeasurable until slice 10; task 8.4 is what turns the worst case into a
+  unmeasurable until the evaluation harness exists; task 8.4 is what turns the
+  worst case into a
   measured one. Stated rather than claimed.
 - **Two more model calls per incident, both without tools.** → They replace
   formatting work that cost nothing, and buy the two things a reader actually
   wanted. Cheap relative to a specialist, which pays for tool calls as well.
 - **A hypothesis is the most quotable thing this system will produce, and it is
   the least checkable.** → The evidence travels with it and the confidence level
-  is stated rather than implied; beyond that this is a judgement slice 10 grades
+  is stated rather than implied; beyond that this is a judgement the evaluation
+  harness grades
   and no test can settle.
 - **`triage/domain/report.py` shrinks and its tests move with it.** → A
   mechanical move, but the one place a silent regression could hide is the link
@@ -165,13 +168,14 @@ reached, not for a model that decided not to ask.
 - Whether the Diagnostician and the Report agent should be nameable under
   `investigation.specialists` for a model of their own. Deferred with slice 8's
   reasoning: an operator can already move every agent with `investigation.model`,
-  and slice 10 answers "does the manager want a stronger model" with numbers.
+  and the evaluation harness answers "does the manager want a stronger model"
+  with numbers.
   Until then `crew_for` refuses `diagnostician` by name, which is accurate but
   will read as a bug to the first operator who tries it.
 - Whether 8 is the right budget, and whether the same key can serve both a
   specialist's searches and a manager's consultations — `docs/vision.md` leaves
   the second open on purpose. Both want the harness's numbers rather than a
-  guess, so both are slice 10's to answer and slice 12's to wire.
+  guess, so both are the evaluation harness's to answer and slice 12's to wire.
 - Whether re-asking a specialist is worth its calls in practice. It is permitted
   and bounded; whether managers actually use it well is routing quality, which
-  is slice 10's.
+  is the evaluation harness's.

@@ -94,8 +94,10 @@ at.
   7 did for the MCP timeouts, and leaves the operator setting alone.
 - **A model of the Diagnostician's or the Report agent's own.** Both take the
   deployment's default, exactly as the four specialists do, for the reason
-  slice 8 gave: slice 10 exists to replace guesses like it with numbers.
-- **Grading the routing.** Slice 10. This slice makes the routing observable —
+  slice 8 gave: the evaluation harness exists to replace guesses like it with
+  numbers.
+- **Grading the routing.** The evaluation harness's. This slice makes the
+  routing observable —
   which specialists were offered, which were consulted — which is what a grader
   needs and does not yet have.
 - **Concurrent consultation.** Specialists are consulted one at a time; the
