@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
+    build_agent,
     build_manager,
     build_reasoner,
 )
@@ -88,6 +89,18 @@ def test_the_manager_carries_the_consultation_callbacks() -> None:
 
     assert manager.before_tool_callback is not None
     assert manager.after_tool_callback is not None
+
+
+def test_the_manager_carries_the_reasoning_log() -> None:
+    """Why it asked what it asked lives in its own words, and nowhere else."""
+    assert _manager().after_model_callback is not None
+
+
+def test_a_specialist_carries_no_reasoning_log() -> None:
+    """A specialist reports through a schema; the manager is the one reasoning."""
+    agent = build_agent(CREW[0], _deployment(), Retrieved())
+
+    assert agent.after_model_callback is None
 
 
 def test_the_manager_is_the_diagnostician_declaration() -> None:

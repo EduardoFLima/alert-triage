@@ -30,6 +30,7 @@ from alert_triage.investigation.adapters.adk.evidence import (
 from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
     DIAGNOSTICIAN,
 )
+from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
 from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -190,7 +191,9 @@ def build_manager(
 
     Its three callbacks are the ones a manager needs and a specialist does not.
     One bounds how many questions this incident may cost. One keeps each
-    specialist's report — checked — before the manager reads it. And one keeps a
+    specialist's report — checked — before the manager reads it. One writes
+    down what it said between the two, which is the only account of why it asked
+    what it asked. And one keeps a
     specialist's failure to that specialist: unhandled, a tool error re-raises
     and ends the investigation, so one agent answering in prose where its schema
     was asked for would cost every other agent's work. The manager reaches no
@@ -223,4 +226,5 @@ def build_manager(
         before_tool_callback=bound_consultations_callback(consulted),
         after_tool_callback=collect_findings_callback(consulted),
         on_tool_error_callback=failed_consultation_callback(consulted),
+        after_model_callback=log_reasoning(),
     )
