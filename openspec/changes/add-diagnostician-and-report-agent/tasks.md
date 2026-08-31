@@ -161,7 +161,21 @@ is cheaper to discover before six modules depend on it.
       one specialist and produces a hypothesis with a declared confidence level.
 - [x] 8.2 Confirm it still skips cleanly with no credentials, as the existing
       live check does.
-- [ ] 8.3 Run it against a real account. Establish the gate from section 1
+- [x] 8.7 First live run, and what it found. The specialist's structured report
+      did survive the agent-tool hop — three findings were collected and checked
+      — so the section 1 gate holds. Two other things did not. Wrapping a
+      specialist as an agent-tool with `skip_summarization` makes its *result*
+      event report `is_final_response()`, so reading the last final event
+      overwrote the manager's conclusion with an empty record; `answer_in` now
+      filters by author and never lets an unreadable event erase an answer. And
+      the manager stopped after one specialist, which the instruction now argues
+      against directly: ADK injects "call set_model_response after any other
+      tools you need", and beside "stop as soon as you can" a flash model takes
+      the first answer and finalises. A manager that answers with no conclusion
+      at all is now a warning rather than silence.
+- [ ] 8.3 Run it again and confirm the two fixes: the manager consults more than
+      one specialist where the incident warrants it, and a conclusion it reaches
+      survives into the report. Establish the gate from section 1
       against the real framework: whether the specialist's structured report
       survives the agent-tool hop, or whether findings must be collected from
       the specialist's own `after_agent_callback` instead. Record the answer in

@@ -28,8 +28,9 @@ tests with no model and no network.
 """
 
 import asyncio
+import json
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 from alert_triage.investigation.adapters.adk.agent import (
@@ -141,13 +142,21 @@ class AdkInvestigator:
     ) -> dict[str, Any]:
         """Run the manager over the crew, and say what it concluded."""
         try:
-            return self._run_diagnostician(
+            concluded = self._run_diagnostician(
                 self._crew, consulted, retrieved, target.describe()
             )
         except Exception as error:
             raise InvestigatorError(
                 f"The investigation of {target.service} failed: {error}"
             ) from error
+        if not concluded:
+            _log.warning(
+                "The diagnostician investigating %s answered with no conclusion "
+                "at all. Its findings still stand and are reported; what is "
+                "missing is the reasoning across them.",
+                target.service,
+            )
+        return concluded
 
     def _worded(
         self,
@@ -336,29 +345,65 @@ async def run_agent(agent: Any, prompt: str) -> dict[str, Any]:
     session = await runner.session_service.create_session(
         app_name="alert-triage", user_id="alert-triage"
     )
-    last: dict[str, Any] = {}
+    events = []
     async for event in runner.run_async(
         user_id="alert-triage",
         session_id=session.id,
         new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
     ):
-        if getattr(event, "is_final_response", None) and event.is_final_response():
-            last = _payload(event)
-    return last
+        events.append(event)
+    return answer_in(events, getattr(agent, "name", ""))
+
+
+def answer_in(events: Iterable[Any], author: str) -> dict[str, Any]:
+    """The structured answer one agent gave, out of everything the run produced.
+
+    More than one event is called final once an agent reaches tools that are
+    themselves agents: skipping a consultation's summarisation marks its result
+    final, and that result carries a function response rather than text. Reading
+    the last final event indiscriminately therefore overwrites a hypothesis with
+    an empty record, which is how a conclusion the model did reach goes missing.
+
+    Two filters, and both are needed. The author, so a specialist's own report —
+    a perfectly good record, with no hypothesis in it — is never mistaken for
+    the manager's answer. And the content, so an event with nothing to read
+    leaves what was already found alone.
+
+    Args:
+        events: Everything the run produced, in order.
+        author: The agent whose answer is wanted.
+
+    Returns:
+        The last structured answer that agent gave, or an empty record where it
+        gave none. Empty means the agent never answered in its schema, which is
+        a different fact from an agent that answered with nothing to say, and
+        the caller is expected to tell them apart.
+    """
+    answer: dict[str, Any] = {}
+    for event in events:
+        if getattr(event, "author", None) != author:
+            continue
+        if not (
+            getattr(event, "is_final_response", None) and event.is_final_response()
+        ):
+            continue
+        payload = _payload(event)
+        if payload:
+            answer = payload
+    return answer
 
 
 def _payload(event: Any) -> dict[str, Any]:
-    """Read the structured answer out of a final event, if it carries any."""
+    """Read the structured answer out of an event, if it carries one."""
     content = getattr(event, "content", None)
     for part in getattr(content, "parts", None) or ():
         text = getattr(part, "text", None)
-        if text:
-            import json
-
-            try:
-                parsed = json.loads(text)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(parsed, dict):
-                return parsed
+        if not text:
+            continue
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
     return {}

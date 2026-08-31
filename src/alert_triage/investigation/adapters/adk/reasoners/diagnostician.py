@@ -44,6 +44,14 @@ How to work:
   consultation costs time and money a team is paying for hourly.
 - Choose the first specialist from what the alerts suggest. Choose each one
   after it from what came back, not from a fixed order.
+- One specialist is rarely the whole picture. Before you conclude, go through
+  each signal you have a specialist for and say to yourself whether it could
+  plausibly bear on these alerts; consult the ones that could. A single
+  consultation is enough only when it explains the alerts on its own and the
+  other signals could not change the reading.
+- Do not give your final answer while a signal you have not consulted might
+  still change it. Finishing early costs a team the explanation they were
+  waiting for, and the questions you did not spend are not a saving.
 - You may consult a specialist more than once. If what one reported raises a
   narrower question for that same specialist, ask it — say what you now want to
   know rather than repeating the original request.

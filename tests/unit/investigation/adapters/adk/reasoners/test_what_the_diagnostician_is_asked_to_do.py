@@ -100,3 +100,30 @@ def test_its_schema_admits_only_the_declared_confidence_levels() -> None:
         Diagnosed.model_validate(
             {"hypothesis": "something", "confidence": "fairly sure"}
         )
+
+
+def test_it_is_told_one_specialist_is_rarely_the_whole_picture() -> None:
+    """The framework injects "call set_model_response after any tools you need".
+
+    Read beside an instruction that says stop as soon as you can, a model takes
+    the first answer it gets and finalises. So the instruction has to say what
+    "enough" means rather than leave it to be inferred.
+    """
+    lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
+
+    assert "one specialist" in lowered
+    assert "rarely" in lowered
+
+
+def test_it_is_told_to_weigh_every_signal_before_concluding() -> None:
+    lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
+
+    assert "each signal" in lowered
+    assert "before you conclude" in lowered
+
+
+def test_it_is_told_not_to_finalise_while_a_signal_is_still_worth_asking() -> None:
+    lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
+
+    assert "final answer" in lowered
+    assert "do not give your final answer" in lowered

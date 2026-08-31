@@ -9,6 +9,7 @@ Everything here runs with no model and no network: the manager is a stub that
 consults whichever specialists the test names.
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -240,3 +241,53 @@ def test_each_investigation_starts_with_nothing_citable() -> None:
     ).investigate(_target())
 
     assert diagnosis.findings.findings == ()
+
+
+def test_a_manager_that_never_concluded_still_reports_what_it_found(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Findings are real whether or not the reasoning got as far as a conclusion."""
+
+    def _stops_early(
+        crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
+    ) -> dict[str, Any]:
+        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        specialist = consulted.named("apm_specialist")
+        assert specialist is not None
+        consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})
+        return {}
+
+    investigator = AdkInvestigator(
+        crew=(LOGS, APM), run_diagnostician=_stops_early, run_report=_words()
+    )
+
+    with caplog.at_level(logging.WARNING):
+        diagnosis = investigator.investigate(_target())
+
+    assert len(diagnosis.findings.findings) == 1
+    assert diagnosis.hypothesis is None
+    assert "concluded nothing" in caplog.text or "no conclusion" in caplog.text
+
+
+def test_reaching_no_conclusion_is_distinguishable_from_answering_with_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One never answered in its schema; the other answered and had nothing."""
+
+    def _answers_emptily(
+        crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
+    ) -> dict[str, Any]:
+        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        specialist = consulted.named("apm_specialist")
+        assert specialist is not None
+        consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})
+        return {"hypothesis": "", "confidence": "low"}
+
+    investigator = AdkInvestigator(
+        crew=(LOGS, APM), run_diagnostician=_answers_emptily, run_report=_words()
+    )
+
+    with caplog.at_level(logging.WARNING):
+        investigator.investigate(_target())
+
+    assert "no conclusion" not in caplog.text
