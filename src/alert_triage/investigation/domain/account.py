@@ -53,6 +53,40 @@ NO_HYPOTHESIS = (
 )
 
 
+CONFIDENCE_TEMPLATE = "Confidence in this reading: {level}."
+"""How much weight the investigation put on what it just said.
+
+Rendered rather than left to the writing agent. The agent is instructed to state
+its confidence, but an instruction is a request and a reader needs a guarantee:
+a report whose confidence appears only when a model remembers to mention it is
+one where the absence of a level means nothing at all. So the prose is the
+agent's and this line is the system's.
+"""
+
+
+def compose(
+    narrative: str, findings: Findings, confidence: Confidence | None = None
+) -> str:
+    """The account as a reader receives it: what was written, over what was found.
+
+    Args:
+        narrative: The prose the report agent wrote.
+        findings: What the investigation found, with the evidence behind it.
+        confidence: How much weight the investigation put on its hypothesis, or
+            ``None`` where it reached none to weigh.
+
+    Returns:
+        The narrative, the confidence it carries, and the evidence it is checked
+        against — in the order a reader needs them.
+    """
+    weight = (
+        []
+        if confidence is None
+        else [CONFIDENCE_TEMPLATE.format(level=confidence.value), ""]
+    )
+    return "\n".join([narrative.strip(), "", *weight, *evidence_lines(findings)])
+
+
 def without_words(
     hypothesis: str | None, confidence: Confidence | None, findings: Findings
 ) -> str:

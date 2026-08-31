@@ -32,6 +32,7 @@ from alert_triage.investigation.adapters.adk.credentials import resolve_model_ac
 from alert_triage.investigation.adapters.adk.crew import crew_for
 from alert_triage.investigation.adapters.adk.investigator import (
     AdkInvestigator,
+    report_with_adk,
     run_with_adk,
 )
 from alert_triage.investigation.adapters.adk.model import build_model
@@ -211,6 +212,7 @@ def build_investigator(
         crew=crew_for(investigation.specialists),
         links=DatadogLinks(datadog_connection.web_host),
         run_diagnostician=run_with_adk(deployment),
+        run_report=report_with_adk(deployment),
     )
 
 

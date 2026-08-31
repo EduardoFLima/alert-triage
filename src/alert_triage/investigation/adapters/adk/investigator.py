@@ -35,9 +35,11 @@ from typing import Any
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
     build_manager,
+    build_reasoner,
 )
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Links, Retrieved
+from alert_triage.investigation.adapters.adk.reasoners.report import REPORT_WRITER
 from alert_triage.investigation.contract import (
     Confidence,
     Diagnosis,
@@ -61,6 +63,9 @@ production implementation builds an agent whose tools are the crew; a test's
 consults whichever specialists it names.
 """
 
+RunReport = Callable[[str], dict[str, Any]]
+"""How the account is worded: given a brief, answer with a headline and a body."""
+
 
 class AdkInvestigator:
     """An investigation routed by a manager over a crew, behind the port."""
@@ -70,6 +75,7 @@ class AdkInvestigator:
         *,
         crew: Sequence[Specialist],
         run_diagnostician: RunDiagnostician,
+        run_report: RunReport,
         links: Links | None = None,
     ) -> None:
         """Build an investigator over one crew, one manager, and one writer.
@@ -77,11 +83,13 @@ class AdkInvestigator:
         Args:
             crew: The specialists to offer, every one of them.
             run_diagnostician: How the manager is driven for one target.
+            run_report: How the account is worded once there is one to word.
             links: How this deployment's platform addresses what it returns.
                 Absent, evidence is gathered and reported without addresses.
         """
         self._crew = tuple(crew)
         self._run_diagnostician = run_diagnostician
+        self._run_report = run_report
         self._links = links
 
     def investigate(self, target: InvestigationTarget) -> Diagnosis:
@@ -168,6 +176,67 @@ class AdkInvestigator:
             findings=findings,
         )
 
+    def _words(
+        self,
+        target: InvestigationTarget,
+        findings: Findings,
+        hypothesis: str | None,
+        confidence: Confidence | None,
+    ) -> tuple[str, str]:
+        """What the report agent wrote, or what this project writes without it.
+
+        A wording failure costs the report its prose and nothing else. What it
+        carries was gathered before any of it was worded, so losing the report
+        over the last and least consequential step would be the worst trade this
+        investigation could make.
+        """
+        fallback = account.headline_for(target.service, findings)
+        try:
+            worded = self._run_report(_brief(target, findings, hypothesis, confidence))
+        except Exception as error:
+            _log.warning(
+                "Wording the report for %s failed, composing it instead: %s",
+                target.service,
+                error,
+            )
+            return fallback, ""
+        headline = _one_line(
+            worded.get("headline") if isinstance(worded, dict) else None
+        )
+        narrative = worded.get("narrative") if isinstance(worded, dict) else None
+        if not headline or not isinstance(narrative, str) or not narrative.strip():
+            _log.warning(
+                "The report agent answered unusably for %s, composing it instead",
+                target.service,
+            )
+            return fallback, ""
+        return headline, narrative
+
+
+def _brief(
+    target: InvestigationTarget,
+    findings: Findings,
+    hypothesis: str | None,
+    confidence: Confidence | None,
+) -> str:
+    """Everything the writer needs, and nothing it could mistake for evidence."""
+    return "\n".join(
+        [
+            target.describe(),
+            f"Signals examined: {_named_signals(findings) or 'none'}",
+            f"Hypothesis: {hypothesis or 'none reached'}",
+            f"Confidence: {confidence.value if confidence else 'none'}",
+            "",
+            *account.evidence_lines(findings),
+        ]
+    )
+
+
+def _named_signals(findings: Findings) -> str:
+    """The signals consulted, named for the writer that must not exceed them."""
+    return ", ".join(signal.value for signal in findings.consulted)
+
+
 def _hypothesis_in(concluded: Any) -> str | None:
     """What the manager concluded, or ``None`` where it said nothing usable."""
     if not isinstance(concluded, dict):
@@ -230,6 +299,24 @@ def run_with_adk(deployment: Deployment) -> RunDiagnostician:
         agent = build_manager(crew, deployment, consulted, retrieved)
         _log.info("Running the diagnostician over %d specialist(s)", len(crew))
         return asyncio.run(run_agent(agent, prompt))
+
+    return _run
+
+
+def report_with_adk(deployment: Deployment) -> RunReport:
+    """Drive the report agent with a real model and no tools at all.
+
+    Args:
+        deployment: What an agent reasons on when it names no model of its own.
+
+    Returns:
+        A callable that words one account.
+    """
+
+    def _run(brief: str) -> dict[str, Any]:
+        agent = build_reasoner(REPORT_WRITER, deployment)
+        _log.info("Wording the report")
+        return asyncio.run(run_agent(agent, brief))
 
     return _run
 

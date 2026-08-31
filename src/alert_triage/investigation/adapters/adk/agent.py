@@ -29,6 +29,7 @@ from alert_triage.investigation.adapters.adk.evidence import (
 from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
     DIAGNOSTICIAN,
 )
+from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
 if TYPE_CHECKING:
@@ -139,6 +140,26 @@ def build_agent(
         after_tool_callback=keep_evidence_callback(
             retrieved, _permitted_tools(specialist)
         ),
+    )
+
+
+def build_reasoner(reasoner: Reasoner, deployment: Deployment) -> "LlmAgent":
+    """Build an agent that reasons over what it is given and reaches nothing.
+
+    Args:
+        reasoner: What to build.
+        deployment: What it reasons on when it names no model of its own.
+
+    Returns:
+        The agent, with no tools: it is given everything it needs in its prompt.
+    """
+    from google.adk.agents import LlmAgent
+
+    return LlmAgent(
+        name=reasoner.name,
+        model=deployment.model_for(reasoner.model),
+        instruction=reasoner.instruction,
+        output_schema=reasoner.output_schema,
     )
 
 
