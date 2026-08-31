@@ -5,6 +5,7 @@ encodings, the cursor pagination, the SDK's exceptions and payload models. What
 leaves is a list of ``Alert``.
 """
 
+import logging
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -40,6 +41,8 @@ of its run-up. Half an hour each way is enough to see the shape of it without
 being a window a reader has to search within.
 """
 
+_log = logging.getLogger(__name__)
+
 
 class EventSearch(Protocol):
     """The one endpoint this adapter uses, named so a test can stand in for it."""
@@ -74,6 +77,9 @@ class DatadogAlertSource:
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
+
+        _log.info("\n\n\n=== FETCHING ALERTS ===\n\n\n")
+
         return [
             alert
             for event in self._events_since(since)

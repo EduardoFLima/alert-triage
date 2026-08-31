@@ -183,6 +183,9 @@ def _handle(
     Only the port failures a group can suffer are caught, and each is contained
     here so the groups after this one still get their reports.
     """
+
+    _log.info("\n\n\n=== HANDLING NEXT INCIDENT ===\n\n\n")
+
     try:
         known = ledger.open_incidents(group.service, now)
     except TriageLedgerError as error:
@@ -198,14 +201,17 @@ def _handle(
         max_attempts=config.investigation.max_attempts,
         new_id=new_id,
     )
+
     diagnosis, investigation_failure = _investigated(
         decision, investigator=investigator
     )
+
     incident = (
         decision.incident.investigation_failed()
         if investigation_failure is not None
         else decision.incident
     )
+
     delivered, delivery_failure = _delivered(
         incident,
         diagnosis,
@@ -214,9 +220,12 @@ def _handle(
         notifier=notifier,
         build_report=build_report,
     )
+
     if delivered:
         incident = incident.reported(now)
+
     record_failure = _recorded(incident, ledger, now)
+
     return _Handled(
         delivered=delivered,
         failures=tuple(
@@ -278,6 +287,9 @@ def _delivered(
     A report that did not get out leaves the incident unstamped, so the next
     run owes it again: a cooldown must never run from a report nobody received.
     """
+
+    _log.info("\n\n\n=== REPORTING ===\n\n\n")
+
     if not should_report:
         _log.info("Report suppressed for %s: inside its cooldown", incident.service)
         return False, None
@@ -288,7 +300,6 @@ def _delivered(
         )
         return False, None
     try:
-        _log.info("\n\n\n=== REPORTING ===\n\n\n")
         notifier.deliver(build_report(incident, diagnosis))
     except NotifierError as error:
         _log.error("Reporting %s failed: %s", incident.service, error)
