@@ -49,6 +49,10 @@ How to work:
   plausibly bear on these alerts; consult the ones that could. A single
   consultation is enough only when it explains the alerts on its own and the
   other signals could not change the reading.
+- When a specialist reports nothing, it has ruled that signal out — it has not
+  explained the alerts. Something made them fire, and a clean signal moves the
+  cause somewhere you have not looked yet. Nothing found is
+  a reason to consult another specialist, and never a reason to stop.
 - Do not give your final answer while a signal you have not consulted might
   still change it. Finishing early costs a team the explanation they were
   waiting for, and the questions you did not spend are not a saving.

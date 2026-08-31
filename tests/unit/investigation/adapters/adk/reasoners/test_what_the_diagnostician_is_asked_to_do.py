@@ -127,3 +127,22 @@ def test_it_is_told_not_to_finalise_while_a_signal_is_still_worth_asking() -> No
 
     assert "final answer" in lowered
     assert "do not give your final answer" in lowered
+
+
+def test_it_is_told_an_empty_answer_rules_a_signal_out_rather_than_explaining() -> None:
+    """Nothing found is a reason to keep asking.
+
+    The alerts fired, so a clean signal moves the cause elsewhere rather than
+    accounting for it.
+    """
+    lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
+
+    assert "reports nothing" in lowered
+    assert "ruled that signal out" in lowered
+
+
+def test_it_is_told_a_clean_signal_is_not_a_reason_to_stop() -> None:
+    lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
+
+    assert "reason to consult another" in lowered
+    assert "never a reason to stop" in lowered
