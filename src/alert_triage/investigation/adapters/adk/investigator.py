@@ -327,7 +327,7 @@ def run_with_adk(deployment: Deployment) -> RunDiagnostician:
         agent = build_manager(crew, deployment, consulted, retrieved)
         _log.info(
             journal.event(
-                "the diagnostician is offered its crew",
+                "the specialists crew",
                 crew=", ".join(specialist.name for specialist in crew),
             )
         )
