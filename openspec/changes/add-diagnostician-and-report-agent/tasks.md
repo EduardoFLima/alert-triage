@@ -168,11 +168,9 @@ is cheaper to discover before six modules depend on it.
       event report `is_final_response()`, so reading the last final event
       overwrote the manager's conclusion with an empty record; `answer_in` now
       filters by author and never lets an unreadable event erase an answer. And
-      the manager stopped after one specialist, which the instruction now argues
-      against directly: ADK injects "call set_model_response after any other
-      tools you need", and beside "stop as soon as you can" a flash model takes
-      the first answer and finalises. A manager that answers with no conclusion
-      at all is now a warning rather than silence.
+      the manager stopped after one specialist — diagnosed twice, wrongly both
+      times, and finally understood in 8.9. A manager that answers with no
+      conclusion at all is now a warning rather than silence.
 - [x] 8.8 A specialist answered in prose where its schema was asked for, and
       `AgentTool` validated it and raised. ADK catches a tool error, offers it to
       `on_tool_error_callback`, and re-raises when nobody answers — so one
@@ -182,6 +180,34 @@ is cheaper to discover before six modules depend on it.
       to the consultation that had it, and recorded so the report says the
       investigation was incomplete. A failure in anything that is not a
       specialist is still left to raise.
+- [x] 8.9 The real cause of the stop, and the correction of two wrong
+      diagnoses. Wrapping each specialist with `skip_summarization=True` was the
+      whole of it. That sets the flag on the consultation's *result* event,
+      `Event.is_final_response` reports any such event as final, and the
+      framework's turn loop runs `while True` until the last event is final. So
+      the manager's turn ended the instant its first specialist answered: never
+      called again, unable to consult a second, unable to reason across
+      anything, unable to produce its schema at all.
+
+      That is why neither instruction rewrite changed a thing — no wording
+      reaches a model that is never asked again — and it is the fault behind
+      every routing symptom in 8.7. Skipping summarisation was asked for to get
+      the specialist's raw structured answer; it costs the whole conversation
+      and buys nothing, because the report is collected in
+      `after_tool_callback` before the model does anything with it. Specialists
+      are now wrapped plainly.
+
+      What the two wrong diagnoses claimed, for the record. The first blamed an
+      instruction ADK injects with its `set_model_response` workaround — which
+      is never created on Vertex, where a Gemini model pairs an output schema
+      with tools natively, so that path was never taken. The second blamed the
+      native response schema making the conclusion cheap on every turn, and
+      answered it by asking the manager again; that machinery is removed, since
+      it existed to compensate for a manager that could not continue.
+
+      Two fixes those diagnoses prompted are kept, because they stand without
+      them: a failed consultation answered rather than raised, and an answer
+      read from its own author's final event.
 - [ ] 8.3 Run it again and confirm the three fixes: the manager consults more than
       one specialist where the incident warrants it, a conclusion it reaches
       survives into the report, and a specialist that cannot answer costs its own

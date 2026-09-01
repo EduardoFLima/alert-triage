@@ -358,11 +358,9 @@ async def run_agent(agent: Any, prompt: str) -> dict[str, Any]:
 def answer_in(events: Iterable[Any], author: str) -> dict[str, Any]:
     """The structured answer one agent gave, out of everything the run produced.
 
-    More than one event is called final once an agent reaches tools that are
-    themselves agents: skipping a consultation's summarisation marks its result
-    final, and that result carries a function response rather than text. Reading
-    the last final event indiscriminately therefore overwrites a hypothesis with
-    an empty record, which is how a conclusion the model did reach goes missing.
+    More than one event can be called final once several agents take part in one
+    invocation, which the framework says outright. Reading the last of them
+    indiscriminately is how a conclusion the model did reach goes missing.
 
     Two filters, and both are needed. The author, so a specialist's own report —
     a perfectly good record, with no hypothesis in it — is never mistaken for

@@ -1,11 +1,10 @@
 """Which event carries an agent's answer, among the several called final.
 
-A manager reaching specialists as tools produces more than one event the
-framework calls final. Every agent-tool result is one, because skipping its
-summarisation marks it so, and a tool result carries no text to read an answer
-out of. Taking the last of them indiscriminately is how a hypothesis the model
-did produce gets overwritten by an empty record — and how a model that produced
-none at all becomes indistinguishable from one that concluded nothing.
+Several agents take part in one invocation, and the framework says plainly that
+each may produce an event reporting itself final. Taking the last of them
+indiscriminately is how a hypothesis the model did produce gets overwritten by
+an empty record — and how a model that produced none at all becomes
+indistinguishable from one that concluded nothing.
 """
 
 import json

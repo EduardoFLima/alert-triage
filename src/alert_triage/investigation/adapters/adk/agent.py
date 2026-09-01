@@ -178,6 +178,16 @@ def build_manager(
     to keep. As tools, the specialists answer and the manager decides what to
     ask next.
 
+    Their summarisation is deliberately not skipped. Skipping it sets
+    ``skip_summarization`` on the consultation's result, which ``is_final_response``
+    reports as final, which ends the manager's turn — the framework's loop runs
+    ``while True`` until the last event is final. A manager whose turn ends on
+    its first answer cannot consult a second specialist, cannot reason across
+    what came back, and cannot produce its schema at all. Asking for the raw
+    answer that way costs the whole conversation, and buys nothing: the report
+    is collected in ``after_tool_callback``, before anything the model does with
+    it.
+
     Its three callbacks are the ones a manager needs and a specialist does not.
     One bounds how many questions this incident may cost. One keeps each
     specialist's report — checked — before the manager reads it. And one keeps a
@@ -207,10 +217,7 @@ def build_manager(
         instruction=DIAGNOSTICIAN.instruction,
         output_schema=DIAGNOSTICIAN.output_schema,
         tools=[
-            AgentTool(
-                agent=build_agent(specialist, deployment, retrieved),
-                skip_summarization=True,
-            )
+            AgentTool(agent=build_agent(specialist, deployment, retrieved))
             for specialist in crew
         ],
         before_tool_callback=bound_consultations_callback(consulted),
