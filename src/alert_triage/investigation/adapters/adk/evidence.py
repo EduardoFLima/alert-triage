@@ -28,6 +28,7 @@ from alert_triage.investigation.adapters.adk.normalisation import (
 )
 from alert_triage.investigation.contract import EvidenceItem
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
+from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
 
@@ -149,7 +150,7 @@ class Retrieved:
             The refusal the model is given in place of the failure.
         """
         self._failures.append(reason)
-        _log.warning("A retrieval failed and was refused to the model: %s", reason)
+        _log.warning(journal.event("retrieval refused to the model", reason=reason))
         return {
             "retrieval_failed": True,
             "detail": reason,
@@ -195,7 +196,7 @@ class Retrieved:
 
 
 def keep_evidence_callback(
-    retrieved: Retrieved, permitted: frozenset[str]
+    retrieved: Retrieved, permitted: frozenset[str], caller: str
 ) -> AfterTool:
     """The callback that stands between a tool result and the model reading it.
 
@@ -219,6 +220,8 @@ def keep_evidence_callback(
         retrieved: What this investigation has gathered so far.
         permitted: The tools this specialist declared. A result from anything
             else passes through untouched.
+        caller: The specialist whose result this is, so that a reader following
+            an investigation knows who asked.
 
     Returns:
         The ``after_tool_callback`` to register on a specialist.
@@ -233,24 +236,45 @@ def keep_evidence_callback(
         failure = _failure_in(tool_response)
         if failure is not None:
             return retrieved.refuse_evidence(f"{name} failed: {failure}")
-        return retrieved.retain_evidence(tool_response, args)
+        offered = retrieved.retain_evidence(tool_response, args)
+        _log.info(
+            journal.event(
+                f"{caller} ← {name}",
+                call=offered["call"],
+                items=len(offered["items"]) or "none, cited as a whole",
+                answered=journal.shortened(tool_response),
+            )
+        )
+        return offered
 
     return _kept
 
 
-def log_tool_call() -> BeforeTool:
+def log_tool_call(caller: str) -> BeforeTool:
     """The callback that watches a tool call on its way out, and permits it.
 
-    It enforces nothing today. It exists because the per-agent tool-call bound
-    belongs exactly here, and a seat with a test already on it is what makes
-    that a body to write rather than a boundary to find.
+    It writes down what the specialist is about to ask the platform for, which
+    is the half of a retrieval the result alone does not say: an answer with
+    nothing in it reads very differently once the question is beside it.
+
+    It enforces nothing today. The seat is also where the per-agent tool-call
+    bound belongs, and a seat with a test already on it is what makes that a
+    body to write rather than a boundary to find.
+
+    Args:
+        caller: The specialist making the call.
 
     Returns:
         The ``before_tool_callback`` to register on a specialist.
     """
 
     def _logged(*, tool: Any, args: dict[str, Any], tool_context: Any) -> None:
-        _log.info("A specialist is calling %s with %r", named_tool(tool), args)
+        _log.info(
+            journal.event(
+                f"{caller} → {named_tool(tool)}",
+                **{name: journal.shortened(asked) for name, asked in args.items()},
+            )
+        )
         return None
 
     return _logged

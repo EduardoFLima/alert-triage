@@ -138,9 +138,9 @@ def build_agent(
             )
             for toolset in specialist.toolsets
         ],
-        before_tool_callback=log_tool_call(),
+        before_tool_callback=log_tool_call(specialist.name),
         after_tool_callback=keep_evidence_callback(
-            retrieved, _permitted_tools(specialist)
+            retrieved, _permitted_tools(specialist), specialist.name
         ),
     )
 
@@ -154,6 +154,8 @@ def build_reasoner(reasoner: Reasoner, deployment: Deployment) -> "LlmAgent":
 
     Returns:
         The agent, with no tools: it is given everything it needs in its prompt.
+        Its one callback writes down what it said, which for an agent that
+        reaches nothing is the whole of its contribution.
     """
     from google.adk.agents import LlmAgent
 
@@ -162,6 +164,7 @@ def build_reasoner(reasoner: Reasoner, deployment: Deployment) -> "LlmAgent":
         model=deployment.model_for(reasoner.model),
         instruction=reasoner.instruction,
         output_schema=reasoner.output_schema,
+        after_model_callback=log_reasoning(reasoner.name),
     )
 
 
@@ -226,5 +229,5 @@ def build_manager(
         before_tool_callback=bound_consultations_callback(consulted),
         after_tool_callback=collect_findings_callback(consulted),
         on_tool_error_callback=failed_consultation_callback(consulted),
-        after_model_callback=log_reasoning(),
+        after_model_callback=log_reasoning(DIAGNOSTICIAN.name),
     )

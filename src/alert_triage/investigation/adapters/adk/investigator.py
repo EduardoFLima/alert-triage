@@ -50,6 +50,7 @@ from alert_triage.investigation.contract import (
 from alert_triage.investigation.domain import account
 from alert_triage.investigation.domain.specialist import Specialist
 from alert_triage.investigation.ports.investigator import InvestigatorError
+from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
 
@@ -126,13 +127,21 @@ class AdkInvestigator:
             retrieval_failures=retrieved.failures + consulted.refusals,
             consulted=consulted.signals,
         )
+        hypothesis = _hypothesis_in(concluded)
+        confidence = _confidence_in(concluded)
         _log.info(
-            "Investigated %s: consulted %s, %d finding(s)",
-            target.service,
-            ", ".join(consulted.order) or "nobody",
-            len(findings.findings),
+            journal.banner(
+                "INVESTIGATION CONCLUDED",
+                target.service,
+                consulted=", ".join(consulted.order) or "nobody",
+                signals=", ".join(signal.value for signal in findings.consulted),
+                findings=len(findings.findings),
+                incomplete=", ".join(findings.retrieval_failures) or None,
+                hypothesis=hypothesis or "none reached",
+                confidence=confidence.value if confidence else "none",
+            )
         )
-        return self._worded(target, findings, concluded)
+        return self._worded(target, findings, hypothesis, confidence)
 
     def _concluded(
         self,
@@ -151,10 +160,12 @@ class AdkInvestigator:
             ) from error
         if not concluded:
             _log.warning(
-                "The diagnostician investigating %s answered with no conclusion "
-                "at all. Its findings still stand and are reported; what is "
-                "missing is the reasoning across them.",
-                target.service,
+                journal.event(
+                    "the diagnostician reached no conclusion",
+                    "Its findings still stand and are reported; what is missing "
+                    "is the reasoning across them.",
+                    service=target.service,
+                )
             )
         return concluded
 
@@ -162,7 +173,8 @@ class AdkInvestigator:
         self,
         target: InvestigationTarget,
         findings: Findings,
-        concluded: dict[str, Any],
+        hypothesis: str | None,
+        confidence: Confidence | None,
     ) -> Diagnosis:
         """Turn what was found and concluded into the account a reader receives.
 
@@ -170,8 +182,6 @@ class AdkInvestigator:
         that value drops a hypothesis with no surviving finding beneath it, and
         it is the last place the discipline can still be applied.
         """
-        hypothesis = _hypothesis_in(concluded)
-        confidence = _confidence_in(concluded)
         headline, narrative = self._words(target, findings, hypothesis, confidence)
         return Diagnosis(
             headline=headline,
@@ -204,9 +214,12 @@ class AdkInvestigator:
             worded = self._run_report(_brief(target, findings, hypothesis, confidence))
         except Exception as error:
             _log.warning(
-                "Wording the report for %s failed, composing it instead: %s",
-                target.service,
-                error,
+                journal.event(
+                    "the report could not be worded",
+                    service=target.service,
+                    detail=str(error),
+                    instead="composed from what was found",
+                )
             )
             return fallback, ""
         headline = _one_line(
@@ -215,8 +228,11 @@ class AdkInvestigator:
         narrative = worded.get("narrative") if isinstance(worded, dict) else None
         if not headline or not isinstance(narrative, str) or not narrative.strip():
             _log.warning(
-                "The report agent answered unusably for %s, composing it instead",
-                target.service,
+                journal.event(
+                    "the report agent answered unusably",
+                    service=target.service,
+                    instead="composed from what was found",
+                )
             )
             return fallback, ""
         return headline, narrative
@@ -271,8 +287,11 @@ def _confidence_in(concluded: Any) -> Confidence | None:
         return Confidence(named) if isinstance(named, str) else None
     except ValueError:
         _log.warning(
-            "The diagnostician named a confidence level nobody declared: %r",
-            named,
+            journal.event(
+                "the diagnostician named a confidence nobody declared",
+                named=repr(named),
+                declared=", ".join(level.value for level in Confidence),
+            )
         )
         return None
 
@@ -306,7 +325,12 @@ def run_with_adk(deployment: Deployment) -> RunDiagnostician:
         prompt: str,
     ) -> dict[str, Any]:
         agent = build_manager(crew, deployment, consulted, retrieved)
-        _log.info("Running the diagnostician over %d specialist(s)", len(crew))
+        _log.info(
+            journal.event(
+                "the diagnostician is offered its crew",
+                crew=", ".join(specialist.name for specialist in crew),
+            )
+        )
         return asyncio.run(run_agent(agent, prompt))
 
     return _run
@@ -324,7 +348,7 @@ def report_with_adk(deployment: Deployment) -> RunReport:
 
     def _run(brief: str) -> dict[str, Any]:
         agent = build_reasoner(REPORT_WRITER, deployment)
-        _log.info("Wording the report")
+        _log.info(journal.event("the report is being worded"))
         return asyncio.run(run_agent(agent, brief))
 
     return _run

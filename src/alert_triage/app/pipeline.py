@@ -25,6 +25,7 @@ from alert_triage.investigation.ports.investigator import (
 )
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import Notifier, NotifierError
+from alert_triage.shared import journal
 from alert_triage.triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.triage.domain.incident import Incident
 from alert_triage.triage.domain.policy import TriageDecision, triage
@@ -139,12 +140,16 @@ def run(
     try:
         fetched = source.fetch_since(now - config.ingestion.lookback)
     except AlertSourceError as error:
-        _log.error("Fetching alerts failed: %s", error)
+        _log.error(journal.banner("FETCH FAILED", detail=str(error)))
         return RunOutcome(failures=(RunFailure(Stage.FETCH, "", str(error)),))
 
     groups = group_alerts(fetched, config.grouping.window)
     _log.info(
-        "Fetched %d alert(s), grouped into %d incident(s)", len(fetched), len(groups)
+        journal.event(
+            "what fired, grouped into incidents",
+            fetched=len(fetched),
+            incidents=len(groups),
+        )
     )
 
     handled = [
@@ -183,13 +188,25 @@ def _handle(
     Only the port failures a group can suffer are caught, and each is contained
     here so the groups after this one still get their reports.
     """
-
-    _log.info("\n\n\n=== HANDLING NEXT INCIDENT ===\n\n\n")
+    _log.info(
+        journal.banner(
+            "INCIDENT",
+            group.service,
+            alerts=len(group.alerts),
+            window=_spanned(group),
+        )
+    )
 
     try:
         known = ledger.open_incidents(group.service, now)
     except TriageLedgerError as error:
-        _log.error("Reading the ledger for %s failed: %s", group.service, error)
+        _log.error(
+            journal.event(
+                "the ledger could not be read",
+                service=group.service,
+                detail=str(error),
+            )
+        )
         return _Handled(failures=(RunFailure(Stage.READ, group.service, str(error)),))
 
     decision = triage(
@@ -200,6 +217,19 @@ def _handle(
         cooldown=config.re_notify.cooldown,
         max_attempts=config.investigation.max_attempts,
         new_id=new_id,
+    )
+
+    _log.info(
+        journal.event(
+            f"what {group.service} is owed",
+            investigation=(
+                f"attempt {decision.incident.investigation_attempts + 1} of "
+                f"{config.investigation.max_attempts}"
+                if decision.should_investigate
+                else "not owed one"
+            ),
+            report="due now" if decision.should_report else "inside its cooldown",
+        )
     )
 
     diagnosis, investigation_failure = _investigated(
@@ -247,22 +277,26 @@ def _investigated(
     incident = decision.incident
     if not decision.should_investigate:
         return None, None
-    try:
-        _log.info(
-            "\n\n\n=== STARTING INVESTIGATION ===\nService: %s\nStarted: %s\n\n\n",
-            incident.service,
-            incident.window.start,
-        )
-
-        diagnosis = investigator.investigate(incident.investigation_target)
-    except InvestigatorError as error:
-        _log.error("Investigating %s failed: %s", incident.service, error)
-        return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))
+    target = incident.investigation_target
     _log.info(
-        "Investigated %s: %d finding(s)",
-        incident.service,
-        len(diagnosis.findings.findings),
+        journal.banner(
+            "INVESTIGATING",
+            incident.service,
+            window=_between(target.window.start, target.window.end),
+            alerts=target.alert_count,
+        )
     )
+    try:
+        diagnosis = investigator.investigate(target)
+    except InvestigatorError as error:
+        _log.error(
+            journal.event(
+                "the investigation failed",
+                service=incident.service,
+                detail=str(error),
+            )
+        )
+        return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))
     return diagnosis, None
 
 
@@ -287,25 +321,51 @@ def _delivered(
     A report that did not get out leaves the incident unstamped, so the next
     run owes it again: a cooldown must never run from a report nobody received.
     """
-
-    _log.info("\n\n\n=== REPORTING ===\n\n\n")
+    _log.info(journal.banner("REPORTING", incident.service))
 
     if not should_report:
-        _log.info("Report suppressed for %s: inside its cooldown", incident.service)
+        _log.info(
+            journal.event(
+                "nothing is delivered",
+                because="the incident is inside its re-notify cooldown",
+            )
+        )
         return False, None
     if diagnosis is None and not exhausted:
         _log.info(
-            "Saying nothing about %s: investigation failed with attempts remaining",
-            incident.service,
+            journal.event(
+                "nothing is delivered",
+                because=(
+                    "the investigation failed and this incident has attempts "
+                    "left to spend on another"
+                ),
+            )
         )
         return False, None
+    report = build_report(incident, diagnosis)
     try:
-        notifier.deliver(build_report(incident, diagnosis))
+        notifier.deliver(report)
     except NotifierError as error:
-        _log.error("Reporting %s failed: %s", incident.service, error)
+        _log.error(
+            journal.event(
+                "the report was not delivered",
+                service=incident.service,
+                detail=str(error),
+            )
+        )
         return False, RunFailure(Stage.DELIVER, incident.service, str(error))
-    _log.info("Reported %s as incident %s", incident.service, incident.id)
+    _log.info(journal.event("delivered", incident=incident.id, subject=report.subject))
     return True, None
+
+
+def _spanned(group: AlertGroup) -> str:
+    """The stretch the group's alerts fired across, as a reader reads a window."""
+    return _between(group.alerts[0].fired_at, group.alerts[-1].fired_at)
+
+
+def _between(start: datetime, end: datetime) -> str:
+    """One window, stated once and the same way wherever a run states one."""
+    return f"{start.isoformat()} → {end.isoformat()}"
 
 
 def _recorded(
@@ -320,6 +380,12 @@ def _recorded(
     try:
         ledger.record(incident, now)
     except TriageLedgerError as error:
-        _log.error("Recording incident %s failed: %s", incident.id, error)
+        _log.error(
+            journal.event(
+                "the incident was not recorded",
+                incident=incident.id,
+                detail=str(error),
+            )
+        )
         return RunFailure(Stage.RECORD, incident.service, str(error))
     return None

@@ -114,9 +114,16 @@ A run reads everything it needs from its environment:
 - `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.
   Defaults to `data/alert_triage.db` under the working directory, which is why a
   deployment should set it explicitly.
+- `LOG_LEVEL` — how much the run says out loud. Optional, and `INFO` by
+  default.
 
-The run's account of itself goes to stderr; what it did goes in its exit
-status, which is what a scheduler acts on:
+The account of a run goes to stderr, written for a human reading a terminal:
+each phase of a run is boxed, and every consultation, tool call and thing an
+agent said is captioned beneath the phase it belongs to. What reaches the log,
+what is held back, and how to get the held part are in
+[`docs/logging.md`](docs/logging.md).
+
+What a run did goes in its exit status, which is what a scheduler acts on:
 
 - `0` — every group the run fetched was decided, reported if it was due, and
   recorded. A run that had nothing to report succeeds having delivered
@@ -248,6 +255,7 @@ concrete adapters are named.
 ```
 src/alert_triage/
 ├── shared/         vocabulary more than one context speaks; depends on nothing
+│                  (a window, and how a run writes itself down)
 ├── configuration/  the settings a deployment behaves by, and where they are read
 ├── triage/         the core: incidents, grouping, policy, what a report says
 │   ├── domain/     entities and logic; standard library only
@@ -259,7 +267,8 @@ src/alert_triage/
 │   └── adapters/   adk (the framework, and the two reasoners) · datadog
 ├── notification/   contract.py, the Notifier port, and the channels
 │   └── adapters/   email · teams · fan-out over every configured channel
-└── app/            composition root: the only place adapters are named
+└── app/            composition root: the only place adapters are named,
+                   plus how much of a run reaches the log
 
 tests/
 ├── unit/        no network, no external service

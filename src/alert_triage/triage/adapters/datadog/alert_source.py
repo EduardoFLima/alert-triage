@@ -21,6 +21,7 @@ from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
 
 from alert_triage.configuration.settings import Ingestion
+from alert_triage.shared import journal
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.ports.alert_source import AlertSourceError
@@ -77,8 +78,11 @@ class DatadogAlertSource:
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
-
-        _log.info("\n\n\n=== FETCHING ALERTS ===\n\n\n")
+        _log.info(
+            journal.banner(
+                "FETCHING ALERTS", owner=self._owner, since=since.isoformat()
+            )
+        )
 
         return [
             alert

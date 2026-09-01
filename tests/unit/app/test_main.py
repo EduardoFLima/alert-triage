@@ -43,6 +43,43 @@ def test_a_run_with_a_failure_exits_with_a_non_zero_status(
     assert entrypoint.main() != 0
 
 
+def test_a_run_opens_and_closes_its_own_account(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A log that begins mid-run leaves a reader guessing which run they have."""
+    monkeypatch.setattr(
+        entrypoint, "execute", _executes(RunOutcome(groups=2, delivered=1))
+    )
+
+    with caplog.at_level(logging.INFO):
+        entrypoint.main()
+
+    written = " ".join(caplog.text.split())
+    assert "TRIAGE RUN" in written
+    assert "RUN COMPLETE" in written
+    assert "groups 2" in written
+    assert "delivered 1" in written
+
+
+def test_how_much_a_run_says_is_settled_before_it_says_anything(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configured from the same environment the run itself is resolved from."""
+    asked: list[object] = []
+
+    def configure(env: object) -> int:
+        asked.append(env)
+        return logging.INFO
+
+    monkeypatch.setattr(entrypoint, "execute", _executes(RunOutcome()))
+    monkeypatch.setattr(entrypoint, "resolve_environment", lambda: {"LOG_LEVEL": "x"})
+    monkeypatch.setattr(entrypoint, "configure_logging", configure)
+
+    entrypoint.main()
+
+    assert asked == [{"LOG_LEVEL": "x"}]
+
+
 def test_unusable_configuration_is_reported_rather_than_raised(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -58,6 +95,7 @@ def test_unusable_configuration_is_reported_rather_than_raised(
 
     assert status != 0
     assert "scope.owner" in caplog.text
+    assert "│ REFUSING TO START" in caplog.text
 
 
 def test_the_failures_a_run_could_not_avoid_name_their_stage_and_service(
@@ -73,6 +111,7 @@ def test_the_failures_a_run_could_not_avoid_name_their_stage_and_service(
     with caplog.at_level(logging.ERROR):
         entrypoint.main()
 
+    assert "── a stage of the run failed" in caplog.text
     assert "delivering the report" in caplog.text
     assert "checkout" in caplog.text
 

@@ -6,9 +6,11 @@ fallback is not emergency code: it is the same renderer with nothing written
 above it.
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from pydantic import BaseModel
 
 from alert_triage.investigation.adapters.adk.consultation import (
@@ -112,6 +114,22 @@ def test_a_wording_failure_still_delivers_the_report() -> None:
     assert diagnosis.hypothesis == "the pods are out of memory"
     assert "OOMKilled recurs" in diagnosis.account
     assert diagnosis.headline
+
+
+def test_a_wording_failure_says_what_it_cost_and_what_was_done_instead(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """It costs the prose and nothing else, which a reader should not have to infer."""
+
+    def _explodes(brief: str) -> dict[str, Any]:
+        raise RuntimeError("the model refused")
+
+    with caplog.at_level(logging.WARNING):
+        _investigator(_explodes).investigate(_target())
+
+    assert "── the report could not be worded" in caplog.text
+    assert "the model refused" in caplog.text
+    assert "composed" in caplog.text
 
 
 def test_an_unusable_answer_falls_back_the_same_way() -> None:

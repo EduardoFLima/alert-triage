@@ -70,7 +70,7 @@ class _Tool:
 
 
 def _after(retrieved: Retrieved, response: Any) -> Any:
-    return keep_evidence_callback(retrieved, PERMITTED)(
+    return keep_evidence_callback(retrieved, PERMITTED, "logs_specialist")(
         tool=_Tool(),
         args={"service": "checkout"},
         tool_context=None,

@@ -118,6 +118,11 @@ def test_a_reasoner_is_built_with_no_tools_at_all() -> None:
     assert agent.name == "report_writer"
 
 
+def test_a_reasoner_carries_the_reasoning_log() -> None:
+    """The report agent's turn is the report taking shape; nothing else keeps it."""
+    assert build_reasoner(REPORT_WRITER, _deployment()).after_model_callback is not None
+
+
 def test_a_reasoner_takes_the_deployments_model() -> None:
     agent = build_reasoner(REPORT_WRITER, _deployment())
 

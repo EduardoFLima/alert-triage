@@ -1,10 +1,11 @@
-"""The manager's own words, on their way past to whoever is reading the log.
+"""An agent's own words, on their way past to whoever is reading the log.
 
 What the Diagnostician says between consultations is the account of why it
 asked what it asked, and it is the one thing the consultation record does not
 keep: that holds what was asked and what came back, not the thread joining
-them. The callback watches and never intervenes, so a run reads the same
-whether anyone is listening or not.
+them. What the Report agent says is the report itself, taking shape. The
+callback watches and never intervenes, so a run reads the same whether anyone
+is listening or not.
 """
 
 import logging
@@ -37,8 +38,8 @@ class _Response:
         self.partial = partial
 
 
-def _after(response: Any) -> Any:
-    return log_reasoning()(callback_context=None, llm_response=response)
+def _after(response: Any, agent: str = "diagnostician") -> Any:
+    return log_reasoning(agent)(callback_context=None, llm_response=response)
 
 
 def test_what_the_manager_says_is_logged(caplog: pytest.LogCaptureFixture) -> None:
@@ -46,6 +47,27 @@ def test_what_the_manager_says_is_logged(caplog: pytest.LogCaptureFixture) -> No
         _after(_Response([_Part("Saturation, so I will ask the metrics specialist.")]))
 
     assert "Saturation, so I will ask the metrics specialist." in caplog.text
+
+
+def test_the_agent_that_said_it_is_named(caplog: pytest.LogCaptureFixture) -> None:
+    """Two agents reason in one investigation; an unattributed thought is noise."""
+    with caplog.at_level(logging.INFO):
+        _after(_Response([_Part("Two signals, one cause.")]), "report_writer")
+
+    assert "report_writer" in caplog.text
+
+
+def test_an_answer_given_in_a_schema_is_read_as_its_fields(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An agent's last turn is its schema. Raw JSON is the thing being fixed here."""
+    with caplog.at_level(logging.INFO):
+        answered = '{"headline": "checkout is OOM-killing", "narrative": "At 09:14."}'
+        _after(_Response([_Part(answered)]), "report_writer")
+
+    assert "headline" in caplog.text
+    assert "checkout is OOM-killing" in caplog.text
+    assert '{"headline"' not in caplog.text
 
 
 def test_every_part_of_a_turn_is_logged(caplog: pytest.LogCaptureFixture) -> None:

@@ -17,6 +17,7 @@ from collections.abc import Sequence
 
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import Notifier, NotifierError
+from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
 
@@ -101,9 +102,12 @@ class FanOutNotifier:
         """
         for failure in failures:
             _log.warning(
-                "Report for incident %s was not delivered to one channel (%s)",
-                report.incident_id,
-                failure,
+                journal.event(
+                    "a channel did not take the report",
+                    incident=report.incident_id,
+                    service=report.service,
+                    detail=failure,
+                )
             )
 
 

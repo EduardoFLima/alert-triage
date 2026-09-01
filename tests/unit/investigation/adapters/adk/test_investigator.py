@@ -110,6 +110,32 @@ def _investigator(**manager: Any) -> AdkInvestigator:
     )
 
 
+def test_what_an_investigation_came_to_is_written_down_where_it_ends(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The one block a reader scrolls back to: who was asked, and what it means."""
+    with caplog.at_level(logging.INFO):
+        _investigator(
+            consults=("logs_specialist",),
+            reports={"logs_specialist": [_cites(["call-1/item-1"])]},
+        ).investigate(_target())
+
+    written = " ".join(caplog.text.split())
+    assert "INVESTIGATION CONCLUDED · checkout" in written
+    assert "logs_specialist" in written
+    assert "the pods are out of memory" in written
+    assert "high" in written
+
+
+def test_an_investigation_that_asked_nobody_says_so_rather_than_naming_nobody(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO):
+        _investigator(consults=()).investigate(_target())
+
+    assert "nobody" in caplog.text
+
+
 def test_every_specialist_is_offered_to_the_manager() -> None:
     offered: list[tuple[str, ...]] = []
 
@@ -266,7 +292,7 @@ def test_a_manager_that_never_concluded_still_reports_what_it_found(
 
     assert len(diagnosis.findings.findings) == 1
     assert diagnosis.hypothesis is None
-    assert "concluded nothing" in caplog.text or "no conclusion" in caplog.text
+    assert "── the diagnostician reached no conclusion" in caplog.text
 
 
 def test_reaching_no_conclusion_is_distinguishable_from_answering_with_none(

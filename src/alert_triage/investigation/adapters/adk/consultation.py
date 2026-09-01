@@ -28,6 +28,7 @@ from alert_triage.investigation.adapters.adk.evidence import (
 from alert_triage.investigation.contract import Finding, Signal
 from alert_triage.investigation.domain.evidence import findings_from
 from alert_triage.investigation.domain.specialist import Specialist
+from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ class Consulted:
         """
         reason = f"the {name} was consulted and could not answer: {error}"
         self._refusals.append(reason)
-        _log.warning("A consultation failed: %s", reason)
+        _log.warning(journal.event(f"{name} could not answer", detail=reason))
         return {
             "consultation_failed": True,
             "detail": reason,
@@ -186,7 +187,7 @@ class Consulted:
             f"{MAX_CONSULTATIONS} questions"
         )
         self._refusals.append(reason)
-        _log.warning("A consultation was refused: %s", reason)
+        _log.warning(journal.event(f"{name} was not consulted", detail=reason))
         return {
             "consultation_refused": True,
             "detail": reason,
@@ -200,7 +201,7 @@ class Consulted:
                 return specialist
         return None
 
-    def record(self, specialist: Specialist, reported: Any) -> None:
+    def record(self, specialist: Specialist, reported: Any) -> tuple[Finding, ...]:
         """Note that a specialist was asked, and keep what its answer bears out.
 
         Being asked and answering legibly are different facts, and the first is
@@ -211,13 +212,18 @@ class Consulted:
         Args:
             specialist: The specialist that was consulted.
             reported: What it reported, however the framework handed it over.
+
+        Returns:
+            What this consultation contributed, which is what a reader of the
+            log is shown. Empty where nothing the specialist said was borne out
+            by the evidence behind it.
         """
+        kept = findings_from(
+            reported_findings(reported), self._retrieved, specialist.signal
+        ).findings
         self._order.append(specialist.name)
-        self._findings.extend(
-            findings_from(
-                reported_findings(reported), self._retrieved, specialist.signal
-            ).findings
-        )
+        self._findings.extend(kept)
+        return kept
 
 
 def reported_findings(reported: Any) -> list[Any]:
@@ -232,7 +238,12 @@ def reported_findings(reported: Any) -> list[Any]:
     """
     payload = _unwrapped(reported)
     if not isinstance(payload, dict):
-        _log.warning("A specialist reported something unreadable: %r", reported)
+        _log.warning(
+            journal.event(
+                "a specialist reported something unreadable",
+                reported=journal.shortened(repr(reported)),
+            )
+        )
         return []
     findings = payload.get("findings")
     return findings if isinstance(findings, list) else []
@@ -277,11 +288,41 @@ def collect_findings_callback(consulted: Consulted) -> AfterTool:
         specialist = consulted.named(named_tool(tool))
         if specialist is None:
             return None
-        _log.info("The %s reported back", specialist.name)
-        consulted.record(specialist, tool_response)
+        _log.info(_reported(specialist, consulted.record(specialist, tool_response)))
         return None
 
     return _collected
+
+
+def _reported(specialist: Specialist, findings: Sequence[Finding]) -> str:
+    """What one consultation came to, in the words the specialist used.
+
+    The observation is written down whole. It is the investigation's own
+    characterisation of what it saw, it is what a reader is here for, and a
+    shortened one would be this system paraphrasing itself.
+
+    A specialist that bore nothing out is written down as exactly that: silence
+    in the log would read as a specialist nobody asked, which is the one thing
+    the whole consultation record exists to keep apart.
+    """
+    if not findings:
+        return journal.event(
+            f"{specialist.name} reported",
+            "Reported nothing that its evidence bore out.",
+            signal=specialist.signal.value,
+        )
+    return journal.event(
+        f"{specialist.name} reported",
+        "\n\n".join(finding.observation for finding in findings),
+        signal=specialist.signal.value,
+        findings=(
+            f"{len(findings)}, over "
+            f"{sum(finding.occurrences for finding in findings)} occurrence(s)"
+        ),
+        evidence=", ".join(
+            item.id for finding in findings for item in finding.examples
+        ),
+    )
 
 
 def bound_consultations_callback(consulted: Consulted) -> BeforeTool:
@@ -308,7 +349,12 @@ def bound_consultations_callback(consulted: Consulted) -> BeforeTool:
             return None
         if consulted.exhausted:
             return consulted.refuse(name)
-        _log.info("Consulting the %s: %r", name, args)
+        _log.info(
+            journal.event(
+                f"consulting {name}",
+                **{label: journal.shortened(asked) for label, asked in args.items()},
+            )
+        )
         return None
 
     return _bounded

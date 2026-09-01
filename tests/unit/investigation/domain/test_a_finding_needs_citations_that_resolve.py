@@ -5,8 +5,11 @@ keeps it: the discipline is that a citation must resolve, and how a tool result
 came to be keyed is not its business.
 """
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import pytest
 
 from alert_triage.investigation.contract import (
     MAX_EXAMPLES_PER_FINDING,
@@ -63,6 +66,20 @@ def _cited(
     cites: list[str], observation: str = "OOMKilled recurs", occurrences: int = 5
 ) -> dict[str, object]:
     return {"observation": observation, "occurrences": occurrences, "cites": cites}
+
+
+def test_a_discarded_finding_is_written_down_like_everything_else_a_run_says(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A dropped finding is why a report is thinner than an agent thought."""
+    with caplog.at_level(logging.WARNING):
+        findings_from(
+            [_cited(["call-9/item-4"])], _retained(_logs("OOMKilled")), Signal.LOGS
+        )
+
+    assert "── a citation resolved to nothing" in caplog.text
+    assert "── a finding was discarded" in caplog.text
+    assert "call-9/item-4" in caplog.text
 
 
 def test_a_finding_about_an_aggregate_keeps_the_call_as_its_evidence() -> None:
