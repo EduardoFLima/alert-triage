@@ -2,13 +2,18 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import SpecialistModel
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
-from alert_triage.investigation.adapters.crew.roster import CREW, crew_for
+from alert_triage.investigation.adapters.crew.roster import (
+    CREW,
+    crew_for,
+    offered_from,
+)
 from alert_triage.investigation.adapters.crew.specialists.apm import APM_SPECIALIST
 from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_SPECIALIST,
@@ -19,16 +24,26 @@ from alert_triage.investigation.adapters.crew.specialists.trace import (
 )
 from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.contract import InvestigationTarget, Signal
+from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.shared.window import Window
 
 
+class _Schema(BaseModel):
+    findings: list[str] = []
+
+
 def test_a_crew_nobody_configured_reasons_on_the_deployments_model() -> None:
-    assert crew_for({}) == CREW
-    assert all(specialist.model is None for specialist in crew_for({}))
+    assert crew_for({}, providers={DATADOG}) == CREW
+    assert all(
+        specialist.model is None for specialist in crew_for({}, providers={DATADOG})
+    )
 
 
 def test_a_configured_specialist_reasons_on_the_model_it_was_given() -> None:
-    crew = crew_for({"logs_specialist": SpecialistModel(model="a-bigger-model")})
+    crew = crew_for(
+        {"logs_specialist": SpecialistModel(model="a-bigger-model")},
+        providers={DATADOG},
+    )
 
     (logs,) = [one for one in crew if one.name == "logs_specialist"]
     assert logs.model == "a-bigger-model"
@@ -36,19 +51,28 @@ def test_a_configured_specialist_reasons_on_the_model_it_was_given() -> None:
 
 def test_configuring_one_specialist_leaves_its_declaration_alone() -> None:
     """The declaration is the source; configuration produces a crew from it."""
-    crew_for({"logs_specialist": SpecialistModel(model="a-bigger-model")})
+    crew_for(
+        {"logs_specialist": SpecialistModel(model="a-bigger-model")},
+        providers={DATADOG},
+    )
 
     assert LOGS_SPECIALIST.model is None
 
 
 def test_configuring_a_specialist_nobody_declared_is_refused_by_name() -> None:
     with pytest.raises(ConfigError, match="metrics_specialist"):
-        crew_for({"metrics_specialist": SpecialistModel(model="a-model")})
+        crew_for(
+            {"metrics_specialist": SpecialistModel(model="a-model")},
+            providers={DATADOG},
+        )
 
 
 def test_the_refusal_says_which_specialists_there_are() -> None:
     with pytest.raises(ConfigError, match="logs_specialist"):
-        crew_for({"metrics_specialist": SpecialistModel(model="a-model")})
+        crew_for(
+            {"metrics_specialist": SpecialistModel(model="a-model")},
+            providers={DATADOG},
+        )
 
 
 def test_the_crew_is_every_specialist_that_has_been_declared() -> None:
@@ -84,9 +108,63 @@ def test_every_declared_toolset_names_a_provider_this_project_defines() -> None:
     assert named == {DATADOG}
 
 
+def test_a_deployment_holding_every_named_provider_is_offered_the_whole_crew() -> None:
+    assert offered_from(CREW, providers={DATADOG}) == CREW
+
+
+def test_a_specialist_whose_provider_is_not_configured_is_not_offered() -> None:
+    """Not offered rather than offered-and-failing.
+
+    An unreachable specialist the manager can choose costs a consultation to
+    discover a credential is missing, and the refusal that comes back reads
+    like a signal that was examined and found quiet.
+    """
+    assert offered_from(CREW, providers={"grafana"}) == ()
+
+
+def test_a_specialist_reaching_two_providers_needs_both_to_be_offered() -> None:
+    """Half its evidence is not a specialist: it was declared to gather both."""
+    both = Specialist(
+        name="apm_specialist",
+        signal=Signal.APM,
+        instruction="Golden signals, and what deployed around them.",
+        output_schema=_Schema,
+        toolsets=(
+            Toolset(provider=DATADOG, name="core", tools=("query_metrics",)),
+            Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+        ),
+    )
+
+    assert offered_from((both,), providers={DATADOG}) == ()
+    assert offered_from((both,), providers={DATADOG, "deploy_history"}) == (both,)
+
+
+def test_a_deployment_that_configured_no_provider_is_refused() -> None:
+    with pytest.raises(ConfigError, match="provider"):
+        crew_for({}, providers=set())
+
+
+def test_the_refusal_names_the_providers_the_crew_asked_for() -> None:
+    with pytest.raises(ConfigError, match=DATADOG):
+        crew_for({}, providers={"grafana"})
+
+
+def test_selecting_by_provider_leaves_the_configured_model_applied() -> None:
+    """The two decisions are independent: which crew, and what each reasons on."""
+    crew = crew_for(
+        {"logs_specialist": SpecialistModel(model="a-bigger-model")},
+        providers={DATADOG},
+    )
+
+    (logs,) = [one for one in crew if one.name == "logs_specialist"]
+    assert logs.model == "a-bigger-model"
+
+
 @pytest.mark.parametrize("name", [specialist.name for specialist in CREW])
 def test_any_specialist_can_be_given_a_model_of_its_own_by_name(name: str) -> None:
-    crew = crew_for({name: SpecialistModel(model="a-bigger-model")})
+    crew = crew_for(
+        {name: SpecialistModel(model="a-bigger-model")}, providers={DATADOG}
+    )
 
     (configured,) = [one for one in crew if one.name == name]
     assert configured.model == "a-bigger-model"

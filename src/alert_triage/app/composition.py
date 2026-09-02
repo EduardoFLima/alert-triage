@@ -217,7 +217,7 @@ def build_investigator(
         model_for=_model_for,
     )
     return AdkInvestigator(
-        crew=crew_for(investigation.specialists),
+        crew=crew_for(investigation.specialists, providers=set(deployment.platforms)),
         links=DatadogLinks(datadog_connection.web_host),
         run_diagnostician=run_with_adk(deployment),
         run_report=report_with_adk(deployment),

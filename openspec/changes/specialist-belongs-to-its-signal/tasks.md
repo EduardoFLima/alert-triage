@@ -60,21 +60,21 @@ the whole verification this group gets, and is what it is entitled to.
 
 ## 4. A deployment offers the specialists it can reach
 
-- [ ] 4.1 Red: in `tests/unit/investigation/adapters/crew/test_crew.py`, assert
+- [x] 4.1 Red: in `tests/unit/investigation/adapters/crew/test_crew.py`, assert
   a specialist whose provider the deployment did not configure is not in the
   roster. Watch it fail.
-- [ ] 4.2 Green: `crew_for` takes the configured provider names alongside the
+- [x] 4.2 Green: `crew_for` takes the configured provider names alongside the
   per-specialist model overrides, and filters to specialists whose every toolset
   names one of them.
-- [ ] 4.3 Red then green: a specialist naming two providers where only one is
+- [x] 4.3 Red then green: a specialist naming two providers where only one is
   configured is not offered — half its evidence is not a specialist.
-- [ ] 4.4 Red then green: an empty crew raises `ConfigError` at composition,
+- [x] 4.4 Red then green: an empty crew raises `ConfigError` at composition,
   naming what is missing, before any alert is fetched.
-- [ ] 4.5 Red then green: with every provider configured, the roster is exactly
+- [x] 4.5 Red then green: with every provider configured, the roster is exactly
   what it is today — the existing crew tests hold unchanged.
-- [ ] 4.6 Wire the provider names through `app/composition.py` from the same
+- [x] 4.6 Wire the provider names through `app/composition.py` from the same
   `Deployment` it just built, so the two cannot disagree.
-- [ ] 4.7 Run the four CI commands.
+- [x] 4.7 Run the four CI commands.
 
 ## 5. What the docs say
 
