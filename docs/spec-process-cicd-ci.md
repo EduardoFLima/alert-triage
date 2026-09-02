@@ -1,8 +1,8 @@
 ---
 title: CI/CD Workflow Specification - CI Quality Gate
-version: 1.0
+version: 1.1
 date_created: 2026-08-04
-last_updated: 2026-08-04
+last_updated: 2026-09-02
 owner: alert-triage maintainers
 tags: [process, cicd, github-actions, automation, quality-gate, python, uv]
 ---
@@ -264,6 +264,29 @@ re-run its checks.
 - **VLD-007**: The workflow references no secret.
 - **VLD-008**: `uv.lock` is respected: no run resolves dependencies afresh.
 
+### Confirmed failure modes
+
+VLD-002…VLD-005 are the criteria a local run cannot settle. They are claims
+about what a *run* does rather than about what a command prints, so they are
+established against the remote and the runs recorded here. Confirmed
+2026-09-02 on the scratch branch `ci-gate-failure-modes`, since deleted; one
+defect per push, because the gate is fail-fast and a second defect in the same
+commit would never be reached.
+
+| Criterion | Deliberate defect | Run | What the failing step named |
+|-----------|-------------------|-----|------------------------------|
+| VLD-002 | An unused `import os` in `triage/domain/alert.py` | [33605095906](https://github.com/EduardoFLima/alert-triage/actions/runs/33605095906) | **Lint**: ``F401 `os` imported but unused``, `--> src/alert_triage/triage/domain/alert.py:3:8`, with the offending line quoted. Format, types and tests never ran. |
+| VLD-003 | `_DELIBERATE_TYPE_ERROR: int = "not an int"` | [33605210318](https://github.com/EduardoFLima/alert-triage/actions/runs/33605210318) | **Type check**: `alert.py:33: error: Incompatible types in assignment (expression has type "str", variable has type "int")  [assignment]`. Tests never ran. |
+| VLD-004 | `triage/domain/alert.py` importing `investigation.domain.evidence` | [33605273573](https://github.com/EduardoFLima/alert-triage/actions/runs/33605273573) | **Test**: `Contexts do not reach past each other's contracts BROKEN`, then `alert_triage.triage.domain.alert -> alert_triage.investigation.domain.evidence (l.6)`. The other 919 tests passed, so the report is the whole failure. |
+| VLD-005 | None — the defect removed and nothing else changed | [33605341178](https://github.com/EduardoFLima/alert-triage/actions/runs/33605341178) | Nothing. Every step passed, which is what makes the three red runs above evidence about the defects rather than about the branch. |
+
+A fifth run is worth knowing about because it failed for the wrong reason. A
+git worktree this repository hosts under `.claude/worktrees/` is staged by
+`git add -A` as a gitlink with no `.gitmodules` entry, and `actions/checkout`
+fails on it — `fatal: No url found for submodule path` — before any check runs,
+so the log names nothing about the change that caused it. `.gitignore` now
+excludes that directory.
+
 ### Performance Benchmarks
 
 - **PERF-B01**: Cold-cache run completes within PERF-001's 3-minute target.
@@ -289,6 +312,7 @@ same pull request. A CI-only check violates REQ-005.
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | 2026-08-04 | Initial specification | alert-triage maintainers |
+| 1.1 | 2026-09-02 | Recorded the confirmed failure modes for VLD-002…VLD-005 | alert-triage maintainers |
 
 ## Related Specifications
 
@@ -296,7 +320,7 @@ same pull request. A CI-only check violates REQ-005.
   — the "Quality gate runs on every change" requirement this workflow satisfies
 - [`openspec/changes/add-scaffolding-conventions/design.md`](../openspec/changes/add-scaffolding-conventions/design.md)
   — the decision that CI runs exactly the local commands
-- [`docs/vision.md`](vision.md) — capability slice order: slice 13 carries this
-  gate's outstanding failure-mode confirmation, slice 14 the container/deployment
-  work that will build on it
+- [`docs/vision.md`](vision.md) — capability slice order: slice 13 confirmed
+  this gate's failure modes, slice 14 the container/deployment work that will
+  build on it
 - [`AGENTS.md`](../AGENTS.md) — the local command list the gate mirrors
