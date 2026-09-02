@@ -64,6 +64,9 @@ export DD_API_KEY=...                                      # and DD_APP_KEY
 
 That is enough for a first run. Everything else has a documented default.
 
+Prefer not to install anything? [Running it in a container](#in-a-container)
+needs only a container runtime — no checkout, no uv, no Python.
+
 Rather than exporting by hand, copy the two annotated examples and edit them —
 every key and every variable is listed there with its default:
 
@@ -117,6 +120,52 @@ A run reads everything it needs from its environment:
 - `LOG_LEVEL` — how much the run says out loud. Optional, and `INFO` by
   default.
 
+### In a container
+
+The same run, on any machine with a container runtime and no checkout. The
+image performs one complete run when started with no arguments, so whatever
+starts it needs to know nothing but its name.
+
+```bash
+docker build -t alert-triage .
+
+docker run --rm \
+  -v alert-triage-ledger:/var/lib/alert-triage \
+  -e SCOPE_OWNER=sre \
+  -e DD_API_KEY=... -e DD_APP_KEY=... \
+  -e GOOGLE_API_KEY=... \
+  -e ALERT_TRIAGE_TEAMS_WEBHOOK_URL=https://prod-1... \
+  alert-triage
+```
+
+**The volume is not optional in practice.** A container's filesystem does not
+survive it, so a run without that mount keeps no incident history: dedup,
+continuation, and the two-day re-notify cooldown all stop working, and every
+run opens every incident afresh and reports it again — while still exiting `0`.
+Nothing warns you. The image keeps the ledger at `/var/lib/alert-triage/`;
+mount something durable there.
+
+A named volume is the easy answer, because it is initialised with the image's
+own ownership. A bind mount to a host directory also works, but the run is an
+unprivileged user (UID 10001) and on Linux the host directory must be owned by
+it — Docker Desktop on macOS and Windows ignores ownership, so a bind mount
+that works there can fail on a Linux host.
+
+Everything the run needs is given to it from outside: the image carries no
+credentials and no `config.yaml`, so one image serves every deployment. To
+point it at a `config.yaml`, mount that too:
+
+```bash
+docker run --rm -v ./config.yaml:/app/config.yaml:ro ... alert-triage
+```
+
+For a repeat local run, `compose.yaml` writes the mount and the `.env` down
+once so the second run reaches the first run's ledger:
+
+```bash
+docker compose run --rm triage
+```
+
 The account of a run goes to stderr, written for a human reading a terminal:
 each phase of a run is boxed, and every consultation, tool call and thing an
 agent said is captioned beneath the phase it belongs to. What reaches the log,
@@ -135,7 +184,7 @@ What a run did goes in its exit status, which is what a scheduler acts on:
 
 ## Development
 
-The four commands below are exactly what CI runs — nothing more, nothing
+The five commands below are exactly what CI runs — nothing more, nothing
 CI-only:
 
 ```bash
@@ -143,7 +192,13 @@ uv run ruff check src tests      # lint
 uv run ruff format --check src tests
 uv run mypy                      # strict type checking
 uv run pytest                    # full suite, with coverage
+docker build -t alert-triage .   # the image the run ships as
 ```
+
+The build is its own step so that a Dockerfile which stops building fails as a
+build rather than as a puzzling test error. The tests that exercise the built
+image skip — saying so under `-rs` — where no container runtime is available,
+which is why a checkout without Docker still runs green.
 
 Useful selections while working:
 

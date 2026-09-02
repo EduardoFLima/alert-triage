@@ -157,6 +157,15 @@ ledger is not an error. Because the default path is relative, a run started
 from another directory starts from an empty ledger and re-reports everything;
 set the variable explicitly for anything but a quick local run.
 
+**In a container the variable is already set**, to
+`/var/lib/alert-triage/ledger.db` — an absolute path, because the
+working-directory default would put the history inside a filesystem that does
+not survive the run. That is the one difference between a packaged run and a
+run from a checkout, and it changes nothing about what the value means. Mount
+something durable at `/var/lib/alert-triage/`; a run without it exits `0`
+having kept nothing, which is the failure this default exists to make
+avoidable. See [the README](../README.md#in-a-container).
+
 Incidents that have gone quiet past both the grouping window and the cooldown
 are closed and kept for the retention period. To read that history — what was
 reported, when, and for which alerts — open the database file with any SQLite

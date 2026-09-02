@@ -22,7 +22,7 @@ is already specified and tested in-process.
 
 **A multi-stage build on `python:3.13-slim`, with `uv` doing the install.**
 The build stage copies the `uv` binary from its published image, runs
-`uv sync --frozen --no-dev --no-editable` into a self-contained virtualenv, and
+`uv sync --locked --no-dev --no-editable` into a self-contained virtualenv, and
 the runtime stage copies only that virtualenv and the installed package.
 Alternative: a single stage, which is fewer lines. Rejected because the runtime
 would then carry `uv`, the build cache, and the dev group, and "no development
@@ -30,9 +30,11 @@ tooling in the image" is a requirement rather than a preference. Alternative:
 Alpine, for size. Rejected because `datadog-api-client`, `google-adk` and the
 MCP SDK ship manylinux wheels and musl forces source builds — a slower, more
 fragile build to save tens of megabytes on an image nothing pushes anywhere.
-`--frozen` is what makes the lockfile authoritative: a lockfile that disagrees
-with `pyproject.toml` fails the build instead of silently resolving something
-else.
+`--locked` is what makes the lockfile authoritative, and the distinction cost a
+red test to find: `--frozen` only declines to *update* the lockfile and will
+happily install from one that no longer agrees with `pyproject.toml`, which is
+exactly the silent drift the lockfile exists to prevent. `--locked` fails the
+build instead.
 
 **`ENTRYPOINT` is the console script, exec form.** `ENTRYPOINT ["alert-triage"]`
 with no `CMD`, so `docker run <image>` unargued is a complete run and the exit
@@ -125,7 +127,7 @@ the smoke tests skip.
   → `pytest -rs` already reports skips and the README documents it; CI always
   has a runtime, so the tests always run somewhere.
 - **The image build is a second place dependencies are installed**, and it can
-  drift from `uv sync`. → `--frozen` against the same committed lockfile is what
+  drift from `uv sync`. → `--locked` against the same committed lockfile is what
   keeps them the same set, and the build fails rather than drifting.
 - **The smoke test asserts a failure message**, so a reworded fetch error breaks
   it. → It asserts the stage the run names, which is structured output the

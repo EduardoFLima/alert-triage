@@ -117,10 +117,20 @@ uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy
 uv run pytest
+docker build -t alert-triage .
 ```
 
-All four must pass. A green local run is meant to predict a green CI run — if
-it does not, fix the discrepancy rather than working around it.
+All five must pass. A green local run is meant to predict a green CI run — if
+it does not, fix the discrepancy rather than working around it. The container
+tests skip, saying so under `-rs`, where no runtime is available; the build is
+what CI never skips.
+
+**When you add a file the run reads at runtime**, check the `Dockerfile`. It
+copies by name rather than wholesale — `pyproject.toml`, `uv.lock`, `README.md`,
+`LICENSE` and `src/` — so a new file the run needs is absent from the image
+unless it is added there, and a new file holding a deployment's own settings
+belongs in `.dockerignore` instead. A build context is not a commit: being
+gitignored keeps nothing out of an image.
 
 A green run is not the whole story where the change touches a tool name, a
 specialist's instruction, or a composed URL. Those are established only against

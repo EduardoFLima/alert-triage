@@ -1,0 +1,35 @@
+# The local repeat run: `docker compose run --rm triage`.
+#
+# This exists for one reason — so the second run reaches the first run's ledger
+# without anyone re-typing a mount. The volume below is the whole point; a
+# `docker run` that forgets `-v` keeps no history at all, and nothing warns it.
+#
+# It is a repo file, so none of it enters the image or the wheel. That is also
+# why there is no `[project.scripts]` shortcut for any of this: an entry point
+# must name a Python callable, so a `docker run` wrapper would ship a function
+# that shells out to Docker — installed into the wheel, and therefore into the
+# image, which would then carry a command for starting a container.
+
+services:
+  triage:
+    build: .
+    image: alert-triage:latest
+
+    # Connection settings only — credentials, where the platform is, where
+    # reports go. Behaviour belongs in config.yaml. Optional, because a fresh
+    # clone has no .env and `docker compose run -e SCOPE_OWNER=...` is a
+    # perfectly good first run.
+    env_file:
+      - path: .env
+        required: false
+
+    # The history, kept outside the container that wrote it. A named volume
+    # rather than a bind mount because it is initialised with the image's own
+    # ownership, so the run writes it with no host-side permission work. A bind
+    # mount to a host directory works on Docker Desktop, which ignores
+    # ownership, but on Linux the directory must be owned by UID 10001.
+    volumes:
+      - ledger:/var/lib/alert-triage
+
+volumes:
+  ledger:
