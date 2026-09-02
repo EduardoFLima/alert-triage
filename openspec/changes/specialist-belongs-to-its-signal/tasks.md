@@ -78,22 +78,22 @@ the whole verification this group gets, and is what it is entitled to.
 
 ## 5. What the docs say
 
-- [ ] 5.1 `docs/adapters.md`: a declaration lives with the crew, not under a
+- [x] 5.1 `docs/adapters.md`: a declaration lives with the crew, not under a
   platform; `toolsets` carries the provider serving each group; what a
   deployment must configure for a specialist to be offered; the two-provider
   case.
-- [ ] 5.2 `AGENTS.md`: reword the `investigation/` bullet — its adapters split
+- [x] 5.2 `AGENTS.md`: reword the `investigation/` bullet — its adapters split
   into `crew/`, `adk/` and `datadog/`, and what each holds.
-- [ ] 5.3 `README.md` where it names the tree. The architecture diagram is
+- [x] 5.3 `README.md` where it names the tree. The architecture diagram is
   slice 15's and is not redrawn here.
-- [ ] 5.4 `docs/vision.md`: mark slice 10 done and record the answer taken on
+- [x] 5.4 `docs/vision.md`: mark slice 10 done and record the answer taken on
   which crew a deployment runs (proposal.md — Assumption).
 
 ## 6. Before calling it done
 
-- [ ] 6.1 `uv run ruff check src tests`, `uv run ruff format --check src tests`,
+- [x] 6.1 `uv run ruff check src tests`, `uv run ruff format --check src tests`,
   `uv run mypy`, `uv run pytest` — all four green.
-- [ ] 6.2 Run the credential-gated live tests
+- [x] 6.2 Run the credential-gated live tests
   (`docs/live-testing.md`) — this change touches composed URLs and connection
   parameters, which a green local run does not establish. State plainly whether
   they were run.
