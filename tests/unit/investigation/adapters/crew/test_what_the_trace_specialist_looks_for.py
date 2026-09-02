@@ -6,7 +6,7 @@ retrieved nothing. So the instruction is asserted to demand a retrieved
 request, and the schema to offer nowhere to write one.
 """
 
-from alert_triage.investigation.adapters.datadog.specialists.trace import (
+from alert_triage.investigation.adapters.crew.specialists.trace import (
     TRACE_INSTRUCTION,
     TRACE_SPECIALIST,
     ReportedFindings,

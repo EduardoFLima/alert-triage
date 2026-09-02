@@ -36,7 +36,7 @@ from alert_triage.investigation.adapters.adk.agent import (
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import run_agent
-from alert_triage.investigation.adapters.datadog.specialists.logs import (
+from alert_triage.investigation.adapters.crew.specialists.logs import (
     ReportedFindings,
 )
 from alert_triage.investigation.contract import (

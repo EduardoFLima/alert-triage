@@ -31,7 +31,7 @@ from alert_triage.investigation.adapters.adk.credentials import (
     LOCATION_VARIABLE,
     PROJECT_VARIABLE,
 )
-from alert_triage.investigation.adapters.adk.crew import CREW
+from alert_triage.investigation.adapters.crew.roster import CREW
 from alert_triage.notification.adapters.email.settings import (
     EMAIL_FROM_VARIABLE,
     EMAIL_TO_VARIABLE,

@@ -29,13 +29,13 @@ from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment
 from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
-from alert_triage.investigation.adapters.adk.crew import crew_for
 from alert_triage.investigation.adapters.adk.investigator import (
     AdkInvestigator,
     report_with_adk,
     run_with_adk,
 )
 from alert_triage.investigation.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.crew.roster import crew_for
 from alert_triage.investigation.adapters.datadog.links import DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
 from alert_triage.investigation.ports.investigator import Investigator

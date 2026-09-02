@@ -6,15 +6,15 @@ import pytest
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import SpecialistModel
 from alert_triage.investigation.adapters.adk.consultation import Consulted
-from alert_triage.investigation.adapters.adk.crew import CREW, crew_for
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
-from alert_triage.investigation.adapters.datadog.specialists.apm import APM_SPECIALIST
-from alert_triage.investigation.adapters.datadog.specialists.infrastructure import (
+from alert_triage.investigation.adapters.crew.roster import CREW, crew_for
+from alert_triage.investigation.adapters.crew.specialists.apm import APM_SPECIALIST
+from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_SPECIALIST,
 )
-from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SPECIALIST
-from alert_triage.investigation.adapters.datadog.specialists.trace import (
+from alert_triage.investigation.adapters.crew.specialists.logs import LOGS_SPECIALIST
+from alert_triage.investigation.adapters.crew.specialists.trace import (
     TRACE_SPECIALIST,
 )
 from alert_triage.investigation.contract import InvestigationTarget, Signal

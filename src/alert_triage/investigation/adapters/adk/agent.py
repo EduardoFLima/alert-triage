@@ -27,10 +27,10 @@ from alert_triage.investigation.adapters.adk.evidence import (
     keep_evidence_callback,
     log_tool_call,
 )
-from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
+from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
+from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     DIAGNOSTICIAN,
 )
-from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
 from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 

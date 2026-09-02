@@ -15,7 +15,7 @@ answer is retained as a retrieval that found nothing.
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
     SKILL_LIST_TOOL,

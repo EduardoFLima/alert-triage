@@ -1,4 +1,4 @@
-from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
+from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     DIAGNOSTICIAN,
     DIAGNOSTICIAN_INSTRUCTION,
     Diagnosed,

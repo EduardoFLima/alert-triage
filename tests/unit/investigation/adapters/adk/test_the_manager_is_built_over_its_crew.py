@@ -19,10 +19,10 @@ from alert_triage.investigation.adapters.adk.agent import (
 )
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
-from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
+from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     DIAGNOSTICIAN,
 )
-from alert_triage.investigation.adapters.adk.reasoners.report import REPORT_WRITER
+from alert_triage.investigation.adapters.crew.reasoners.report import REPORT_WRITER
 from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 

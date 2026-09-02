@@ -4,29 +4,29 @@ Behaviour-preserving, `git mv` throughout, its own commit. No test is rewritten
 here — only import paths and file locations move. The suite passing unchanged is
 the whole verification this group gets, and is what it is entitled to.
 
-- [ ] 1.1 `git mv` the four declarations from
+- [x] 1.1 `git mv` the four declarations from
   `investigation/adapters/datadog/specialists/{logs,apm,trace,infrastructure}.py`
   to `investigation/adapters/crew/specialists/`, with `__init__.py`.
-- [ ] 1.2 `git mv` `investigation/adapters/datadog/specialists/{dialect,preview}.py`
+- [x] 1.2 `git mv` `investigation/adapters/datadog/specialists/{dialect,preview}.py`
   to `investigation/adapters/datadog/` — the platform's grammar and its
   account's toolset availability are plumbing, not declarations — and drop the
   now-empty `datadog/specialists/`.
-- [ ] 1.3 `git mv` `investigation/adapters/adk/reasoners/` to
+- [x] 1.3 `git mv` `investigation/adapters/adk/reasoners/` to
   `investigation/adapters/crew/reasoners/`.
-- [ ] 1.4 `git mv` `investigation/adapters/adk/crew.py` to
+- [x] 1.4 `git mv` `investigation/adapters/adk/crew.py` to
   `investigation/adapters/crew/roster.py`; which specialists exist is not a
   framework fact.
-- [ ] 1.5 Update every import of the moved modules (`adk/agent.py`,
+- [x] 1.5 Update every import of the moved modules (`adk/agent.py`,
   `adk/investigator.py`, `app/composition.py`, the declarations themselves) and
   the module docstrings that name the old locations.
-- [ ] 1.6 `git mv` the mirroring tests: `tests/unit/investigation/adapters/adk/reasoners/`
+- [x] 1.6 `git mv` the mirroring tests: `tests/unit/investigation/adapters/adk/reasoners/`
   and `test_crew.py` → `tests/unit/investigation/adapters/crew/`; the four
   `datadog/test_*_specialist*.py`, `test_a_declaration_and_its_instruction_agree.py`
   and `test_every_specialist_can_consult_the_platforms_guidance.py` →
   `tests/unit/investigation/adapters/crew/`; leave `test_mcp.py`,
   `test_evidence_is_addressable.py` and `test_the_metric_dialect_is_taught_once.py`
   under `datadog/`.
-- [ ] 1.7 Run all four CI commands; every test passes with no test body changed.
+- [x] 1.7 Run all four CI commands; every test passes with no test body changed.
   Commit the move on its own.
 
 ## 2. A toolset names its provider

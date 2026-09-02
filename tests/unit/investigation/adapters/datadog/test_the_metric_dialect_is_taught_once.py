@@ -7,12 +7,12 @@ alike enough that nothing but the instruction stops it.
 
 import pytest
 
-from alert_triage.investigation.adapters.datadog.specialists.apm import APM_INSTRUCTION
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
-    METRIC_QUERY_DIALECT,
-)
-from alert_triage.investigation.adapters.datadog.specialists.infrastructure import (
+from alert_triage.investigation.adapters.crew.specialists.apm import APM_INSTRUCTION
+from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_INSTRUCTION,
+)
+from alert_triage.investigation.adapters.datadog.dialect import (
+    METRIC_QUERY_DIALECT,
 )
 
 QUERYING_METRICS = pytest.mark.parametrize(

@@ -23,12 +23,12 @@ nowhere to write a waterfall into.
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
 )
-from alert_triage.investigation.adapters.datadog.specialists.preview import (
+from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal

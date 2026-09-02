@@ -17,7 +17,7 @@ either grain.
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
