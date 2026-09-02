@@ -88,9 +88,9 @@
 
 - [x] 7.1 Add an image build step to `.github/workflows/ci.yml`, before the test
       step, tagging what the tests expect
-- [ ] 7.2 Confirm the container tests actually run in CI rather than skipping —
+- [x] 7.2 Confirm the container tests actually run in CI rather than skipping —
       a gate whose new tests all skip has added nothing
-- [ ] 7.3 Show the gate red: push a deliberately broken Dockerfile alone to a
+- [x] 7.3 Show the gate red: push a deliberately broken Dockerfile alone to a
       scratch branch, confirm the run fails naming the build step, then remove
       only that defect and confirm green. Record it under
       [Confirmed failure modes](../../../docs/spec-process-cicd-ci.md#confirmed-failure-modes)
@@ -120,4 +120,4 @@
       by the cooldown the first one set. This is the green path the smoke tests
       deliberately do not cover, and it is credential-gated in the sense of
       `docs/live-testing.md` — say plainly if it was not run
-- [ ] 9.4 `openspec validate containerize-the-run --strict`
+- [x] 9.4 `openspec validate containerize-the-run --strict`
