@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from alert_triage.investigation.adapters.adk.evidence import (
+    TOOL_CALL_LOGGER,
     Retrieved,
     keep_evidence_callback,
     log_tool_call,
@@ -38,7 +39,7 @@ PERMITTED = frozenset({"search_datadog_logs", "aggregate_datadog_logs"})
 
 
 def _after(retrieved: Retrieved, response: Any, tool: _Tool | None = None) -> Any:
-    return keep_evidence_callback(retrieved, PERMITTED)(
+    return keep_evidence_callback(retrieved, PERMITTED, "logs_specialist")(
         tool=tool or _Tool(),
         args={"query": "service:checkout status:error"},
         tool_context=None,
@@ -177,8 +178,8 @@ def test_the_call_is_logged_before_it_is_made_and_nothing_else_happens(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Slice 12's seat, with a test already on it."""
-    with caplog.at_level(logging.INFO):
-        refused = log_tool_call()(
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
+        refused = log_tool_call("logs_specialist")(
             tool=_Tool(), args={"query": "status:error"}, tool_context=None
         )
 

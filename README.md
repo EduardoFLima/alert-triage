@@ -14,10 +14,12 @@ The full product vision and capability roadmap live in
 [`docs/vision.md`](docs/vision.md); the settings reference is in
 [`docs/configuration.md`](docs/configuration.md).
 
-> **Status:** end to end, before investigation. A run fetches alerts, groups
-> them, keeps a ledger so a team is told once per incident, and delivers a
-> report — but the report is a pass-through of the alerts, and says so. The
-> investigation that fills it in is the next capability slice.
+> **Status:** end to end, and it concludes. A run fetches alerts, groups them,
+> keeps a ledger so a team is told once per incident, investigates, and delivers
+> a report carrying a hypothesis, how much confidence it has in it, and the
+> evidence beneath. A diagnostician decides which signals each incident needs
+> rather than paying for all of them. What is not yet measured is how good any
+> of that is — the evaluation harness is the next capability slice.
 
 ## Setup
 
@@ -112,9 +114,16 @@ A run reads everything it needs from its environment:
 - `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.
   Defaults to `data/alert_triage.db` under the working directory, which is why a
   deployment should set it explicitly.
+- `LOG_LEVEL` — how much the run says out loud. Optional, and `INFO` by
+  default.
 
-The run's account of itself goes to stderr; what it did goes in its exit
-status, which is what a scheduler acts on:
+The account of a run goes to stderr, written for a human reading a terminal:
+each phase of a run is boxed, and every consultation, tool call and thing an
+agent said is captioned beneath the phase it belongs to. What reaches the log,
+what is held back, and how to get the held part are in
+[`docs/logging.md`](docs/logging.md).
+
+What a run did goes in its exit status, which is what a scheduler acts on:
 
 - `0` — every group the run fetched was decided, reported if it was due, and
   recorded. A run that had nothing to report succeeds having delivered
@@ -175,8 +184,8 @@ Engineering practices — TDD, clean code, the import rule — are in
 Four bounded contexts, each a hexagon of its own. **Triage** is the core: it
 owns the incident, decides what is owed about it, and is the customer of the
 other two. **Investigation** and **notification** are supporting contexts, each
-reached only through the contract it publishes — a target goes into one and
-findings come out; a report goes into the other and is delivered.
+reached only through the contract it publishes — a target goes into one and a
+diagnosis comes out; a report goes into the other and is delivered.
 **Configuration** is not a peer of the three: it is what they all run on, which
 is why the diagram draws it around them rather than beside them.
 
@@ -246,18 +255,20 @@ concrete adapters are named.
 ```
 src/alert_triage/
 ├── shared/         vocabulary more than one context speaks; depends on nothing
+│                  (a window, and how a run writes itself down)
 ├── configuration/  the settings a deployment behaves by, and where they are read
 ├── triage/         the core: incidents, grouping, policy, what a report says
 │   ├── domain/     entities and logic; standard library only
 │   ├── ports/      interfaces; imports domain only
 │   └── adapters/   datadog (alerts) · sqlite (ledger)
 ├── investigation/  contract.py, and everything private behind it
-│   ├── domain/     what a specialist is; what may be cited
+│   ├── domain/     what a specialist is; what may be cited; what an account shows
 │   ├── ports/      Investigator: the one question this context answers
-│   └── adapters/   adk (the framework) · datadog (the platform)
+│   └── adapters/   adk (the framework, and the two reasoners) · datadog
 ├── notification/   contract.py, the Notifier port, and the channels
 │   └── adapters/   email · teams · fan-out over every configured channel
-└── app/            composition root: the only place adapters are named
+└── app/            composition root: the only place adapters are named,
+                   plus how much of a run reaches the log
 
 tests/
 ├── unit/        no network, no external service

@@ -18,13 +18,14 @@ from datetime import datetime
 from enum import StrEnum
 
 from alert_triage.configuration.port import Config
-from alert_triage.investigation.contract import Findings
+from alert_triage.investigation.contract import Diagnosis
 from alert_triage.investigation.ports.investigator import (
     Investigator,
     InvestigatorError,
 )
 from alert_triage.notification.contract import TriageReport
 from alert_triage.notification.ports.notifier import Notifier, NotifierError
+from alert_triage.shared import journal
 from alert_triage.triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.triage.domain.incident import Incident
 from alert_triage.triage.domain.policy import TriageDecision, triage
@@ -33,14 +34,14 @@ from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
 _log = logging.getLogger(__name__)
 
-ReportBuilder = Callable[[Incident, Findings | None], TriageReport]
+ReportBuilder = Callable[[Incident, Diagnosis | None], TriageReport]
 """How an incident and what was learned about it become the report.
 
-``None`` findings mean no investigation of the incident ever completed, which
-is the only case the report of last resort is for. Deliberately a callable
-rather than a port: a port earns its keep once report generation can fail in a
-way a caller has to tell apart from the failures it already handles, and the
-builders this run is handed cannot fail at all.
+``None`` means no investigation of the incident ever completed, which is the
+only case the report of last resort is for. Deliberately a callable rather than
+a port: a port earns its keep once report generation can fail in a way a caller
+has to tell apart from the failures it already handles, and the builders this
+run is handed cannot fail at all.
 """
 
 
@@ -139,12 +140,16 @@ def run(
     try:
         fetched = source.fetch_since(now - config.ingestion.lookback)
     except AlertSourceError as error:
-        _log.error("Fetching alerts failed: %s", error)
+        _log.error(journal.banner("FETCH FAILED", detail=str(error)))
         return RunOutcome(failures=(RunFailure(Stage.FETCH, "", str(error)),))
 
     groups = group_alerts(fetched, config.grouping.window)
     _log.info(
-        "Fetched %d alert(s), grouped into %d incident(s)", len(fetched), len(groups)
+        journal.event(
+            "what fired, grouped into incidents",
+            fetched=len(fetched),
+            incidents=len(groups),
+        )
     )
 
     handled = [
@@ -183,10 +188,25 @@ def _handle(
     Only the port failures a group can suffer are caught, and each is contained
     here so the groups after this one still get their reports.
     """
+    _log.info(
+        journal.banner(
+            "INCIDENT",
+            group.service,
+            alerts=len(group.alerts),
+            window=_spanned(group),
+        )
+    )
+
     try:
         known = ledger.open_incidents(group.service, now)
     except TriageLedgerError as error:
-        _log.error("Reading the ledger for %s failed: %s", group.service, error)
+        _log.error(
+            journal.event(
+                "the ledger could not be read",
+                service=group.service,
+                detail=str(error),
+            )
+        )
         return _Handled(failures=(RunFailure(Stage.READ, group.service, str(error)),))
 
     decision = triage(
@@ -198,23 +218,44 @@ def _handle(
         max_attempts=config.investigation.max_attempts,
         new_id=new_id,
     )
-    findings, investigation_failure = _investigated(decision, investigator=investigator)
+
+    _log.info(
+        journal.event(
+            f"what {group.service} is owed",
+            investigation=(
+                f"attempt {decision.incident.investigation_attempts + 1} of "
+                f"{config.investigation.max_attempts}"
+                if decision.should_investigate
+                else "not owed one"
+            ),
+            report="due now" if decision.should_report else "inside its cooldown",
+        )
+    )
+
+    diagnosis, investigation_failure = _investigated(
+        decision, investigator=investigator
+    )
+
     incident = (
         decision.incident.investigation_failed()
         if investigation_failure is not None
         else decision.incident
     )
+
     delivered, delivery_failure = _delivered(
         incident,
-        findings,
+        diagnosis,
         should_report=decision.should_report,
         exhausted=incident.investigation_attempts >= config.investigation.max_attempts,
         notifier=notifier,
         build_report=build_report,
     )
+
     if delivered:
         incident = incident.reported(now)
+
     record_failure = _recorded(incident, ledger, now)
+
     return _Handled(
         delivered=delivered,
         failures=tuple(
@@ -227,7 +268,7 @@ def _handle(
 
 def _investigated(
     decision: TriageDecision, *, investigator: Investigator
-) -> tuple[Findings | None, RunFailure | None]:
+) -> tuple[Diagnosis | None, RunFailure | None]:
     """Investigate the incident if it is owed one, and say what came back.
 
     A failure here is reported but never fatal: it costs the incident an
@@ -236,26 +277,32 @@ def _investigated(
     incident = decision.incident
     if not decision.should_investigate:
         return None, None
-    try:
-        _log.info(
-            "\n\n\n=== STARTING INVESTIGATION ===\nService: %s\nStarted: %s\n\n\n",
-            incident.service,
-            incident.window.start,
-        )
-
-        findings = investigator.investigate(incident.investigation_target)
-    except InvestigatorError as error:
-        _log.error("Investigating %s failed: %s", incident.service, error)
-        return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))
+    target = incident.investigation_target
     _log.info(
-        "Investigated %s: %d finding(s)", incident.service, len(findings.findings)
+        journal.banner(
+            "INVESTIGATING",
+            incident.service,
+            window=_between(target.window.start, target.window.end),
+            alerts=target.alert_count,
+        )
     )
-    return findings, None
+    try:
+        diagnosis = investigator.investigate(target)
+    except InvestigatorError as error:
+        _log.error(
+            journal.event(
+                "the investigation failed",
+                service=incident.service,
+                detail=str(error),
+            )
+        )
+        return None, RunFailure(Stage.INVESTIGATE, incident.service, str(error))
+    return diagnosis, None
 
 
 def _delivered(
     incident: Incident,
-    findings: Findings | None,
+    diagnosis: Diagnosis | None,
     *,
     should_report: bool,
     exhausted: bool,
@@ -264,8 +311,8 @@ def _delivered(
 ) -> tuple[bool, RunFailure | None]:
     """Deliver a report worth sending, and say whether a channel took it.
 
-    Findings are worth sending — including empty ones, which say the signals
-    the investigation covers were examined and were clean. A failed
+    A completed investigation is worth sending — including one that found
+    nothing, which says the signals it consulted were examined and were clean. A failed
     investigation is not: "these alerts fired and we could not look at them"
     carries nothing a team can act on, so it
     waits for the retry. Once the attempts are spent that wait would be
@@ -274,23 +321,51 @@ def _delivered(
     A report that did not get out leaves the incident unstamped, so the next
     run owes it again: a cooldown must never run from a report nobody received.
     """
+    _log.info(journal.banner("REPORTING", incident.service))
+
     if not should_report:
-        _log.info("Report suppressed for %s: inside its cooldown", incident.service)
-        return False, None
-    if findings is None and not exhausted:
         _log.info(
-            "Saying nothing about %s: investigation failed with attempts remaining",
-            incident.service,
+            journal.event(
+                "nothing is delivered",
+                because="the incident is inside its re-notify cooldown",
+            )
         )
         return False, None
+    if diagnosis is None and not exhausted:
+        _log.info(
+            journal.event(
+                "nothing is delivered",
+                because=(
+                    "the investigation failed and this incident has attempts "
+                    "left to spend on another"
+                ),
+            )
+        )
+        return False, None
+    report = build_report(incident, diagnosis)
     try:
-        _log.info("\n\n\n=== REPORTING ===\n\n\n")
-        notifier.deliver(build_report(incident, findings))
+        notifier.deliver(report)
     except NotifierError as error:
-        _log.error("Reporting %s failed: %s", incident.service, error)
+        _log.error(
+            journal.event(
+                "the report was not delivered",
+                service=incident.service,
+                detail=str(error),
+            )
+        )
         return False, RunFailure(Stage.DELIVER, incident.service, str(error))
-    _log.info("Reported %s as incident %s", incident.service, incident.id)
+    _log.info(journal.event("delivered", incident=incident.id, subject=report.subject))
     return True, None
+
+
+def _spanned(group: AlertGroup) -> str:
+    """The stretch the group's alerts fired across, as a reader reads a window."""
+    return _between(group.alerts[0].fired_at, group.alerts[-1].fired_at)
+
+
+def _between(start: datetime, end: datetime) -> str:
+    """One window, stated once and the same way wherever a run states one."""
+    return f"{start.isoformat()} → {end.isoformat()}"
 
 
 def _recorded(
@@ -305,6 +380,12 @@ def _recorded(
     try:
         ledger.record(incident, now)
     except TriageLedgerError as error:
-        _log.error("Recording incident %s failed: %s", incident.id, error)
+        _log.error(
+            journal.event(
+                "the incident was not recorded",
+                incident=incident.id,
+                detail=str(error),
+            )
+        )
         return RunFailure(Stage.RECORD, incident.service, str(error))
     return None

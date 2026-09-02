@@ -1,4 +1,5 @@
 import inspect
+import logging
 from datetime import UTC, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -78,6 +79,19 @@ def _source(*pages: EventsListResponse | Exception) -> DatadogAlertSource:
     return DatadogAlertSource(
         events=FakeEvents(*pages), owner="sre", web_host="app.datadoghq.com"
     )
+
+
+def test_the_fetch_announces_who_it_is_for_and_how_far_back_it_looks(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The first block of a run: without it, nothing below it has a scope."""
+    with caplog.at_level(logging.INFO):
+        _source(_page()).fetch_since(SINCE)
+
+    written = " ".join(caplog.text.split())
+    assert "FETCHING ALERTS" in written
+    assert "owner sre" in written
+    assert SINCE.isoformat() in written
 
 
 def test_an_event_is_translated_into_an_alert() -> None:

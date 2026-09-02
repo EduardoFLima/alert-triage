@@ -70,7 +70,7 @@ class _Tool:
 
 
 def _after(retrieved: Retrieved, response: Any) -> Any:
-    return keep_evidence_callback(retrieved, PERMITTED)(
+    return keep_evidence_callback(retrieved, PERMITTED, "logs_specialist")(
         tool=_Tool(),
         args={"service": "checkout"},
         tool_context=None,
@@ -79,13 +79,19 @@ def _after(retrieved: Retrieved, response: Any) -> Any:
 
 
 def _investigation_retrieving(answer: Any) -> Any:
-    """A stand-in specialist whose one retrieval comes back with that answer."""
+    """A manager consulting one specialist whose retrieval comes back with that."""
 
-    def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
-        _after(retrieved, answer)
-        return {"findings": []}
+    def _run(crew: Any, consulted: Any, retrieved: Retrieved, prompt: str) -> Any:
+        for specialist in crew:
+            _after(retrieved, answer)
+            consulted.record(specialist, {"findings": []})
+        return {"hypothesis": "", "confidence": "low"}
 
     return _run
+
+
+def _worded(brief: str) -> dict[str, Any]:
+    return {"headline": "checkout: nothing notable", "narrative": "Nothing found."}
 
 
 def test_an_empty_answer_is_retained_as_a_retrieval_that_found_nothing() -> None:
@@ -116,10 +122,11 @@ def test_a_signal_the_deployment_does_not_have_leaves_the_investigation_complete
     for shape, answer in EMPTY_ANSWERS.items():
         investigator = AdkInvestigator(
             crew=(_asks_about_containers(),),
-            run_specialist=_investigation_retrieving(answer),
+            run_diagnostician=_investigation_retrieving(answer),
+            run_report=_worded,
         )
 
-        findings = investigator.investigate(_target())
+        findings = investigator.investigate(_target()).findings
 
         assert findings.complete, shape
         assert findings.retrieval_failures == (), shape

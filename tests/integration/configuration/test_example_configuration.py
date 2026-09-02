@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from alert_triage.app.verbosity import LOG_LEVEL, LOG_TOOL_CALLBACK
 from alert_triage.configuration.adapters.env_file import resolve_environment
 from alert_triage.configuration.adapters.yaml import load_config
 from alert_triage.configuration.settings import (
@@ -142,6 +143,14 @@ def test_the_example_env_file_names_every_behavior_override(
 
     for name in _override_names(section, cls):
         assert name in example
+
+
+@pytest.mark.parametrize("variable", (LOG_LEVEL, LOG_TOOL_CALLBACK))
+def test_the_example_env_file_names_how_much_a_run_says(
+    variable: str, env_example: Path
+) -> None:
+    """An operator looking for the account they are not being shown finds it."""
+    assert variable in env_example.read_text()
 
 
 def test_the_example_env_file_supplies_nothing_by_being_copied_unedited(

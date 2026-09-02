@@ -90,6 +90,7 @@ def test_a_partial_failure_is_surfaced_rather_than_discarded(
             [_failing("email", "relay is down"), RecordingChannel()]
         ).deliver(_report())
 
+    assert "── a channel did not take the report" in caplog.text
     assert "relay is down" in caplog.text
     assert "incident-1" in caplog.text
 

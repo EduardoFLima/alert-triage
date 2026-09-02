@@ -22,7 +22,6 @@ from alert_triage.investigation.adapters.datadog.specialists.logs import LOGS_SP
 from alert_triage.investigation.adapters.datadog.specialists.trace import (
     TRACE_SPECIALIST,
 )
-from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.specialist import Specialist
 
 CREW: tuple[Specialist, ...] = (
@@ -31,19 +30,16 @@ CREW: tuple[Specialist, ...] = (
     TRACE_SPECIALIST,
     INFRASTRUCTURE_SPECIALIST,
 )
-"""Every specialist declared, in the order an investigation runs them.
+"""Every specialist declared, and so every one the manager may consult.
 
-All four run on every investigation. Which ones an incident actually needs is
-the next slice's question, and answering it needs specialists to choose
-between."""
+A tuple rather than a sequence to walk: the order is the order they are offered
+in, and which of them an incident needs is the manager's decision. Adding a
+specialist widens what may be chosen and changes nothing else.
 
-
-SIGNALS_EXAMINED: tuple[Signal, ...] = tuple(specialist.signal for specialist in CREW)
-"""The signals an investigation examines, which is what a report may claim.
-
-Derived from the crew rather than from ``Signal`` itself: a member declared and
-not yet crewed is a signal nothing looks at, and a report claiming it would be
-claiming coverage nobody has. Adding a specialist widens this by itself.
+There is deliberately nothing here deriving the signals a report may claim.
+That was right while every specialist ran on every investigation, and became a
+lie the moment one could be skipped: what a report may claim is what the
+investigation consulted, which only the investigation knows and now records.
 """
 
 

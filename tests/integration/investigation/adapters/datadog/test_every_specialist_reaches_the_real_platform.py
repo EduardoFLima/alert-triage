@@ -24,7 +24,13 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
-from alert_triage.investigation.adapters.adk.agent import Deployment, connection_for
+from alert_triage.investigation.adapters.adk.agent import (
+    Deployment,
+    build_agent,
+    build_manager,
+    connection_for,
+)
+from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.credentials import (
     ALTERNATE_API_KEY_VARIABLE,
     API_KEY_VARIABLE,
@@ -33,7 +39,7 @@ from alert_triage.investigation.adapters.adk.credentials import (
 )
 from alert_triage.investigation.adapters.adk.crew import CREW
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
-from alert_triage.investigation.adapters.adk.investigator import run_with_adk
+from alert_triage.investigation.adapters.adk.investigator import run_agent
 from alert_triage.investigation.adapters.adk.model import build_model
 from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
@@ -139,17 +145,26 @@ def test_a_real_model_given_the_instruction_calls_them(specialist: Specialist) -
     """A quiet service is a valid answer; what must not happen is no retrieval."""
     retrieved = Retrieved()
 
-    run_with_adk(_deployment())(specialist, retrieved, _target().describe())
+    asyncio.run(
+        run_agent(
+            build_agent(specialist, _deployment(), retrieved), _target().describe()
+        )
+    )
 
     assert retrieved.retrievals >= 1
     assert retrieved.failures == ()
 
 
 def _investigated() -> Retrieved:
-    """One real investigation, kept with this account's addresses attached."""
+    """One real consultation, kept with this account's addresses attached."""
     connection = resolve_connection()
     retrieved = Retrieved(link=DatadogLinks(connection.web_host))
-    run_with_adk(_deployment())(LOGS_SPECIALIST, retrieved, _target().describe())
+    asyncio.run(
+        run_agent(
+            build_agent(LOGS_SPECIALIST, _deployment(), retrieved),
+            _target().describe(),
+        )
+    )
     return retrieved
 
 
@@ -184,3 +199,29 @@ def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
     print(f"a live log item is identified by {named or f'none of {ITEM_KEYS}'}")
     print(f"the keys a live log item carries are {sorted(payload)}")
     assert item.url is not None
+
+
+def test_a_real_diagnostician_routes_over_the_real_crew(
+    answers: Callable[[str], bool],
+) -> None:
+    """The one thing no fake settles: whether a manager actually chooses.
+
+    A stub manager proves the routing is wired; it cannot prove a model given
+    the instruction consults anybody, that a specialist's structured report
+    survives the agent-tool hop, or that a confidence level comes back in the
+    declared set. All three are what this establishes, and what tasks 8.3 to 8.6
+    record the numbers from.
+    """
+    retrieved = Retrieved()
+    consulted = Consulted(offered=CREW, retrieved=retrieved)
+
+    concluded = asyncio.run(
+        run_agent(
+            build_manager(CREW, _deployment(), consulted, retrieved),
+            _target().describe(),
+        )
+    )
+
+    assert consulted.order, "the diagnostician consulted nobody at all"
+    assert consulted.signals, "no signal was recorded as consulted"
+    assert concluded.get("confidence") in {"high", "medium", "low"}

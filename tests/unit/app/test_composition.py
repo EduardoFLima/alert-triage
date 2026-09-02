@@ -12,12 +12,15 @@ from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.credentials import ApiKey
 from alert_triage.investigation.contract import (
+    Confidence,
+    Diagnosis,
     EvidenceItem,
     Finding,
     Findings,
     InvestigationTarget,
     Signal,
 )
+from alert_triage.investigation.domain.account import compose
 from alert_triage.investigation.ports.investigator import Investigator
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
@@ -85,10 +88,10 @@ class FakeInvestigator:
 
     asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
-        """Answer with one finding, as a completed investigation would."""
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
+        """Answer with one finding and a conclusion, as a real investigation would."""
         self.asked.append(target)
-        return Findings(
+        findings = Findings(
             findings=(
                 Finding(
                     signal=Signal.LOGS,
@@ -103,7 +106,15 @@ class FakeInvestigator:
                         ),
                     ),
                 ),
-            )
+            ),
+            consulted=(Signal.LOGS,),
+        )
+        return Diagnosis(
+            headline="checkout is timing out upstream",
+            account=compose("An upstream dependency is slow.", findings),
+            hypothesis="an upstream dependency is slow",
+            confidence=Confidence.MEDIUM,
+            findings=findings,
         )
 
 

@@ -5,6 +5,7 @@ encodings, the cursor pagination, the SDK's exceptions and payload models. What
 leaves is a list of ``Alert``.
 """
 
+import logging
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -20,6 +21,7 @@ from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
 
 from alert_triage.configuration.settings import Ingestion
+from alert_triage.shared import journal
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.ports.alert_source import AlertSourceError
@@ -39,6 +41,8 @@ A page pinned to the instant an alert fired shows a reader the moment and none
 of its run-up. Half an hour each way is enough to see the shape of it without
 being a window a reader has to search within.
 """
+
+_log = logging.getLogger(__name__)
 
 
 class EventSearch(Protocol):
@@ -74,6 +78,12 @@ class DatadogAlertSource:
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
+        _log.info(
+            journal.banner(
+                "FETCHING ALERTS", owner=self._owner, since=since.isoformat()
+            )
+        )
+
         return [
             alert
             for event in self._events_since(since)

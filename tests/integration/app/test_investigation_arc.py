@@ -10,21 +10,22 @@ from collections.abc import Iterator, Sequence
 from contextlib import closing, contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from functools import partial
 from pathlib import Path
 
 import pytest
 
 from alert_triage.app.pipeline import RunOutcome, Stage, run
 from alert_triage.configuration.adapters.yaml.loader import ResolvedConfig, load_config
-from alert_triage.investigation.adapters.adk.crew import SIGNALS_EXAMINED
 from alert_triage.investigation.contract import (
+    Confidence,
+    Diagnosis,
     EvidenceItem,
     Finding,
     Findings,
     InvestigationTarget,
     Signal,
 )
+from alert_triage.investigation.domain.account import compose
 from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
@@ -57,13 +58,13 @@ class FakeNotifier:
 class FakeInvestigator:
     """One outcome per run, so a test spells its arc out as a list."""
 
-    outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
+    outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
         """Answer with the next outcome in the arc this test spelled out."""
         self.asked.append(target)
-        outcome = self.outcomes.pop(0) if self.outcomes else Findings()
+        outcome = self.outcomes.pop(0) if self.outcomes else _nothing_found()
         if isinstance(outcome, InvestigatorError):
             raise outcome
         return outcome
@@ -129,7 +130,7 @@ def _run(
             ledger=ledger,
             notifier=notifier,
             investigator=investigator,
-            build_report=partial(build_report, examined=SIGNALS_EXAMINED),
+            build_report=build_report,
             config=config,
             now=at,
             new_id=lambda: "incident-1",
@@ -145,7 +146,7 @@ def test_fail_fail_then_succeed_reports_only_once_and_only_at_the_end(
         [
             InvestigatorError("the platform is down"),
             InvestigatorError("still down"),
-            _findings("checkout is timing out upstream"),
+            _diagnosed(_findings("checkout is timing out upstream")),
         ]
     )
 
@@ -244,7 +245,7 @@ def test_a_successful_investigation_is_reported_on_the_first_run(
     """Nothing about retrying delays the ordinary case."""
     database = tmp_path / "alert_triage.db"
     notifier = FakeNotifier()
-    investigator = FakeInvestigator([_findings("checkout is timing out")])
+    investigator = FakeInvestigator([_diagnosed(_findings("checkout is timing out"))])
 
     outcome = _run(database, config, notifier, investigator, NOON)
 
@@ -280,3 +281,23 @@ def test_a_single_attempt_reports_without_findings_straight_away(
     assert outcome.delivered == 1
     (report,) = notifier.delivered
     assert "could not complete" in report.body
+
+
+def _nothing_found() -> Diagnosis:
+    """What a completed investigation that found nothing hands back."""
+    return _diagnosed(
+        Findings(consulted=(Signal.LOGS,)), headline="checkout: nothing notable"
+    )
+
+
+def _diagnosed(
+    findings: Findings, headline: str = "checkout is timing out"
+) -> Diagnosis:
+    """A diagnosis over findings, worded the way a real investigation words one."""
+    return Diagnosis(
+        headline=headline,
+        account=compose("The service is timing out under load.", findings),
+        hypothesis="an upstream dependency is slow",
+        confidence=Confidence.MEDIUM,
+        findings=findings,
+    )

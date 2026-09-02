@@ -422,10 +422,10 @@ tool, and no manager. What they now bound has moved:
     now bound a call. Both are set explicitly beside the connection, so
     ADK's own defaults — five seconds to connect and five minutes to read —
     cannot apply by accident to a bound stated as thirty seconds. Reading
-    them from config is slice 11's wiring.
+    them from config is slice 12's wiring.
   - `max_mcp_retries` is **superseded**. ADK's toolset already rebuilds a
     dead session and retries once, and there is no seam to make that count
-    configurable short of reimplementing the toolset. Slice 11 removes the
+    configurable short of reimplementing the toolset. Slice 12 removes the
     key rather than leaving an operator setting that does nothing.
 
 ## Config file
@@ -650,7 +650,7 @@ question rather than a feature:
   `Notifier` port is one-way by design, and acknowledgement is inbound.
   Polling for reactions keeps the scheduled-job shape; a webhook does not —
   it turns a job that runs and exits into a service that must be reachable,
-  which is a deployment change (slice 13), not just a port.
+  which is a deployment change (slice 14), not just a port.
 
 Two failure modes worth designing against from the start:
 
@@ -660,7 +660,7 @@ Two failure modes worth designing against from the start:
   when the incident closes — so that going quiet is always a decision
   someone made recently.
 - **A worsening incident must break through.** Acknowledgement suppresses the
-  routine repeat, not the escalation path (slice 10). If severity crosses a
+  routine repeat, not the escalation path (slice 11). If severity crosses a
   threshold or the blast radius grows, that is new information and the ack
   should not hold it back.
 
@@ -743,31 +743,78 @@ testable, building only on the slices before it.
    signal that was clean. Testable against canned findings, with the routing
    testable by asserting which specialists a stubbed manager was offered and
    which it called.
-10. **Escalation path** — severity/threshold rule + critical-services
+10. **A specialist belongs to its signal, not to one platform** — `adapters/`
+    splits by framework and platform, which files each specialist under the one
+    vendor it happens to query today. That is about to stop being true: the
+    GitHub deploy-history correlation on the roadmap lands on the APM
+    specialist, and a specialist reaching two providers has no honest home in a
+    tree that assumes one. The move is `adapters/crew/`, holding `specialists/`
+    and `reasoners/` as the siblings they are — leaving `adk/` the framework
+    machinery that turns a declaration into a running agent, and `datadog/` the
+    plumbing that says where its server is and how its items are addressed.
+    That also settles an asymmetry slice 9 introduced, where the specialists are
+    filed by platform and the two reasoners, belonging to no platform, ended up
+    under the framework for want of anywhere better.
+
+    The directory is the symptom rather than the constraint. What actually
+    confines a specialist to one platform is that `Deployment` carries a single
+    endpoint and one set of headers, and a `Toolset` names a group on *that*
+    server — so a declaration cannot reach a second provider however it is
+    filed. The slice is therefore the move plus a `Toolset` that names the
+    provider serving it and a `Deployment` that maps providers to where they
+    are and what authenticates against each.
+
+    A specialist stays platform-*specific*: its tool names and its query dialect
+    do not translate, and [What portability now
+    means](#what-portability-now-means) is unchanged by this. What stops being
+    true is that it belongs to exactly *one* platform.
+
+    Ordered immediately after the crew it reorganises, and before everything
+    that would otherwise move twice. The circuit breakers wire configured
+    timeouts into the same connection parameters this reshapes; deployment
+    packaging and the diagram both describe a tree this changes. The precedent
+    is slice 7's own restructure — moving code before more of it accumulates is
+    what stopped a later cut having to move a third of the adapter layer. Its
+    safety net is the suite it already has, which is what a behaviour-preserving
+    move is entitled to: the evaluation harness would score it identically, and
+    this does not wait on a roadmap entry to prove a move changed nothing.
+
+    One question it must answer rather than inherit: once a Datadog logs
+    specialist and a Grafana one can sit side by side, both are offered to the
+    Diagnostician and the same signal is consulted twice. Which crew a
+    deployment runs becomes a configuration question, adjacent to the open one
+    about naming agents under `investigation.specialists`.
+
+    Testable by the suite it already has, which is the point: the move changes
+    no behaviour, so every existing test passes unmoved, and the provider change
+    is exercised by one declaration reaching two fake servers. It also rewords
+    what `AGENTS.md`, [`docs/adapters.md`](adapters.md) and the `investigation`
+    spec say about a specialist living under the platform it queries.
+11. **Escalation path** — severity/threshold rule + critical-services
     overrides, bypassing batching. Testable as rule-engine unit tests.
-11. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
+12. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
     trip → partial report + auto-escalate. The per-agent bound sits in
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.
-12. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
+13. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
     deliberate lint error, a type error, and a boundary violation on a scratch
     branch and confirm each produces a red run naming the rule, the expression,
     and the offending import, then delete the branch. Deferred out of slice 0
     because it is the one check that cannot be proven locally — it needs real
     runs on the remote. Criteria VLD-002…VLD-004 in
     `docs/spec-process-cicd-ci.md`.
-13. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
+14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.
-14. **README architecture diagram rework** — the diagram the bounded-context
+15. **README architecture diagram rework** — the diagram the bounded-context
     restructure left behind states the shape correctly and reads poorly: four
     nested subgraphs, an enclosing box for configuration, and a rung per layer
     inside each context, all competing for the same glance. Deliberately last,
     because every slice before it changes what the picture has to say. Slice 9
     moves report formatting into an agent, which dissolves triage's deep read
     of investigation's vocabulary and so redraws one of the two cross-context
-    edges. Slice 10 adds a path that bypasses batching entirely, which the
-    current picture has nowhere to put. Slice 13 introduces a deployment story
+    edges. Slice 11 adds a path that bypasses batching entirely, which the
+    current picture has nowhere to put. Slice 14 introduces a deployment story
     a reader will want to see and there is no version of that in it today.
     Redrawing before those land is redrawing twice, and a diagram is the one
     artefact where being out of date is worse than being ugly.
@@ -803,7 +850,7 @@ what the Diagnostician concluded from them, so the crew has to exist first.
 Grading a lone specialist would mean inventing a standard for a whole
 investigation and then revising it the moment the manager arrived. It settles
 the questions slice 6 left open — which model to default to, and how many
-examples a finding should carry — and gives slice 11 evidence where it
+examples a finding should carry — and gives slice 12 evidence where it
 currently has guesses.
 
 Out of the MVP rather than in it, because an MVP is judged by whether a human

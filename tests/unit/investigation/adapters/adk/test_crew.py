@@ -5,6 +5,7 @@ import pytest
 
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import SpecialistModel
+from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.crew import CREW, crew_for
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
@@ -17,7 +18,6 @@ from alert_triage.investigation.adapters.datadog.specialists.trace import (
     TRACE_SPECIALIST,
 )
 from alert_triage.investigation.contract import InvestigationTarget, Signal
-from alert_triage.investigation.domain.specialist import Specialist
 from alert_triage.shared.window import Window
 
 
@@ -86,30 +86,41 @@ def _target() -> InvestigationTarget:
     )
 
 
-def _each_reports_what_it_retrieved(
-    specialist: Specialist, retrieved: Retrieved, prompt: str
+def _consulting_everyone(
+    crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
 ) -> dict[str, Any]:
-    """A stand-in for every specialist: it retrieves, then reports what it saw."""
-    offered = retrieved.retain_evidence(
-        {"logs": [{"message": f"{specialist.name} saw this"}]}
-    )
-    return {
-        "findings": [
+    """A stand-in manager that happens to want every signal this incident has."""
+    for specialist in crew:
+        offered = retrieved.retain_evidence(
+            {"logs": [{"message": f"{specialist.name} saw this"}]}
+        )
+        consulted.record(
+            specialist,
             {
-                "observation": f"{specialist.name} observed something",
-                "occurrences": 1,
-                "cites": [offered["items"][0]["id"]],
-            }
-        ]
-    }
+                "findings": [
+                    {
+                        "observation": f"{specialist.name} observed something",
+                        "occurrences": 1,
+                        "cites": [offered["items"][0]["id"]],
+                    }
+                ]
+            },
+        )
+    return {"hypothesis": "something is wrong upstream", "confidence": "low"}
+
+
+def _worded(brief: str) -> dict[str, Any]:
+    return {"headline": "checkout is unwell", "narrative": "Something is wrong."}
+
+
+def _investigator(crew: Any) -> AdkInvestigator:
+    return AdkInvestigator(
+        crew=crew, run_diagnostician=_consulting_everyone, run_report=_worded
+    )
 
 
 def test_an_investigation_over_the_whole_crew_reports_from_every_specialist() -> None:
-    investigator = AdkInvestigator(
-        crew=CREW, run_specialist=_each_reports_what_it_retrieved
-    )
-
-    findings = investigator.investigate(_target())
+    findings = _investigator(CREW).investigate(_target()).findings
 
     assert [finding.signal for finding in findings.findings] == [
         specialist.signal for specialist in CREW
@@ -120,12 +131,8 @@ def test_an_investigation_over_the_whole_crew_reports_from_every_specialist() ->
 
 def test_a_crew_of_four_produces_what_a_crew_of_one_does_and_no_new_shape() -> None:
     """The claim slice 7 made: a specialist costs a declaration and nothing else."""
-    alone = AdkInvestigator(
-        crew=(LOGS_SPECIALIST,), run_specialist=_each_reports_what_it_retrieved
-    ).investigate(_target())
-    whole = AdkInvestigator(
-        crew=CREW, run_specialist=_each_reports_what_it_retrieved
-    ).investigate(_target())
+    alone = _investigator((LOGS_SPECIALIST,)).investigate(_target()).findings
+    whole = _investigator(CREW).investigate(_target()).findings
 
     assert type(whole) is type(alone)
     assert {type(finding) for finding in whole.findings} == {
@@ -135,12 +142,8 @@ def test_a_crew_of_four_produces_what_a_crew_of_one_does_and_no_new_shape() -> N
 
 
 def test_each_finding_carries_the_evidence_its_own_specialist_retrieved() -> None:
-    """Findings arrive grouped because the crew is walked in order."""
-    investigator = AdkInvestigator(
-        crew=CREW, run_specialist=_each_reports_what_it_retrieved
-    )
-
-    findings = investigator.investigate(_target())
+    """Findings arrive grouped by whoever the manager asked, in the order asked."""
+    findings = _investigator(CREW).investigate(_target()).findings
 
     for specialist, finding in zip(CREW, findings.findings, strict=True):
         assert finding.examples[0].summary == f"{specialist.name} saw this"

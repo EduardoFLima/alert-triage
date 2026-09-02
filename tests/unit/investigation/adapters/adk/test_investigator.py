@@ -1,12 +1,29 @@
+"""What an investigation offers its manager, what it asks, and what it concludes.
+
+The crew is no longer walked. A manager is offered every specialist and consults
+the ones this incident needs, so the two facts worth asserting are what it was
+given to choose from and what it actually chose — neither of which a fixed
+sequence had to make observable.
+
+Everything here runs with no model and no network: the manager is a stub that
+consults whichever specialists the test names.
+"""
+
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
 
+from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
-from alert_triage.investigation.contract import InvestigationTarget, Signal
+from alert_triage.investigation.contract import (
+    Confidence,
+    InvestigationTarget,
+    Signal,
+)
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.shared.window import Window
@@ -15,7 +32,22 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 
 class _Reported(BaseModel):
-    findings: list[str] = []
+    findings: list[dict[str, Any]] = []
+
+
+def _specialist(name: str, signal: Signal) -> Specialist:
+    return Specialist(
+        name=name,
+        signal=signal,
+        instruction="Look.",
+        output_schema=_Reported,
+        toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
+    )
+
+
+LOGS = _specialist("logs_specialist", Signal.LOGS)
+APM = _specialist("apm_specialist", Signal.APM)
+TRACE = _specialist("trace_specialist", Signal.TRACE)
 
 
 def _target() -> InvestigationTarget:
@@ -26,259 +58,262 @@ def _target() -> InvestigationTarget:
     )
 
 
-def _specialist(name: str = "logs_specialist") -> Specialist:
-    return Specialist(
-        name=name,
-        signal=Signal.LOGS,
-        instruction="Look at the logs.",
-        output_schema=_Reported,
-        toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
-    )
-
-
-def _logs(*messages: str) -> dict[str, Any]:
-    return {"logs": [{"message": message} for message in messages]}
-
-
-def _reports(
-    *,
-    retrieves: tuple[str, ...] = ("OOMKilled",),
-    fails: int = 0,
-    findings: list[dict[str, Any]] | None = None,
-) -> Any:
-    """A stand-in for a specialist: it retrieves what we say, then reports."""
-
-    def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
-        for _ in range(fails):
-            retrieved.refuse_evidence(f"{specialist.name} could not reach the platform")
-        if retrieves:
-            retrieved.retain_evidence(_logs(*retrieves))
-        return {"findings": findings if findings is not None else []}
-
-    return _run
-
-
 def _cites(cites: list[str], observation: str = "errors recur") -> dict[str, Any]:
     return {"observation": observation, "occurrences": 3, "cites": cites}
 
 
-def test_the_findings_are_built_from_what_the_platform_returned() -> None:
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(findings=[_cites(["call-1/item-1"])]),
+def _manager(
+    *,
+    consults: tuple[str, ...] = ("logs_specialist",),
+    retrieves: tuple[str, ...] = ("OOMKilled",),
+    fails: int = 0,
+    reports: dict[str, list[dict[str, Any]]] | None = None,
+    hypothesis: str = "the pods are out of memory",
+    confidence: str = "high",
+    offered_to: list[tuple[str, ...]] | None = None,
+) -> Any:
+    """A stand-in manager: it consults what the test names, then concludes."""
+
+    def _run(
+        crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
+    ) -> dict[str, Any]:
+        if offered_to is not None:
+            offered_to.append(tuple(one.name for one in crew))
+        for _ in range(fails):
+            retrieved.refuse_evidence("the platform could not be reached")
+        if retrieves:
+            retrieved.retain_evidence(
+                {"logs": [{"message": message} for message in retrieves]}
+            )
+        for name in consults:
+            specialist = consulted.named(name)
+            assert specialist is not None
+            found = (reports or {}).get(name, [])
+            consulted.record(specialist, {"findings": found})
+        return {"hypothesis": hypothesis, "confidence": confidence}
+
+    return _run
+
+
+def _words(headline: str = "checkout is out of memory") -> Any:
+    def _run(brief: str) -> dict[str, Any]:
+        return {"headline": headline, "narrative": f"About: {brief[:20]}"}
+
+    return _run
+
+
+def _investigator(**manager: Any) -> AdkInvestigator:
+    return AdkInvestigator(
+        crew=(LOGS, APM, TRACE),
+        run_diagnostician=_manager(**manager),
+        run_report=_words(),
     )
 
-    (finding,) = investigator.investigate(_target()).findings
 
-    assert finding.signal is Signal.LOGS
-    assert finding.examples[0].summary == "OOMKilled"
+def test_what_an_investigation_came_to_is_written_down_where_it_ends(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The one block a reader scrolls back to: who was asked, and what it means."""
+    with caplog.at_level(logging.INFO):
+        _investigator(
+            consults=("logs_specialist",),
+            reports={"logs_specialist": [_cites(["call-1/item-1"])]},
+        ).investigate(_target())
 
-
-def test_every_specialist_in_the_crew_contributes_to_one_result() -> None:
-    crew = (_specialist("logs_specialist"), _specialist("apm_specialist"))
-    investigator = AdkInvestigator(
-        crew=crew, run_specialist=_reports(findings=[_cites(["call-1/item-1"])])
-    )
-
-    findings = investigator.investigate(_target())
-
-    assert len(findings.findings) == 2
-    assert findings.complete
-
-
-def test_a_caller_cannot_tell_how_many_specialists_ran() -> None:
-    """The result has the same shape whoever contributed to it."""
-    one = AdkInvestigator(crew=(_specialist(),), run_specialist=_reports())
-    two = AdkInvestigator(
-        crew=(_specialist("logs_specialist"), _specialist("apm_specialist")),
-        run_specialist=_reports(),
-    )
-
-    assert type(one.investigate(_target())) is type(two.investigate(_target()))
+    written = " ".join(caplog.text.split())
+    assert "INVESTIGATION CONCLUDED · checkout" in written
+    assert "logs_specialist" in written
+    assert "the pods are out of memory" in written
+    assert "high" in written
 
 
-def test_each_finding_names_the_signal_its_specialist_reports_under() -> None:
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(findings=[_cites(["call-1/item-1"])]),
-    )
+def test_an_investigation_that_asked_nobody_says_so_rather_than_naming_nobody(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO):
+        _investigator(consults=()).investigate(_target())
 
-    (finding,) = investigator.investigate(_target()).findings
-
-    assert finding.signal is Signal.LOGS
+    assert "nobody" in caplog.text
 
 
-def test_an_investigation_that_found_nothing_returns_empty_findings() -> None:
-    investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_reports())
+def test_every_specialist_is_offered_to_the_manager() -> None:
+    offered: list[tuple[str, ...]] = []
 
-    findings = investigator.investigate(_target())
+    _investigator(offered_to=offered).investigate(_target())
 
-    assert findings.findings == ()
-    assert not findings.anything_notable
-    assert findings.complete
+    assert offered == [("logs_specialist", "apm_specialist", "trace_specialist")]
 
 
-def test_findings_are_returned_marked_incomplete_when_a_retrieval_failed() -> None:
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(fails=1, findings=[_cites(["call-1/item-1"])]),
-    )
+def test_only_the_specialists_the_manager_asked_for_are_consulted() -> None:
+    diagnosis = _investigator(
+        consults=("apm_specialist", "logs_specialist"),
+        reports={"apm_specialist": [_cites(["call-1/item-1"], "latency doubled")]},
+    ).investigate(_target())
 
-    findings = investigator.investigate(_target())
-
-    assert len(findings.findings) == 1
-    assert not findings.complete
-    assert "could not reach the platform" in findings.retrieval_failures[0]
+    assert diagnosis.findings.consulted == (Signal.APM, Signal.LOGS)
 
 
-def test_an_investigation_whose_every_retrieval_failed_is_a_failure() -> None:
-    """However confidently the model reports having found nothing."""
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(
-            retrieves=(), fails=2, findings=[_cites(["call-1/item-1"])]
-        ),
-    )
+def test_a_specialist_that_was_never_consulted_names_no_signal() -> None:
+    """The failure this whole slice exists to prevent, asserted directly."""
+    diagnosis = _investigator(consults=("logs_specialist",)).investigate(_target())
 
-    with pytest.raises(InvestigatorError, match="could not reach the platform"):
-        investigator.investigate(_target())
+    assert diagnosis.findings.consulted == (Signal.LOGS,)
+    assert Signal.TRACE not in diagnosis.findings.consulted
+    assert Signal.APM not in diagnosis.findings.consulted
 
 
-def test_an_investigation_that_never_looked_is_not_a_failure() -> None:
-    """A model that chose not to search looked and saw nothing to say."""
-    investigator = AdkInvestigator(
-        crew=(_specialist(),), run_specialist=_reports(retrieves=())
-    )
+def test_findings_come_back_naming_the_signal_of_the_specialist_that_found_them() -> (
+    None
+):
+    diagnosis = _investigator(
+        consults=("logs_specialist", "apm_specialist"),
+        reports={
+            "logs_specialist": [_cites(["call-1/item-1"], "errors recur")],
+            "apm_specialist": [_cites(["call-1"], "latency doubled")],
+        },
+    ).investigate(_target())
 
-    findings = investigator.investigate(_target())
+    assert [(one.signal, one.observation) for one in diagnosis.findings.findings] == [
+        (Signal.LOGS, "errors recur"),
+        (Signal.APM, "latency doubled"),
+    ]
 
-    assert findings.findings == ()
-    assert findings.complete
+
+def test_the_investigation_carries_the_hypothesis_and_its_confidence() -> None:
+    diagnosis = _investigator(
+        reports={"logs_specialist": [_cites(["call-1/item-1"])]},
+        hypothesis="the pods are out of memory",
+        confidence="medium",
+    ).investigate(_target())
+
+    assert diagnosis.hypothesis == "the pods are out of memory"
+    assert diagnosis.confidence is Confidence.MEDIUM
 
 
-def test_a_specialist_that_errors_outright_fails_the_investigation() -> None:
-    def _explodes(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
+def test_a_confidence_level_nobody_declared_is_reported_as_none() -> None:
+    diagnosis = _investigator(
+        reports={"logs_specialist": [_cites(["call-1/item-1"])]},
+        confidence="fairly sure",
+    ).investigate(_target())
+
+    assert diagnosis.hypothesis is not None
+    assert diagnosis.confidence is None
+
+
+def test_a_hypothesis_with_no_surviving_finding_beneath_it_is_dropped() -> None:
+    diagnosis = _investigator(
+        reports={"logs_specialist": [_cites(["call-9/item-1"], "invented")]}
+    ).investigate(_target())
+
+    assert diagnosis.findings.findings == ()
+    assert diagnosis.hypothesis is None
+    assert diagnosis.confidence is None
+
+
+def test_an_investigation_that_consulted_nobody_completes_without_concluding() -> None:
+    """A manager that asked nothing is not a platform that could not be reached."""
+    diagnosis = _investigator(consults=(), retrieves=()).investigate(_target())
+
+    assert diagnosis.findings.findings == ()
+    assert diagnosis.findings.consulted == ()
+    assert diagnosis.hypothesis is None
+
+
+def test_every_retrieval_failing_is_still_a_failed_investigation() -> None:
+    with pytest.raises(InvestigatorError, match="could not be reached"):
+        _investigator(retrieves=(), fails=2).investigate(_target())
+
+
+def test_some_retrievals_failing_still_returns_findings_marked_incomplete() -> None:
+    diagnosis = _investigator(
+        fails=1, reports={"logs_specialist": [_cites(["call-1/item-1"])]}
+    ).investigate(_target())
+
+    assert len(diagnosis.findings.findings) == 1
+    assert not diagnosis.findings.complete
+
+
+def test_a_manager_that_errors_outright_fails_the_investigation() -> None:
+    def _explodes(crew: Any, consulted: Any, retrieved: Any, prompt: str) -> Any:
         raise RuntimeError("the model refused")
 
-    investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_explodes)
-
-    with pytest.raises(InvestigatorError, match="refused"):
-        investigator.investigate(_target())
-
-
-def test_a_failed_investigation_names_the_service_it_concerned() -> None:
-    """The target is all a failure has left to say what it was about."""
-
-    def _explodes(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
-        raise RuntimeError("the model refused")
-
-    investigator = AdkInvestigator(crew=(_specialist(),), run_specialist=_explodes)
+    investigator = AdkInvestigator(
+        crew=(LOGS,), run_diagnostician=_explodes, run_report=_words()
+    )
 
     with pytest.raises(InvestigatorError, match="checkout"):
         investigator.investigate(_target())
 
 
-def test_a_specialist_is_told_about_the_target_it_is_investigating() -> None:
+def test_the_manager_is_told_about_the_target_it_is_investigating() -> None:
     prompts: list[str] = []
 
-    def _capture(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
+    def _capture(crew: Any, consulted: Any, retrieved: Any, prompt: str) -> Any:
         prompts.append(prompt)
-        return {"findings": []}
+        return {"hypothesis": "", "confidence": "low"}
 
-    AdkInvestigator(crew=(_specialist(),), run_specialist=_capture).investigate(
-        _target()
-    )
+    AdkInvestigator(
+        crew=(LOGS,), run_diagnostician=_capture, run_report=_words()
+    ).investigate(_target())
 
     assert "checkout" in prompts[0]
     assert NOON.isoformat() in prompts[0]
 
 
-def test_a_fabricated_citation_does_not_reach_the_findings() -> None:
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(findings=[_cites(["call-9/item-1"], "invented")]),
-    )
-
-    assert investigator.investigate(_target()).findings == ()
-
-
 def test_each_investigation_starts_with_nothing_citable() -> None:
     """An identifier from an earlier incident must not resolve in a later one."""
+    diagnosis = _investigator(
+        retrieves=(), reports={"logs_specialist": [_cites(["call-1/item-1"])]}
+    ).investigate(_target())
+
+    assert diagnosis.findings.findings == ()
+
+
+def test_a_manager_that_never_concluded_still_reports_what_it_found(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Findings are real whether or not the reasoning got as far as a conclusion."""
+
+    def _stops_early(
+        crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
+    ) -> dict[str, Any]:
+        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        specialist = consulted.named("apm_specialist")
+        assert specialist is not None
+        consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})
+        return {}
+
     investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(retrieves=(), findings=[_cites(["call-1/item-1"])]),
+        crew=(LOGS, APM), run_diagnostician=_stops_early, run_report=_words()
     )
 
-    assert investigator.investigate(_target()).findings == ()
+    with caplog.at_level(logging.WARNING):
+        diagnosis = investigator.investigate(_target())
+
+    assert len(diagnosis.findings.findings) == 1
+    assert diagnosis.hypothesis is None
+    assert "── the diagnostician reached no conclusion" in caplog.text
 
 
-def test_what_one_specialist_retrieved_is_citable_by_the_next() -> None:
-    """One investigation, one body of evidence: the crew shares what it gathered."""
+def test_reaching_no_conclusion_is_distinguishable_from_answering_with_none(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One never answered in its schema; the other answered and had nothing."""
 
-    def _run(specialist: Specialist, retrieved: Retrieved, prompt: str) -> Any:
-        if specialist.name == "logs_specialist":
-            retrieved.retain_evidence(_logs("OOMKilled"))
-            return {"findings": []}
-        return {"findings": [_cites(["call-1/item-1"], "the logs show it too")]}
+    def _answers_emptily(
+        crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
+    ) -> dict[str, Any]:
+        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        specialist = consulted.named("apm_specialist")
+        assert specialist is not None
+        consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})
+        return {"hypothesis": "", "confidence": "low"}
 
     investigator = AdkInvestigator(
-        crew=(_specialist("logs_specialist"), _specialist("apm_specialist")),
-        run_specialist=_run,
+        crew=(LOGS, APM), run_diagnostician=_answers_emptily, run_report=_words()
     )
 
-    (finding,) = investigator.investigate(_target()).findings
+    with caplog.at_level(logging.WARNING):
+        investigator.investigate(_target())
 
-    assert finding.observation == "the logs show it too"
-
-
-class _Links:
-    """A platform's addresses, standing in for the one bound to a real site."""
-
-    def to_retrieval(self, args: Any) -> str | None:
-        return "https://platform/search"
-
-    def to_item(self, payload: Any, within: str | None) -> str | None:
-        return within
-
-
-def test_the_evidence_of_each_investigation_is_addressed_by_the_platforms_linker() -> (
-    None
-):
-    """One linker per deployment, reaching the ``Retrieved`` of every investigation."""
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(
-            findings=[
-                {
-                    "observation": "OOMKilled recurs",
-                    "occurrences": 3,
-                    "cites": ["call-1/item-1"],
-                }
-            ]
-        ),
-        links=_Links(),
-    )
-
-    (finding,) = investigator.investigate(_target()).findings
-
-    assert finding.examples[0].url == "https://platform/search"
-
-
-def test_an_investigator_with_no_linker_still_investigates() -> None:
-    """Evidence without an address is still evidence, and a test says so."""
-    investigator = AdkInvestigator(
-        crew=(_specialist(),),
-        run_specialist=_reports(
-            findings=[
-                {
-                    "observation": "OOMKilled recurs",
-                    "occurrences": 3,
-                    "cites": ["call-1/item-1"],
-                }
-            ]
-        ),
-    )
-
-    (finding,) = investigator.investigate(_target()).findings
-
-    assert finding.examples[0].url is None
+    assert "no conclusion" not in caplog.text

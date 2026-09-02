@@ -50,6 +50,10 @@ investigation:
   #
   # Left empty, as every specialist reasoning on the model above is the
   # default: uncommenting an entry is what gives that one a model of its own.
+  #
+  # Only specialists. The diagnostician that decides which of them an incident
+  # needs, and the writer that words the report, both run on the model above and
+  # cannot be named here yet; naming either is refused like any unknown key.
   specialists: {}
   # trace_specialist:
   #   # Mandatory within an entry. The model that specialist runs on.

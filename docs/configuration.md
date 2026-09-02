@@ -167,6 +167,41 @@ sqlite3 data/alert_triage.db \
   "SELECT id, service, last_reported_at, closed_at FROM incidents;"
 ```
 
+### How much a run says out loud
+
+How verbose the log is, on the same rule as the ledger's path — a deployment
+fact with a default, and not a credential:
+
+```bash
+export LOG_LEVEL=DEBUG
+# optional; defaults to INFO
+```
+
+`INFO` is the run's own account: each phase, every consultation, every tool
+call, what each specialist observed, and what both reasoners said. The
+frameworks underneath are held at `ERROR` so that account stays readable, and
+`DEBUG` releases them — ADK's own lines, the model SDK's, and every HTTP
+request a tool makes. A name outside the declared set is refused out loud and
+the run starts at `INFO` anyway.
+
+A run's tool calls are the one part of its own account held back by default,
+because they are the bulk of its output and most readings do not want them:
+
+```bash
+export LOG_TOOL_CALLBACK=true
+# optional; defaults to no
+```
+
+With it, every query a specialist sends and a bounded look at what came back are
+written down. Without it, the consultations and what each specialist observed
+still are — the account without the working. A value that is neither a yes
+(`1`, `true`, `yes`, `on`) nor a no (empty, `0`, `false`, `no`, `off`) is refused
+out loud and read as a no, and `LOG_LEVEL=DEBUG` brings the tool calls back
+whatever this says.
+
+What each level shows, and what the log looks like, is in
+[`logging.md`](logging.md).
+
 ### Notification channels
 
 Which channels are active follows from which of them you configured. Configure

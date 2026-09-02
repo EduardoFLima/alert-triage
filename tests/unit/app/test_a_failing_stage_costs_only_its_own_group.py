@@ -24,6 +24,8 @@ from alert_triage.configuration.settings import (
     Scope,
 )
 from alert_triage.investigation.contract import (
+    Confidence,
+    Diagnosis,
     Findings,
     InvestigationTarget,
 )
@@ -123,13 +125,13 @@ class FakeInvestigator:
     arc — fail, fail, succeed — as the list it reads like.
     """
 
-    outcomes: list[Findings | InvestigatorError] = field(default_factory=list)
+    outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
-    def investigate(self, target: InvestigationTarget) -> Findings:
+    def investigate(self, target: InvestigationTarget) -> Diagnosis:
         """Answer with the next outcome, remembering what it was asked about."""
         self.asked.append(target)
-        outcome = self.outcomes.pop(0) if self.outcomes else Findings()
+        outcome = self.outcomes.pop(0) if self.outcomes else _diagnosed(Findings())
         if isinstance(outcome, InvestigatorError):
             raise outcome
         return outcome
@@ -159,19 +161,14 @@ def _ids() -> Callable[[], str]:
     return lambda: f"incident-{next(counter)}"
 
 
-def _build_report(incident: Incident, findings: Findings | None) -> TriageReport:
+def _build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
     """A builder standing in for the one the composition root injects."""
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
         subject=f"{incident.service}: {len(incident.alerts)} alert(s)",
-        body=NOT_INVESTIGATED if findings is None else _found(findings),
+        body=NOT_INVESTIGATED if diagnosis is None else diagnosis.account,
     )
-
-
-def _found(findings: Findings) -> str:
-    """What a report built from findings says, in as little as a test needs."""
-    return "\n".join(finding.observation for finding in findings.findings) or CLEAN
 
 
 def _run(
@@ -294,3 +291,14 @@ def test_a_failure_names_the_stage_and_the_service_it_concerns(
         (Stage.DELIVER, "payments"),
         (Stage.READ, "search"),
     ]
+
+
+def _diagnosed(findings: Findings) -> Diagnosis:
+    """What a completed investigation hands the run back."""
+    return Diagnosis(
+        headline="checkout: something happened",
+        account="\n".join(one.observation for one in findings.findings) or CLEAN,
+        hypothesis="an upstream dependency is slow" if findings.findings else None,
+        confidence=Confidence.MEDIUM if findings.findings else None,
+        findings=findings,
+    )

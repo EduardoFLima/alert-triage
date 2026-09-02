@@ -27,6 +27,7 @@ from collections.abc import Iterable, Sequence
 from typing import Any, Protocol
 
 from alert_triage.investigation.contract import EvidenceItem, Finding, Findings, Signal
+from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
 
@@ -75,19 +76,30 @@ def findings_from(
 def _finding(payload: Any, retrieved: Citable, signal: Signal) -> Finding | None:
     """Build one finding, or drop it and say why."""
     if not isinstance(payload, dict):
-        _log.warning("Discarding a finding that is not a record: %r", payload)
+        _log.warning(
+            journal.event(
+                "a finding was discarded",
+                because="it is not a record",
+                reported=journal.shortened(repr(payload)),
+            )
+        )
         return None
 
     observation = str(payload.get("observation", "")).strip()
     if not observation:
-        _log.warning("Discarding a finding that observes nothing")
+        _log.warning(
+            journal.event("a finding was discarded", because="it observes nothing")
+        )
         return None
 
     examples = _examples(payload.get("cites", ()), retrieved, observation)
     if not examples:
         _log.warning(
-            "Discarding the finding %r: none of its evidence was ever retrieved",
-            observation,
+            journal.event(
+                "a finding was discarded",
+                because="none of its evidence was ever retrieved",
+                observation=observation,
+            )
         )
         return None
 
@@ -110,9 +122,11 @@ def _examples(
         evidence = retrieved.resolve(str(citation))
         if evidence is None:
             _log.warning(
-                "The finding %r cited %r, which was never retrieved",
-                observation,
-                citation,
+                journal.event(
+                    "a citation resolved to nothing",
+                    citation=repr(citation),
+                    observation=observation,
+                )
             )
             continue
         resolved.append(evidence)
