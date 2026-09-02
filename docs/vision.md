@@ -563,9 +563,13 @@ environment side by it.
 
 ## Deployment
 
-v1 runs manually, from a developer's machine. Next step: containerize so
-the same image can run for different teams' configs. After that: deploy to
-GCP (Cloud Run job or GKE) — GCP is the target landscape.
+v1 runs manually, from a developer's machine. Next step: containerize, so
+the same image runs for different teams' configs and a run stops depending on
+the machine it was developed on. `docker run` is where the deployment story
+stops for now — deliberately, because an image is what any hosted target would
+need and choosing one commits to a landscape before there is a reason to. GCP
+(a Cloud Run job or GKE) remains the likely destination when that reason
+arrives; it is a later decision, not the next step.
 
 ## Repo & engineering conventions
 
@@ -814,8 +818,29 @@ testable, building only on the slices before it.
     runs — a red build naming nothing about the change that caused it, which is
     the one failure mode this gate is not allowed to have. The directory is now
     ignored.
-14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
-    Testable via container build + smoke test.
+14. **Deployment packaging** — containerize. An image that performs one
+    complete run unargued, carrying the dependency set the gate verified,
+    holding no deployment's secrets, and keeping its ledger on a mounted volume
+    so a packaged run is continuous with the one before it. That last part is
+    the whole reason this is a slice rather than a Dockerfile: a container's
+    filesystem does not survive it, so the ledger's default location silently
+    disables dedup, continuation and the re-notify cooldown while the run still
+    exits `0`.
+
+    No manifests. Cloud Run and GKE were named here and are deliberately
+    dropped: the image is what a hosted target would need, and picking one is a
+    later decision this slice is the prerequisite for — see
+    [Deployment](#deployment). Nothing publishes the image either; the gate
+    builds it, nothing pushes it.
+
+    Testable via container build + smoke test — the image refuses on a missing
+    setting and names it, a fully configured run gets through building every
+    adapter and creating its ledger on the mount before failing on a platform it
+    cannot reach, and a second container over the same mount keeps what the
+    first one left. The green-path run is not exercised through the container:
+    the Datadog URL this project composes is https-only, so a fake platform
+    needs a TLS sidecar and a trusted CA inside the image, to re-prove run logic
+    the in-process end-to-end test already covers.
 15. **README architecture diagram rework** — the diagram the bounded-context
     restructure left behind states the shape correctly and reads poorly: four
     nested subgraphs, an enclosing box for configuration, and a rung per layer
@@ -825,7 +850,8 @@ testable, building only on the slices before it.
     of investigation's vocabulary and so redraws one of the two cross-context
     edges. Slice 11 adds a path that bypasses batching entirely, which the
     current picture has nowhere to put. Slice 14 introduces a deployment story
-    a reader will want to see and there is no version of that in it today.
+    a reader will want to see — an image, a mounted ledger, and what a run needs
+    given to it from outside — and there is no version of that in it today.
     Redrawing before those land is redrawing twice, and a diagram is the one
     artefact where being out of date is worse than being ugly.
 
