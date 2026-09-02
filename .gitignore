@@ -35,3 +35,6 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Worktrees this repo hosts for itself: git links, never content
+.claude/worktrees/

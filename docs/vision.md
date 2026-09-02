@@ -797,13 +797,23 @@ testable, building only on the slices before it.
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.
-13. **CI gate failure-mode confirmation** — the leftover of slice 0: push a
-    deliberate lint error, a type error, and a boundary violation on a scratch
-    branch and confirm each produces a red run naming the rule, the expression,
-    and the offending import, then delete the branch. Deferred out of slice 0
-    because it is the one check that cannot be proven locally — it needs real
-    runs on the remote. Criteria VLD-002…VLD-004 in
-    `docs/spec-process-cicd-ci.md`.
+13. **CI gate failure-mode confirmation** — *done.* The leftover of slice 0:
+    a deliberate lint error, a type error, and a boundary violation, each pushed
+    alone to a scratch branch, each producing a red run naming the ruff rule and
+    location, the offending expression, and the forbidden import. A fourth push
+    removed the defect and nothing else, and went green — which is what makes
+    the three red runs evidence about the defects rather than about the branch.
+    The branch is deleted; the runs are recorded under [Confirmed failure
+    modes](spec-process-cicd-ci.md#confirmed-failure-modes), against criteria
+    VLD-002…VLD-005. Deferred out of slice 0 because it is the one check that
+    cannot be proven locally — it needs real runs on the remote.
+
+    It found a defect as well as confirming a design. A git worktree this repo
+    hosts under `.claude/worktrees/` is staged by `git add -A` as a gitlink with
+    no `.gitmodules` entry, and `actions/checkout` fails on it before any check
+    runs — a red build naming nothing about the change that caused it, which is
+    the one failure mode this gate is not allowed to have. The directory is now
+    ignored.
 14. **Deployment packaging** — containerize, then Cloud Run/GKE manifests.
     Testable via container build + smoke test.
 15. **README architecture diagram rework** — the diagram the bounded-context
