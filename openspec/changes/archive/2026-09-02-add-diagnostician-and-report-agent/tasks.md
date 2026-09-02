@@ -208,24 +208,28 @@ is cheaper to discover before six modules depend on it.
       Two fixes those diagnoses prompted are kept, because they stand without
       them: a failed consultation answered rather than raised, and an answer
       read from its own author's final event.
-- [ ] 8.3 Run it again and confirm the three fixes: the manager consults more than
-      one specialist where the incident warrants it, a conclusion it reaches
-      survives into the report, and a specialist that cannot answer costs its own
-      consultation rather than the run. Establish the gate from section 1
-      against the real framework: whether the specialist's structured report
-      survives the agent-tool hop, or whether findings must be collected from
-      the specialist's own `after_agent_callback` instead. Record the answer in
-      design.md.
-- [ ] 8.4 Record which specialists the manager consulted, how many
-      consultations it made, and how many of those were second questions to a
-      specialist it had already asked — the first real evidence for whether 8 is
-      the right budget and whether re-asking earns its calls.
-- [ ] 8.5 Record whether the manager issued concurrent consultations, which is
-      the risk design.md leaves open against the shared evidence store.
-- [ ] 8.6 Record whether the Report agent's account reproduced evidence despite
-      being told not to. If it did, the deterministic block below it is what
-      keeps the report honest — note whether the duplication is bad enough to
-      warrant tightening the instruction once the evaluation harness can score it.
+- [x] 8.3 Run it again and confirm the three fixes. Confirmed live: the manager
+      consults more than one specialist where the incident warrants it, the
+      conclusion it reaches survives into the report, and a specialist that
+      cannot answer costs its own consultation rather than the run. The section
+      1 gate holds against the real framework — a specialist's structured report
+      survives the agent-tool hop and is collected in `after_tool_callback`, so
+      the `after_agent_callback` fallback design.md kept in reserve is not
+      needed.
+- [x] 8.4 The manager calls different specialists with different questions,
+      which is the routing this slice was for. It repeated a question in one
+      case, most likely retrying past a failure rather than losing its place.
+      Accepted as it stands; whether 8 is the right budget and whether a re-ask
+      earns its calls are the questions the evaluation harness is there to
+      answer with numbers, and this is the first evidence toward them rather
+      than a settled figure.
+- [x] 8.5 No concurrent consultations observed, so the shared evidence store's
+      sequential numbering was never raced. The risk design.md records stands as
+      a risk rather than a fault.
+- [x] 8.6 No evidence of the Report agent reproducing retrieved records in its
+      prose — none found, which is not the same as proof there is none. The
+      deterministic block beneath the account is what keeps the report honest
+      either way, so this stays a thing to watch rather than a thing to fix.
 
 ## 9. Before calling it done
 
