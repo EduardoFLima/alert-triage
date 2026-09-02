@@ -19,6 +19,7 @@ from alert_triage.investigation.adapters.adk.consultation import (
     collect_findings_callback,
 )
 from alert_triage.investigation.adapters.adk.evidence import (
+    TOOL_CALL_LOGGER,
     Retrieved,
     keep_evidence_callback,
     log_tool_call,
@@ -136,7 +137,7 @@ def test_a_report_nothing_can_be_read_out_of_is_written_down_as_that(
 def test_a_tool_call_is_written_down_with_the_specialist_making_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
         log_tool_call("logs_specialist")(
             tool=_Tool("search_datadog_logs"),
             args={"query": "service:checkout status:error"},
@@ -151,7 +152,7 @@ def test_a_tool_call_is_written_down_with_the_specialist_making_it(
 def test_what_the_platform_answered_is_written_down_next_to_what_was_asked(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
         keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
             tool=_Tool("search_datadog_logs"),
             args={"query": "service:checkout"},
@@ -168,7 +169,7 @@ def test_a_platform_answer_too_long_to_read_is_shortened(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A single log search would otherwise be the whole run's output."""
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
         keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
             tool=_Tool("search_datadog_logs"),
             args={"query": "service:checkout"},
@@ -184,7 +185,7 @@ def test_an_answer_with_nothing_to_cite_within_it_is_not_written_down_as_empty(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A flame graph has no items in it; "items 0" would read as a quiet platform."""
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
         keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
             tool=_Tool("search_datadog_logs"),
             args={"query": "service:checkout"},
@@ -193,6 +194,41 @@ def test_an_answer_with_nothing_to_cite_within_it_is_not_written_down_as_empty(
         )
 
     assert "cited as a whole" in caplog.text
+
+
+def test_the_tool_back_and_forth_is_written_where_it_can_be_held_on_its_own(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A deployment that wants the account without the working turns off one name."""
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
+        log_tool_call("logs_specialist")(
+            tool=_Tool("search_datadog_logs"), args={}, tool_context=None
+        )
+        keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
+            tool=_Tool("search_datadog_logs"),
+            args={},
+            tool_context=None,
+            tool_response={"logs": [{"message": "OOMKilled"}]},
+        )
+
+    assert {record.name for record in caplog.records} == {TOOL_CALL_LOGGER}
+
+
+def test_a_failed_retrieval_is_still_the_investigations_own_business(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Turning the working off must not turn off the platform refusing to answer."""
+    with caplog.at_level(logging.INFO):
+        keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
+            tool=_Tool("search_datadog_logs"),
+            args={},
+            tool_context=None,
+            tool_response={"error": "403"},
+        )
+
+    (record,) = caplog.records
+    assert record.name != TOOL_CALL_LOGGER
+    assert "403" in record.getMessage()
 
 
 def test_a_failed_retrieval_is_not_written_down_as_an_answer(

@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from alert_triage.investigation.adapters.adk.evidence import (
+    TOOL_CALL_LOGGER,
     Retrieved,
     keep_evidence_callback,
     log_tool_call,
@@ -177,7 +178,7 @@ def test_the_call_is_logged_before_it_is_made_and_nothing_else_happens(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Slice 12's seat, with a test already on it."""
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
         refused = log_tool_call("logs_specialist")(
             tool=_Tool(), args={"query": "status:error"}, tool_context=None
         )

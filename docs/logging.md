@@ -147,11 +147,14 @@ Everything above, which is to say:
 - **Every consultation**, and the question the diagnostician wrote for it. A
   consultation that was refused because the incident spent its questions, or
   that failed outright, says so.
-- **Every tool call a specialist makes** — the arguments on the way out, and
-  the retrieval identifier, the item count and a bounded look at the payload on
-  the way back. A retrieval that *failed* is written down as a failure and
-  never as an answer, which is the same distinction the evidence discipline
-  draws everywhere else.
+- **Every tool call a specialist makes**, when `LOG_TOOL_CALLBACK` asks for
+  them — the arguments on the way out, and the retrieval identifier, the item
+  count and a bounded look at the payload on the way back. This is the one part
+  of a run's own account held back by default: it is the bulk of the output, and
+  what a specialist was asked and what it concluded is the account while the
+  queries beneath are the working. A retrieval that *failed* is not working —
+  it is why a report is incomplete — so it is written down whatever the flag
+  says, as a failure and never as an answer.
 - **What each specialist observed, in full.** Never shortened: it is the
   investigation's own characterisation of what it saw, it is what a reader came
   for, and half of it is worse than none. A specialist whose report bore
@@ -188,11 +191,15 @@ frameworks that raise them, so one policy covers both.
 
 `LOG_LEVEL` releases all of it:
 
-| `LOG_LEVEL` | The run | The frameworks, and Python's warnings |
-| --- | --- | --- |
-| `DEBUG` | everything, plus its own debug lines | everything |
-| `INFO` (default) | its whole account | only what they could not do |
-| `WARNING` | only what went wrong | only what they could not do |
+| `LOG_LEVEL` | The run | Its tool calls | The frameworks, and Python's warnings |
+| --- | --- | --- | --- |
+| `DEBUG` | everything, plus its own debug lines | always | everything |
+| `INFO` (default) | its whole account | only with `LOG_TOOL_CALLBACK` | only what they could not do |
+| `WARNING` | only what went wrong | no | only what they could not do |
+
+`LOG_TOOL_CALLBACK=true` adds the tool calls at `INFO` without turning the
+frameworks on with them, which is the difference between wanting to see what a
+specialist asked the platform and wanting to debug ADK.
 
 It is read from the environment, `.env` included, at the same moment the run
 resolves everything else it is configured from — so it is settled before the
@@ -212,8 +219,12 @@ library's deprecations.
   the shared kernel because it is vocabulary rather than behaviour, and it
   depends on nothing but the standard library.
 - [`app/verbosity.py`](../src/alert_triage/app/verbosity.py) — the level, the
-  held frameworks, and the warnings routing, settled once at the entrypoint so
-  that importing the pipeline configures nothing on its caller's behalf.
+  held frameworks, the warnings routing, and whether the tool calls are written
+  down, settled once at the entrypoint so that importing the pipeline configures
+  nothing on its caller's behalf. The tool calls are held by holding one logger
+  name, declared beside the callbacks that write to it as `TOOL_CALL_LOGGER`:
+  the callbacks still run — the one that keeps the evidence has to — and only
+  their account of themselves is held.
 
 Nothing in either decides *what* is worth writing down. That belongs to the
 code that knows what just happened.

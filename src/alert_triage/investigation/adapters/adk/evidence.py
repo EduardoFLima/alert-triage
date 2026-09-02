@@ -32,6 +32,19 @@ from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
 
+TOOL_CALL_LOGGER = f"{__name__}.tool_calls"
+"""Where the back and forth between a specialist and the platform is written.
+
+A logger of its own, and nothing else writes to it. What a specialist was asked
+and what it concluded are the account of an investigation; the queries it
+composed on the way are the working, and a deployment that wants one without the
+other holds this name rather than picking log lines apart. A retrieval that
+*failed* is not working — it is why a report is incomplete — so it stays on the
+module's own logger and is never held with this.
+"""
+
+_tool_log = logging.getLogger(TOOL_CALL_LOGGER)
+
 _CALL_PREFIX = "call-"
 
 AfterTool = Callable[..., dict[str, Any] | None]
@@ -237,7 +250,7 @@ def keep_evidence_callback(
         if failure is not None:
             return retrieved.refuse_evidence(f"{name} failed: {failure}")
         offered = retrieved.retain_evidence(tool_response, args)
-        _log.info(
+        _tool_log.info(
             journal.event(
                 f"{caller} ← {name}",
                 call=offered["call"],
@@ -269,7 +282,7 @@ def log_tool_call(caller: str) -> BeforeTool:
     """
 
     def _logged(*, tool: Any, args: dict[str, Any], tool_context: Any) -> None:
-        _log.info(
+        _tool_log.info(
             journal.event(
                 f"{caller} → {named_tool(tool)}",
                 **{name: journal.shortened(asked) for name, asked in args.items()},

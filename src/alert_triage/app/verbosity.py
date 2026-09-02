@@ -22,8 +22,14 @@ experimental features through Python's ``warnings``, which prints to stderr
 past every level in this module. So warnings are routed into logging and held
 with the frameworks that raise them, and one policy covers both.
 
+One part of the run's own account is held the same way, and only one: the back
+and forth between a specialist and the platform. What a specialist was asked and
+what it concluded is the account; the queries it composed to get there are the
+working, and they are the bulk of a run's output. ``LOG_TOOL_CALLBACK`` asks for
+them.
+
 Held rather than discarded. A reader who asks for ``DEBUG`` is asking about
-the machinery, and gets all of it.
+the machinery, and gets all of it — the working included, flag or no flag.
 
 One more thing is decided here, and it is decided here because only a handler
 sees every record: each one is followed by a blank line. A block knows to leave
@@ -36,8 +42,16 @@ import logging
 import sys
 from collections.abc import Mapping
 
+from alert_triage.investigation.adapters.adk.evidence import TOOL_CALL_LOGGER
+
 LOG_LEVEL = "LOG_LEVEL"
 """The name an operator sets to be told more, or less. Read from ``.env`` too."""
+
+LOG_TOOL_CALLBACK = "LOG_TOOL_CALLBACK"
+"""The name an operator sets to be shown every tool call a specialist makes."""
+
+_ASKED_FOR = frozenset({"1", "true", "yes", "on"})
+_DECLINED = frozenset({"", "0", "false", "no", "off"})
 
 DEFAULT_LEVEL = logging.INFO
 
@@ -103,7 +117,36 @@ def configure_logging(env: Mapping[str, str]) -> int:
     held = level if _asked_for_detail(level) else QUIET
     for framework in FRAMEWORKS:
         logging.getLogger(framework).setLevel(held)
+    logging.getLogger(TOOL_CALL_LOGGER).setLevel(
+        level
+        if _asked_for_detail(level) or _wanted(env.get(LOG_TOOL_CALLBACK))
+        else QUIET
+    )
     return level
+
+
+def _wanted(said: str | None) -> bool:
+    """Whether a deployment asked for the working as well as the account.
+
+    Absent is no, which is the reading a deployment gets by saying nothing. A
+    word outside the declared set is refused rather than guessed at: reading
+    ``LOG_TOOL_CALLBACK=disabled`` as a yes because it is not empty is the trap
+    this exists to avoid.
+    """
+    if said is None:
+        return False
+    named = said.strip().lower()
+    if named in _ASKED_FOR:
+        return True
+    if named not in _DECLINED:
+        logging.getLogger(__name__).warning(
+            "%s=%r is neither a yes nor a no, so the tool calls stay out of this "
+            "run's account. A yes is one of: %s",
+            LOG_TOOL_CALLBACK,
+            said,
+            ", ".join(sorted(_ASKED_FOR)),
+        )
+    return False
 
 
 def _handler() -> logging.Handler:

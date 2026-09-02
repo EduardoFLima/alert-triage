@@ -6,6 +6,11 @@ account of their own, several times longer, and reading one in the other is
 how the account nobody else keeps gets lost. So the frameworks are quiet
 unless a reader asks for them by name — their warnings included, whether they
 arrive as log records or through Python's own warnings machinery.
+
+The back and forth between a specialist and the platform is the run's own, but
+it is the bulkiest part of it and most readings of a log do not want it: what a
+specialist was asked and what it concluded are the account, and which queries it
+composed on the way are the working. It is asked for by name too.
 """
 
 import logging
@@ -16,14 +21,16 @@ from collections.abc import Iterator
 import pytest
 
 from alert_triage.app import verbosity
+from alert_triage.investigation.adapters.adk.evidence import TOOL_CALL_LOGGER
 
 _RUN = "alert_triage.app.pipeline"
+_CONSULTATIONS = "alert_triage.investigation.adapters.adk.consultation"
 
 
 @pytest.fixture(autouse=True)
 def _restored_levels() -> Iterator[None]:
     """Leave the process's logging exactly as this test found it."""
-    named = ("", _RUN, *verbosity.FRAMEWORKS)
+    named = ("", _RUN, TOOL_CALL_LOGGER, *verbosity.FRAMEWORKS)
     before = {name: logging.getLogger(name).level for name in named}
     handlers = logging.getLogger().handlers[:]
     yield
@@ -73,6 +80,51 @@ def test_the_records_are_written_where_a_run_writes_everything_else() -> None:
     assert isinstance(handler, logging.StreamHandler)
     assert handler.stream is sys.stderr
     assert handler.formatter is not None
+
+
+def test_the_tool_back_and_forth_is_not_written_down_unless_it_is_asked_for() -> None:
+    """A consultation and what it concluded stay; the queries beneath them go."""
+    verbosity.configure_logging({})
+
+    assert logging.getLogger(_CONSULTATIONS).isEnabledFor(logging.INFO)
+    assert not logging.getLogger(TOOL_CALL_LOGGER).isEnabledFor(logging.INFO)
+
+
+def test_a_reader_who_asks_for_the_tool_calls_is_given_them() -> None:
+    verbosity.configure_logging({"LOG_TOOL_CALLBACK": "true"})
+
+    assert logging.getLogger(TOOL_CALL_LOGGER).isEnabledFor(logging.INFO)
+
+
+def test_the_flag_is_read_however_an_operator_happens_to_type_it() -> None:
+    for said in ("TRUE", "1", "yes", "On"):
+        verbosity.configure_logging({"LOG_TOOL_CALLBACK": said})
+
+        assert logging.getLogger(TOOL_CALL_LOGGER).isEnabledFor(logging.INFO), said
+
+
+def test_the_flag_left_empty_or_denied_keeps_the_tool_calls_out() -> None:
+    for said in ("", "false", "0", "no", "off"):
+        verbosity.configure_logging({"LOG_TOOL_CALLBACK": said})
+
+        assert not logging.getLogger(TOOL_CALL_LOGGER).isEnabledFor(logging.INFO), said
+
+
+def test_a_flag_value_nobody_declared_is_refused_out_loud_and_read_as_no(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        verbosity.configure_logging({"LOG_TOOL_CALLBACK": "sometimes"})
+
+    assert "sometimes" in caplog.text
+    assert not logging.getLogger(TOOL_CALL_LOGGER).isEnabledFor(logging.INFO)
+
+
+def test_asking_for_detail_brings_the_tool_calls_back_without_the_flag() -> None:
+    """DEBUG is a reader asking about the machinery, and this is machinery."""
+    verbosity.configure_logging({"LOG_LEVEL": "DEBUG"})
+
+    assert logging.getLogger(TOOL_CALL_LOGGER).isEnabledFor(logging.INFO)
 
 
 def test_a_frameworks_warning_about_itself_is_not_the_runs_business() -> None:
