@@ -36,7 +36,9 @@ LOGS = Specialist(
     signal=Signal.LOGS,
     instruction="Look.",
     output_schema=_Reported,
-    toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
+    toolsets=(
+        Toolset(provider="datadog", name="core", tools=("search_datadog_logs",)),
+    ),
 )
 
 

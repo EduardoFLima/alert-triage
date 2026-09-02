@@ -31,14 +31,14 @@ the whole verification this group gets, and is what it is entitled to.
 
 ## 2. A toolset names its provider
 
-- [ ] 2.1 Red: in `tests/unit/investigation/domain/test_a_specialist_is_declared_whole.py`,
+- [x] 2.1 Red: in `tests/unit/investigation/domain/test_a_specialist_is_declared_whole.py`,
   assert a `Toolset` declared without a provider is refused. Watch it fail.
-- [ ] 2.2 Green: add `provider: str` to `Toolset` with the `__post_init__`
+- [x] 2.2 Green: add `provider: str` to `Toolset` with the `__post_init__`
   rejection beside its siblings.
-- [ ] 2.3 Export the Datadog provider constant from
+- [x] 2.3 Export the Datadog provider constant from
   `investigation/adapters/datadog/mcp.py` and name it on every toolset in the
   four declarations. Test that no declaration names a provider by literal.
-- [ ] 2.4 Run the four CI commands.
+- [x] 2.4 Run the four CI commands.
 
 ## 3. A deployment maps providers to where they are
 

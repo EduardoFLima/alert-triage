@@ -37,7 +37,9 @@ def _specialist(
     name: str = "logs_specialist",
     instruction: str = "Look at the logs and report what recurs.",
     model: str | None = None,
-    toolsets: tuple[Toolset, ...] = (Toolset(name="core", tools=("search_logs",)),),
+    toolsets: tuple[Toolset, ...] = (
+        Toolset(provider="datadog", name="core", tools=("search_logs",)),
+    ),
 ) -> Specialist:
     return Specialist(
         name=name,
@@ -82,7 +84,11 @@ def test_an_agent_is_built_from_the_declaration_and_nothing_else() -> None:
 
 def test_the_toolset_is_filtered_to_the_tools_the_declaration_named() -> None:
     specialist = _specialist(
-        toolsets=(Toolset(name="core", tools=("search_logs", "aggregate_logs")),)
+        toolsets=(
+            Toolset(
+                provider="datadog", name="core", tools=("search_logs", "aggregate_logs")
+            ),
+        )
     )
 
     agent = build_agent(specialist, _deployment(), Retrieved())
@@ -99,7 +105,7 @@ def test_a_tool_the_declaration_did_not_name_is_not_among_the_ones_exposed() -> 
 
 def test_the_endpoint_asks_the_platform_for_the_declared_toolsets() -> None:
     connection = connection_for(
-        Toolset(name="core", tools=("search_logs",)), _deployment()
+        Toolset(provider="datadog", name="core", tools=("search_logs",)), _deployment()
     )
 
     assert connection.url == "https://mcp.datadoghq.com/v1/mcp?toolsets=core"
@@ -108,8 +114,8 @@ def test_the_endpoint_asks_the_platform_for_the_declared_toolsets() -> None:
 def test_a_specialist_declaring_several_toolsets_gets_one_each() -> None:
     specialist = _specialist(
         toolsets=(
-            Toolset(name="core", tools=("search_logs",)),
-            Toolset(name="apm", tools=("list_spans",)),
+            Toolset(provider="datadog", name="core", tools=("search_logs",)),
+            Toolset(provider="datadog", name="apm", tools=("list_spans",)),
         )
     )
 
@@ -120,7 +126,7 @@ def test_a_specialist_declaring_several_toolsets_gets_one_each() -> None:
 
 def test_the_credentials_reach_the_connection_as_headers() -> None:
     connection = connection_for(
-        Toolset(name="core", tools=("search_logs",)),
+        Toolset(provider="datadog", name="core", tools=("search_logs",)),
         _deployment(headers={"DD_API_KEY": "key", "DD_APPLICATION_KEY": "app"}),
     )
 
@@ -166,7 +172,7 @@ def test_the_same_declaration_is_unchanged_by_where_it_is_deployed() -> None:
 def test_the_connection_bounds_are_set_rather_than_left_to_the_framework() -> None:
     """ADK's own defaults are 5s to connect and 300s to read; neither is our intent."""
     connection = connection_for(
-        Toolset(name="core", tools=("search_logs",)), _deployment()
+        Toolset(provider="datadog", name="core", tools=("search_logs",)), _deployment()
     )
 
     assert connection.timeout == CONNECT_TIMEOUT_SECONDS

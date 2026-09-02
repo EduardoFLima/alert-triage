@@ -22,6 +22,7 @@ from alert_triage.investigation.adapters.datadog.dialect import (
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
 )
+from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -139,6 +140,7 @@ LOGS_SPECIALIST = Specialist(
     output_schema=ReportedFindings,
     toolsets=(
         Toolset(
+            provider=DATADOG,
             name=LOGS_TOOLSET,
             tools=(
                 LOG_SEARCH_TOOL,

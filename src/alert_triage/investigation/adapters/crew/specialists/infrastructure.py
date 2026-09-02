@@ -21,6 +21,7 @@ from alert_triage.investigation.adapters.datadog.dialect import (
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
 )
+from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -157,6 +158,7 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     output_schema=ReportedFindings,
     toolsets=(
         Toolset(
+            provider=DATADOG,
             name=CORE_TOOLSET,
             tools=(
                 METRIC_TOOL,
@@ -167,7 +169,11 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
                 SKILL_LOAD_TOOL,
             ),
         ),
-        Toolset(name=KUBERNETES_TOOLSET, tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL)),
+        Toolset(
+            provider=DATADOG,
+            name=KUBERNETES_TOOLSET,
+            tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL),
+        ),
     ),
 )
 """The infrastructure specialist as the crew sees it: one declaration, nothing else."""

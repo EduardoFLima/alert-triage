@@ -21,7 +21,7 @@ def _specialist(instruction: str = "Look at the logs.") -> Specialist:
         signal=Signal.LOGS,
         instruction=instruction,
         output_schema=_Reported,
-        toolsets=(Toolset(name="core", tools=("search_logs",)),),
+        toolsets=(Toolset(provider="datadog", name="core", tools=("search_logs",)),),
     )
 
 
@@ -47,10 +47,42 @@ def test_a_declaration_without_a_signal_is_rejected() -> None:
             signal=None,  # type: ignore[arg-type]
             instruction="Look at the logs.",
             output_schema=_Reported,
-            toolsets=(Toolset(name="core", tools=("search_logs",)),),
+            toolsets=(
+                Toolset(provider="datadog", name="core", tools=("search_logs",)),
+            ),
         )
 
 
 def test_a_toolset_that_permits_no_tool_reaches_nothing_and_is_rejected() -> None:
     with pytest.raises(ValueError, match="tool"):
-        Toolset(name="core", tools=())
+        Toolset(provider="datadog", name="core", tools=())
+
+
+def test_a_toolset_names_the_provider_that_serves_it() -> None:
+    toolset = Toolset(provider="datadog", name="core", tools=("search_logs",))
+
+    assert toolset.provider == "datadog"
+
+
+def test_a_toolset_without_a_provider_is_rejected() -> None:
+    with pytest.raises(ValueError, match="provider"):
+        Toolset(provider="   ", name="core", tools=("search_logs",))
+
+
+def test_one_specialist_may_declare_toolsets_on_different_providers() -> None:
+    """Two providers, one declaration: the case the old shape could not express."""
+    specialist = Specialist(
+        name="apm_specialist",
+        signal=Signal.APM,
+        instruction="Look at the golden signals, and at what deployed.",
+        output_schema=_Reported,
+        toolsets=(
+            Toolset(provider="datadog", name="metrics", tools=("query_metrics",)),
+            Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+        ),
+    )
+
+    assert {toolset.provider for toolset in specialist.toolsets} == {
+        "datadog",
+        "deploy_history",
+    }

@@ -17,6 +17,7 @@ from alert_triage.investigation.adapters.crew.specialists.logs import LOGS_SPECI
 from alert_triage.investigation.adapters.crew.specialists.trace import (
     TRACE_SPECIALIST,
 )
+from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.contract import InvestigationTarget, Signal
 from alert_triage.shared.window import Window
 
@@ -68,6 +69,19 @@ def test_the_crew_names_each_specialist_once() -> None:
 def test_the_crew_covers_every_signal_a_finding_can_be_drawn_from() -> None:
     """A signal nothing reports under is a signal no report may claim."""
     assert {specialist.signal for specialist in CREW} == set(Signal)
+
+
+def test_every_declared_toolset_names_a_provider_this_project_defines() -> None:
+    """A provider spelled by hand is a specialist that silently goes unoffered.
+
+    The declaration is refused only for an empty provider; a typo passes the
+    dataclass and then fails to match anything the deployment configured. This
+    is what catches it, and it is why a provider is a constant beside its
+    plumbing rather than a string in four files.
+    """
+    named = {toolset.provider for specialist in CREW for toolset in specialist.toolsets}
+
+    assert named == {DATADOG}
 
 
 @pytest.mark.parametrize("name", [specialist.name for specialist in CREW])

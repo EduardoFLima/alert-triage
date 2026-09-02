@@ -37,7 +37,9 @@ def _specialist(name: str, signal: Signal) -> Specialist:
         signal=signal,
         instruction="Look.",
         output_schema=_Reported,
-        toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
+        toolsets=(
+            Toolset(provider="datadog", name="core", tools=("search_datadog_logs",)),
+        ),
     )
 
 
