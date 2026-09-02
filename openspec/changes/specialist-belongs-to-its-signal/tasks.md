@@ -42,21 +42,21 @@ the whole verification this group gets, and is what it is entitled to.
 
 ## 3. A deployment maps providers to where they are
 
-- [ ] 3.1 Red: in `tests/unit/investigation/adapters/adk/test_an_agent_is_built_from_a_declaration.py`,
+- [x] 3.1 Red: in `tests/unit/investigation/adapters/adk/test_an_agent_is_built_from_a_declaration.py`,
   assert `connection_for` composes a toolset's URL from *its own* provider's
   access, given a deployment holding two. Watch it fail.
-- [ ] 3.2 Green: add `PlatformAccess` (endpoint + headers); replace
+- [x] 3.2 Green: add `PlatformAccess` (endpoint + headers); replace
   `Deployment.endpoint`/`.headers` with `platforms: Mapping[str, PlatformAccess]`;
   have `connection_for` look up `toolset.provider`.
-- [ ] 3.3 Red then green: `connection_for` on a provider the deployment does not
+- [x] 3.3 Red then green: `connection_for` on a provider the deployment does not
   hold raises, naming the provider and what the deployment holds.
-- [ ] 3.4 Red then green: one specialist declaring toolsets on two providers
+- [x] 3.4 Red then green: one specialist declaring toolsets on two providers
   reaches both, each through its own endpoint and headers — the spec's *A
   specialist draws on two providers* scenario, against two fake MCP servers in
   `tests/integration/investigation/adapters/adk/`.
-- [ ] 3.5 Update `app/composition.py` to build `platforms={DATADOG: PlatformAccess(...)}`,
+- [x] 3.5 Update `app/composition.py` to build `platforms={DATADOG: PlatformAccess(...)}`,
   and every test that constructs a `Deployment`.
-- [ ] 3.6 Run the four CI commands.
+- [x] 3.6 Run the four CI commands.
 
 ## 4. A deployment offers the specialists it can reach
 

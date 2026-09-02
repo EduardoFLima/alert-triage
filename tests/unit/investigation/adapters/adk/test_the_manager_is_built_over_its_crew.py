@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
+    PlatformAccess,
     build_agent,
     build_manager,
     build_reasoner,
@@ -51,8 +52,11 @@ CREW = (
 
 def _deployment() -> Deployment:
     return Deployment(
-        endpoint="https://mcp.example/api",
-        headers={"DD-API-KEY": "key"},
+        platforms={
+            "datadog": PlatformAccess(
+                endpoint="https://mcp.example/api", headers={"DD-API-KEY": "key"}
+            )
+        },
         model_for=lambda named: named or "gemini-2.5-flash",
     )
 

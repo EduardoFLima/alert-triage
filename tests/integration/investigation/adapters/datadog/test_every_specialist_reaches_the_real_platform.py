@@ -26,6 +26,7 @@ from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
+    PlatformAccess,
     build_agent,
     build_manager,
     connection_for,
@@ -45,7 +46,11 @@ from alert_triage.investigation.adapters.crew.specialists.logs import (
     LOGS_SPECIALIST,
 )
 from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
-from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
+from alert_triage.investigation.adapters.datadog.mcp import (
+    DATADOG,
+    mcp_endpoint,
+    mcp_headers,
+)
 from alert_triage.investigation.contract import InvestigationTarget
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.shared.window import Window
@@ -104,8 +109,14 @@ def _deployment() -> Deployment:
     connection = resolve_connection()
     model = build_model(Investigation.DEFAULT_MODEL, resolve_model_access())
     return Deployment(
-        endpoint=mcp_endpoint(connection.site),
-        headers=mcp_headers(api_key=connection.api_key, app_key=connection.app_key),
+        platforms={
+            DATADOG: PlatformAccess(
+                endpoint=mcp_endpoint(connection.site),
+                headers=mcp_headers(
+                    api_key=connection.api_key, app_key=connection.app_key
+                ),
+            )
+        },
         model_for=lambda named: model,
     )
 

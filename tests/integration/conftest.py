@@ -46,3 +46,19 @@ def free_port() -> int:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
+
+
+@pytest.fixture
+def free_ports() -> tuple[int, int]:
+    """Two ports nothing is listening on, reserved at the same time.
+
+    Asking ``free_port`` twice would not do: a fixture is resolved once per
+    test, so two servers wanting a port each would be handed the same one and
+    the second would fail to bind. Both probes are held open until both ports
+    have been chosen, which is also what stops the OS offering the same port
+    twice.
+    """
+    with socket.socket() as one, socket.socket() as other:
+        one.bind(("127.0.0.1", 0))
+        other.bind(("127.0.0.1", 0))
+        return int(one.getsockname()[1]), int(other.getsockname()[1])

@@ -30,6 +30,7 @@ from pydantic import Field
 
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
+    PlatformAccess,
     build_agent,
     connection_for,
 )
@@ -159,8 +160,12 @@ def _reports(cites: list[str]) -> types.Content:
 
 def _deployment(platform: str, model: BaseLlm) -> Deployment:
     return Deployment(
-        endpoint=platform,
-        headers={"DD_API_KEY": "api", "DD_APPLICATION_KEY": "app"},
+        platforms={
+            "datadog": PlatformAccess(
+                endpoint=platform,
+                headers={"DD_API_KEY": "api", "DD_APPLICATION_KEY": "app"},
+            )
+        },
         model_for=lambda named: model,
     )
 
