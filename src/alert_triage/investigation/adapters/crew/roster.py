@@ -102,27 +102,35 @@ def crew_for(
     declared = {specialist.name for specialist in CREW}
     unknown = sorted(set(configured) - declared)
     if unknown:
-        raise ConfigError(
-            f"Unknown specialist(s) under 'investigation.specialists': "
-            f"{', '.join(unknown)}. Declared specialists: "
-            f"{', '.join(sorted(declared))}"
-        )
+        _raise_uknown_specialist_config_error(declared, unknown)
 
     crew = offered_from(CREW, providers)
     if not crew:
-        wanted = sorted(
-            {toolset.provider for specialist in CREW for toolset in specialist.toolsets}
-        )
-        held = ", ".join(sorted(providers)) or "none"
-        raise ConfigError(
-            f"No specialist can be run: this deployment configured {held}, and "
-            f"every declared specialist needs one of {', '.join(wanted)}. "
-            f"Configure a provider's endpoint and credentials in the environment."
-        )
+        _raise_missing_provider_config_error(providers)
 
     return tuple(
         replace(specialist, model=configured[specialist.name].model)
         if specialist.name in configured
         else specialist
         for specialist in crew
+    )
+
+
+def _raise_uknown_specialist_config_error(declared, unknown):
+    raise ConfigError(
+        f"Unknown specialist(s) under 'investigation.specialists': "
+        f"{', '.join(unknown)}. Declared specialists: "
+        f"{', '.join(sorted(declared))}"
+    )
+
+
+def _raise_missing_provider_config_error(providers):
+    wanted = sorted(
+        {toolset.provider for specialist in CREW for toolset in specialist.toolsets}
+    )
+    held = ", ".join(sorted(providers)) or "none"
+    raise ConfigError(
+        f"No specialist can be run: this deployment configured {held}, and "
+        f"every declared specialist needs one of {', '.join(wanted)}. "
+        f"Configure a provider's endpoint and credentials in the environment."
     )
