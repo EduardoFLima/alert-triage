@@ -12,13 +12,14 @@ from typing import Protocol
 from urllib.parse import urlencode
 
 from datadog_api_client import ApiClient, Configuration
-from datadog_api_client.exceptions import ApiException
+from datadog_api_client.exceptions import OpenApiException
 from datadog_api_client.v2.api.events_api import EventsApi
 from datadog_api_client.v2.model.event_response import EventResponse
 from datadog_api_client.v2.model.events_list_request import EventsListRequest
 from datadog_api_client.v2.model.events_list_response import EventsListResponse
 from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
+from urllib3.exceptions import HTTPError as TransportError
 
 from alert_triage.configuration.settings import Ingestion
 from alert_triage.shared import journal
@@ -101,16 +102,27 @@ class DatadogAlertSource:
                 return
 
     def _search(self, since: datetime, cursor: str | None) -> EventsListResponse:
-        """Fetch one page, turning the SDK's failure into the port's own.
+        """Fetch one page, turning any failure of it into the port's own.
 
         This is the boundary: past it, a caller catches ``AlertSourceError``
         and never learns that Datadog was involved. Failing here rather than
         returning what was retrieved so far is deliberate — a partial result is
         indistinguishable from a quiet period.
+
+        Both libraries' roots are caught rather than the particular errors
+        under them. The SDK reaches the platform through urllib3 but translates
+        only one of its failures, so a refused connection or a spent retry
+        bound arrives as a ``TransportError`` that no ``OpenApiException`` catch
+        would see — and a caller would meet a failure this boundary exists to
+        have hidden. Naming the leaves instead would leave the same gap open
+        for whichever leaf either library adds next.
+
+        Deliberately not ``except Exception``: a defect in the translation
+        below should still crash rather than be reported as a failed fetch.
         """
         try:
             return self._events.search_events(body=self._request(since, cursor))
-        except ApiException as error:
+        except (OpenApiException, TransportError) as error:
             raise AlertSourceError(
                 f"Could not fetch alerts for owner {self._owner!r} from Datadog: "
                 f"{error}"

@@ -159,6 +159,7 @@ forbidden_modules =
     httpx
     smtplib
     urllib
+    urllib3
     msal
     yaml
     dotenv

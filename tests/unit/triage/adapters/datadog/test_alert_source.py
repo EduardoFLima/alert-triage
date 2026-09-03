@@ -4,7 +4,11 @@ from datetime import UTC, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from datadog_api_client.exceptions import ApiException, UnauthorizedException
+from datadog_api_client.exceptions import (
+    ApiException,
+    ApiValueError,
+    UnauthorizedException,
+)
 from datadog_api_client.v2.model.event_attributes import EventAttributes
 from datadog_api_client.v2.model.event_response import EventResponse
 from datadog_api_client.v2.model.event_response_attributes import (
@@ -16,6 +20,8 @@ from datadog_api_client.v2.model.events_response_metadata import EventsResponseM
 from datadog_api_client.v2.model.events_response_metadata_page import (
     EventsResponseMetadataPage,
 )
+from urllib3 import HTTPSConnectionPool
+from urllib3.exceptions import MaxRetryError
 
 from alert_triage.configuration.settings import Ingestion
 from alert_triage.triage.adapters.datadog.alert_source import (
@@ -78,6 +84,18 @@ def _page(*events: EventResponse, after: str | None = None) -> EventsListRespons
 def _source(*pages: EventsListResponse | Exception) -> DatadogAlertSource:
     return DatadogAlertSource(
         events=FakeEvents(*pages), owner="sre", web_host="app.datadoghq.com"
+    )
+
+
+def _transport_failure() -> MaxRetryError:
+    """A spent retry bound, shaped exactly as urllib3 raises one.
+
+    The pool is real — constructing one opens no socket — because the error
+    carries it and a stand-in would not type-check.
+    """
+    return MaxRetryError(
+        pool=HTTPSConnectionPool(host="api.datadoghq.com", port=443),
+        url="/api/v2/events/search",
     )
 
 
@@ -300,6 +318,52 @@ def test_a_failure_part_way_through_pagination_discards_the_pages_retrieved() ->
 
     with pytest.raises(AlertSourceError):
         source.fetch_since(SINCE)
+
+
+def test_an_unreachable_platform_is_reported_rather_than_escaping() -> None:
+    """The failure a run is most likely to meet, and the one it never explained.
+
+    Raised the way the SDK's transport does when the retry bound is spent
+    without an answer: past ``ApiException`` entirely, so a catch written for
+    the API's own errors never sees it.
+    """
+    source = _source(_transport_failure())
+
+    with pytest.raises(AlertSourceError, match="sre"):
+        source.fetch_since(SINCE)
+
+
+def test_an_unreachable_platform_part_way_through_pagination_is_reported() -> None:
+    source = _source(
+        _page(_event("evt-1", tags=["service:checkout"]), after="cursor-1"),
+        _transport_failure(),
+    )
+
+    with pytest.raises(AlertSourceError):
+        source.fetch_since(SINCE)
+
+
+def test_an_answer_the_client_cannot_interpret_is_reported() -> None:
+    """``ApiValueError`` is a sibling of ``ApiException``, not a subclass.
+
+    The SDK's own request path raises it, so catching ``ApiException`` alone
+    leaves a second route out of the adapter.
+    """
+    source = _source(ApiValueError("Invalid value for `data`"))
+
+    with pytest.raises(AlertSourceError, match="sre"):
+        source.fetch_since(SINCE)
+
+
+def test_the_underlying_failure_is_kept_as_the_cause() -> None:
+    """A developer reading the log still gets the original, whatever it was."""
+    transport = _transport_failure()
+    source = _source(transport)
+
+    with pytest.raises(AlertSourceError) as raised:
+        source.fetch_since(SINCE)
+
+    assert raised.value.__cause__ is transport
 
 
 def test_the_client_is_bound_by_ingestions_own_timeout_and_retries() -> None:
