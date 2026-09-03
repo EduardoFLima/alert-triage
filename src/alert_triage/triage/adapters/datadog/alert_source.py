@@ -20,10 +20,6 @@ from datadog_api_client.v2.model.events_list_response import EventsListResponse
 from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
 
-# urllib3's own base for every failure it raises — a refused connection, an
-# unresolvable host, a spent retry bound. Nothing to do with the identically
-# named `urllib.error.HTTPError`, which means "the server answered, with a
-# non-2xx"; aliased here so the two are not read as the same thing.
 from urllib3.exceptions import HTTPError as TransportError
 
 from alert_triage.configuration.settings import Ingestion
