@@ -97,5 +97,5 @@ the whole verification this group gets, and is what it is entitled to.
   (`docs/live-testing.md`) — this change touches composed URLs and connection
   parameters, which a green local run does not establish. State plainly whether
   they were run.
-- [ ] 6.3 `openspec validate specialist-belongs-to-its-signal`, then
+- [x] 6.3 `openspec validate specialist-belongs-to-its-signal`, then
   `/opsx:archive`.

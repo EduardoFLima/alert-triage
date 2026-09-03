@@ -64,3 +64,8 @@ page.
 - **WHEN** a contributor wants one specialist to draw on two providers
 - **THEN** the guide tells them to name the provider on each toolset, and does
   not send them to choose which provider's directory the declaration lives in
+
+#### Scenario: Dependencies are reproducible
+
+- **WHEN** the project's dependencies are installed from the committed lockfile
+- **THEN** the resolved versions are identical across machines and in CI
