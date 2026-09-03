@@ -809,6 +809,32 @@ testable, building only on the slices before it.
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.
+
+    It inherits one thing worth fixing while it is in there. `MAX_CONSULTATIONS`
+    sits in `adapters/adk/consultation.py`, stated where it is enforced — the
+    same convention `CONNECT_TIMEOUT_SECONDS` follows, and unobjectionable while
+    only the enforcing adapter reads it. But the Diagnostician's instruction
+    interpolates it too, so after slice 10 that constant is the *only* import
+    `adapters/crew/` makes from `adapters/adk/`: a declaration reaching into the
+    machinery for a number, in a tree whose point is that declarations do not
+    know the framework. Nothing in the constant's own justification is about
+    ADK — it counts questions rather than specialists, and eight is chosen
+    against `len(CREW)`.
+
+    The bound has two claimants that must never disagree: what the manager is
+    *told* it has, and what is *enforced*. Both should read one value neither
+    owns, which is `investigation/domain/` now and `configuration/settings.py`
+    once this slice makes it configurable — at which point the constant becomes
+    the default beside the setting rather than something that moves twice.
+    Deliberately left alone in slice 10, because moving it is this slice's work
+    and doing it there would have been a behaviour-preserving move carrying a
+    design change.
+
+    Worth enforcing rather than re-noticing: `crew` may not import `adk`. The
+    machinery depends on the declarations and never the reverse, which is a
+    forbidden contract in `.importlinter` — shown red against a deliberate
+    `crew → adk` import before it is trusted green, like every other contract
+    here.
 13. **CI gate failure-mode confirmation** — *done.* The leftover of slice 0:
     a deliberate lint error, a type error, and a boundary violation, each pushed
     alone to a scratch branch, each producing a red run naming the ruff rule and
