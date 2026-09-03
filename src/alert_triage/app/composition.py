@@ -27,17 +27,21 @@ from alert_triage.configuration.adapters.yaml.loader import (
 )
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
-from alert_triage.investigation.adapters.adk.agent import Deployment
+from alert_triage.investigation.adapters.adk.agent import Deployment, PlatformAccess
 from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
-from alert_triage.investigation.adapters.adk.crew import crew_for
 from alert_triage.investigation.adapters.adk.investigator import (
     AdkInvestigator,
     report_with_adk,
     run_with_adk,
 )
 from alert_triage.investigation.adapters.adk.model import build_model
+from alert_triage.investigation.adapters.crew.roster import crew_for
 from alert_triage.investigation.adapters.datadog.links import DatadogLinks
-from alert_triage.investigation.adapters.datadog.mcp import mcp_endpoint, mcp_headers
+from alert_triage.investigation.adapters.datadog.mcp import (
+    DATADOG,
+    mcp_endpoint,
+    mcp_headers,
+)
 from alert_triage.investigation.ports.investigator import Investigator
 from alert_triage.notification.adapters.email.notifier import EmailNotifier
 from alert_triage.notification.adapters.email.settings import resolve_email_settings
@@ -201,15 +205,19 @@ def build_investigator(
         return default if named is None else build_model(named, access)
 
     deployment = Deployment(
-        endpoint=mcp_endpoint(datadog_connection.site),
-        headers=mcp_headers(
-            api_key=datadog_connection.api_key,
-            app_key=datadog_connection.app_key,
-        ),
+        platforms={
+            DATADOG: PlatformAccess(
+                endpoint=mcp_endpoint(datadog_connection.site),
+                headers=mcp_headers(
+                    api_key=datadog_connection.api_key,
+                    app_key=datadog_connection.app_key,
+                ),
+            )
+        },
         model_for=_model_for,
     )
     return AdkInvestigator(
-        crew=crew_for(investigation.specialists),
+        crew=crew_for(investigation.specialists, providers=set(deployment.platforms)),
         links=DatadogLinks(datadog_connection.web_host),
         run_diagnostician=run_with_adk(deployment),
         run_report=report_with_adk(deployment),

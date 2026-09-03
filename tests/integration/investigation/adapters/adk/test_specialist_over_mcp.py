@@ -30,13 +30,14 @@ from pydantic import Field
 
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
+    PlatformAccess,
     build_agent,
     connection_for,
 )
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import run_agent
-from alert_triage.investigation.adapters.datadog.specialists.logs import (
+from alert_triage.investigation.adapters.crew.specialists.logs import (
     ReportedFindings,
 )
 from alert_triage.investigation.contract import (
@@ -109,7 +110,7 @@ def _specialist() -> Specialist:
         signal=Signal.LOGS,
         instruction="Search the logs and report what recurs.",
         output_schema=ReportedFindings,
-        toolsets=(Toolset(name="core", tools=(SEARCH, AGGREGATE)),),
+        toolsets=(Toolset(provider="datadog", name="core", tools=(SEARCH, AGGREGATE)),),
     )
 
 
@@ -159,8 +160,12 @@ def _reports(cites: list[str]) -> types.Content:
 
 def _deployment(platform: str, model: BaseLlm) -> Deployment:
     return Deployment(
-        endpoint=platform,
-        headers={"DD_API_KEY": "api", "DD_APPLICATION_KEY": "app"},
+        platforms={
+            "datadog": PlatformAccess(
+                endpoint=platform,
+                headers={"DD_API_KEY": "api", "DD_APPLICATION_KEY": "app"},
+            )
+        },
         model_for=lambda named: model,
     )
 
@@ -197,7 +202,7 @@ def test_the_toolset_exposes_only_the_tools_the_declaration_named(
 ) -> None:
     toolset = McpToolset(
         connection_params=connection_for(
-            Toolset(name="core", tools=(SEARCH,)),
+            Toolset(provider="datadog", name="core", tools=(SEARCH,)),
             _deployment(platform, _ScriptedModel(model="scripted")),
         ),
         tool_filter=[SEARCH],

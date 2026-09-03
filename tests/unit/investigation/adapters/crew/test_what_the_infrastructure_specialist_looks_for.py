@@ -7,7 +7,7 @@ is an answer, because a model told to find the workload will otherwise keep
 asking, or report the absence as something wrong.
 """
 
-from alert_triage.investigation.adapters.datadog.specialists.infrastructure import (
+from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_INSTRUCTION,
     INFRASTRUCTURE_SPECIALIST,
     InfrastructureFinding,

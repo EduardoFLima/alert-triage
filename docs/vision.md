@@ -747,7 +747,8 @@ testable, building only on the slices before it.
    signal that was clean. Testable against canned findings, with the routing
    testable by asserting which specialists a stubbed manager was offered and
    which it called.
-10. **A specialist belongs to its signal, not to one platform** — `adapters/`
+10. **A specialist belongs to its signal, not to one platform** — *done.*
+    `adapters/`
     splits by framework and platform, which files each specialist under the one
     vendor it happens to query today. That is about to stop being true: the
     GitHub deploy-history correlation on the roadmap lands on the APM
@@ -783,11 +784,22 @@ testable, building only on the slices before it.
     move is entitled to: the evaluation harness would score it identically, and
     this does not wait on a roadmap entry to prove a move changed nothing.
 
-    One question it must answer rather than inherit: once a Datadog logs
+    One question it had to answer rather than inherit: once a Datadog logs
     specialist and a Grafana one can sit side by side, both are offered to the
-    Diagnostician and the same signal is consulted twice. Which crew a
-    deployment runs becomes a configuration question, adjacent to the open one
-    about naming agents under `investigation.specialists`.
+    Diagnostician and the same signal is consulted twice. **Answered by what the
+    deployment configured, not by a new setting.** A declaration is offered when
+    every provider its toolsets name is one the deployment holds, so a
+    deployment with only Datadog credentials never sees the Grafana specialist
+    and nothing is consulted twice. Every, not any: a specialist reaching two
+    providers where only one is configured is left unoffered rather than run
+    against half the evidence it was declared to gather. A deployment holding no
+    provider at all is refused while the run is still being assembled.
+
+    An explicit per-deployment allowlist was considered and rejected as a key
+    that answers a question credentials already answer. It stays available for
+    the deployment that configures two providers and still wants one specialist
+    per signal — at which point it joins the open question about naming agents
+    under `investigation.specialists`, rather than pre-empting it.
 
     Testable by the suite it already has, which is the point: the move changes
     no behaviour, so every existing test passes unmoved, and the provider change
@@ -801,6 +813,32 @@ testable, building only on the slices before it.
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.
+
+    It inherits one thing worth fixing while it is in there. `MAX_CONSULTATIONS`
+    sits in `adapters/adk/consultation.py`, stated where it is enforced — the
+    same convention `CONNECT_TIMEOUT_SECONDS` follows, and unobjectionable while
+    only the enforcing adapter reads it. But the Diagnostician's instruction
+    interpolates it too, so after slice 10 that constant is the *only* import
+    `adapters/crew/` makes from `adapters/adk/`: a declaration reaching into the
+    machinery for a number, in a tree whose point is that declarations do not
+    know the framework. Nothing in the constant's own justification is about
+    ADK — it counts questions rather than specialists, and eight is chosen
+    against `len(CREW)`.
+
+    The bound has two claimants that must never disagree: what the manager is
+    *told* it has, and what is *enforced*. Both should read one value neither
+    owns, which is `investigation/domain/` now and `configuration/settings.py`
+    once this slice makes it configurable — at which point the constant becomes
+    the default beside the setting rather than something that moves twice.
+    Deliberately left alone in slice 10, because moving it is this slice's work
+    and doing it there would have been a behaviour-preserving move carrying a
+    design change.
+
+    Worth enforcing rather than re-noticing: `crew` may not import `adk`. The
+    machinery depends on the declarations and never the reverse, which is a
+    forbidden contract in `.importlinter` — shown red against a deliberate
+    `crew → adk` import before it is trusted green, like every other contract
+    here.
 13. **CI gate failure-mode confirmation** — *done.* The leftover of slice 0:
     a deliberate lint error, a type error, and a boundary violation, each pushed
     alone to a scratch branch, each producing a red run naming the ruff rule and

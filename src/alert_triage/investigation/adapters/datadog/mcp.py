@@ -12,6 +12,16 @@ the guarantee that a deployment able to fetch alerts is able to investigate
 them without either side importing the other.
 """
 
+DATADOG = "datadog"
+"""What a declaration names to say that Datadog serves one of its toolsets.
+
+A constant here rather than an enum in the domain. An enum would put every
+provider's name in one closed list the domain owns, so adding a provider would
+mean editing the core to say it exists — the opposite of what naming providers
+per toolset is for. A constant beside the plumbing that resolves it keeps a
+typo out of a declaration without making the domain the registry.
+"""
+
 API_KEY_HEADER = "DD_API_KEY"
 APP_KEY_HEADER = "DD_APPLICATION_KEY"
 """What the MCP server calls the application key.

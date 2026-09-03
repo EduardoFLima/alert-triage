@@ -13,16 +13,17 @@ from pydantic import BaseModel
 
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
+    PlatformAccess,
     build_agent,
     build_manager,
     build_reasoner,
 )
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
-from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
+from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     DIAGNOSTICIAN,
 )
-from alert_triage.investigation.adapters.adk.reasoners.report import REPORT_WRITER
+from alert_triage.investigation.adapters.crew.reasoners.report import REPORT_WRITER
 from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -37,7 +38,9 @@ def _specialist(name: str, signal: Signal) -> Specialist:
         signal=signal,
         instruction="Look.",
         output_schema=_Reported,
-        toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
+        toolsets=(
+            Toolset(provider="datadog", name="core", tools=("search_datadog_logs",)),
+        ),
     )
 
 
@@ -49,8 +52,11 @@ CREW = (
 
 def _deployment() -> Deployment:
     return Deployment(
-        endpoint="https://mcp.example/api",
-        headers={"DD-API-KEY": "key"},
+        platforms={
+            "datadog": PlatformAccess(
+                endpoint="https://mcp.example/api", headers={"DD-API-KEY": "key"}
+            )
+        },
         model_for=lambda named: named or "gemini-2.5-flash",
     )
 

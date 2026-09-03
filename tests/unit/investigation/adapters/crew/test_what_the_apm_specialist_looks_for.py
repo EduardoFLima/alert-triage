@@ -5,7 +5,7 @@ what its instruction names have to agree, and the cheapest way for them to
 disagree is a copy-paste, so both directions are asserted.
 """
 
-from alert_triage.investigation.adapters.datadog.specialists.apm import (
+from alert_triage.investigation.adapters.crew.specialists.apm import (
     APM_INSTRUCTION,
     APM_SPECIALIST,
     ApmFinding,

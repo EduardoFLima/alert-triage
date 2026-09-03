@@ -15,8 +15,8 @@ this exists to remove, one indirection out.
 
 import pytest
 
-from alert_triage.investigation.adapters.adk.crew import CREW
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+from alert_triage.investigation.adapters.crew.roster import CREW
+from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,

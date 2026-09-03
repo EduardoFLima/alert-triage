@@ -84,28 +84,42 @@ starts the re-notify cooldown on it.
 
 This one is not a port, and the steps above do not apply. There is nothing to
 implement and no set of methods to finish before anything runs: a specialist is
-one value, declared whole, under the platform it queries:
-`investigation/adapters/<platform>/specialists/`. A platform this project has
-never reached is a directory of your own beside `datadog/`, holding how its MCP
-server is addressed and every specialist declared against it.
+one value, declared whole, and it lives with the rest of the crew in
+`investigation/adapters/crew/specialists/` — not under the provider it queries.
+Each of its toolsets names the provider serving that group of tools, and a
+declaration may name more than one, so filing it by platform would give it a
+choice of two homes and no honest answer.
+
+A provider this project has never reached is a directory of your own beside
+`datadog/`, holding how its MCP server is addressed, how the items it returns
+are addressed, and the constant your declarations name it by.
 
 | Yours to declare | What it is |
 |---|---|
 | `name` | what the specialist is called, in the agent and in `config.yaml` |
 | `signal` | the dimension its findings are drawn from |
-| `instruction` | what it looks for, in your platform's own terms — including its query dialect, which is not translatable |
+| `instruction` | what it looks for, in your providers' own terms — including their query dialects, which are not translatable |
 | `output_schema` | the shape it reports in. It cites what it was shown; there is no field to write evidence into |
-| `toolsets` | the toolsets on your platform's MCP server, and the tool names within each that this specialist may reach |
+| `toolsets` | one per group of tools, each naming the provider serving it, the group as that provider names it, and the tools within it this specialist may reach |
 | `model` | optional, where this specialist needs a different model from its siblings |
 
-The deployment supplies the rest — the platform's endpoint, the credentials
-that authenticate against it, and the model every specialist reasons on unless
-it named its own. None of that is written into a declaration, so the same
+The deployment supplies the rest — where each provider is, the credentials that
+authenticate against each, and the model every specialist reasons on unless it
+named its own. None of that is written into a declaration, so the same
 specialist runs against another account unchanged.
 
-Copy `investigation/adapters/datadog/specialists/logs.py`, swap its tool names
-and its instruction, and add it to the crew in
-`investigation/adapters/adk/crew.py`. Its tests are the ones that file
+**A deployment offers only the specialists it can reach.** A declaration is
+offered to the Diagnostician when every provider its toolsets name is one the
+deployment configured, and is left unoffered otherwise — so your specialist
+needs its providers' endpoints and credentials in the environment before it
+will run at all. That is also what keeps a signal from being consulted twice
+once two providers can serve it: a deployment holding one provider's
+credentials sees one specialist for that signal, and nobody has to name a crew
+anywhere.
+
+Copy `investigation/adapters/crew/specialists/logs.py`, swap its tool names and
+its instruction, and add it to the roster in
+`investigation/adapters/crew/roster.py`. Its tests are the ones that file
 already carries: the instruction asks for what you think it asks for, the
 declaration reaches no tool outside it, and its schema builds findings at both
 citation grains — all without constructing an agent or reaching a model.

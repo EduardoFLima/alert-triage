@@ -1,4 +1,4 @@
-from alert_triage.investigation.adapters.adk.reasoners.report import (
+from alert_triage.investigation.adapters.crew.reasoners.report import (
     REPORT_INSTRUCTION,
     REPORT_WRITER,
     Worded,

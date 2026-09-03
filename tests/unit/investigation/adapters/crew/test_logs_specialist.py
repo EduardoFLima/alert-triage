@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from alert_triage.investigation.adapters.adk.crew import CREW
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
-from alert_triage.investigation.adapters.datadog.specialists.logs import (
+from alert_triage.investigation.adapters.crew.roster import CREW
+from alert_triage.investigation.adapters.crew.specialists.logs import (
     LOGS_INSTRUCTION,
     LOGS_SPECIALIST,
     LogsFinding,

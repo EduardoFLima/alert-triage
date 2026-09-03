@@ -147,6 +147,12 @@ contributor's and which are supplied by the deployment, and that one working
 specialist is a complete contribution rather than the first of a set that must
 all be finished before anything runs.
 
+The guide SHALL locate a specialist's declaration by the crew it joins rather
+than by the provider it queries, and SHALL state that each group of tools a
+declaration names carries the provider serving it, so that a specialist drawing
+on two providers is one declaration in one place. It SHALL state what a
+deployment must configure for such a specialist to be offered at all.
+
 The guide SHALL also state what the project cannot check for such a
 contribution: nothing verifies that an instruction is any good, which is what
 the evaluation harness is for.
@@ -174,8 +180,9 @@ page.
 - **WHEN** a contributor wants to investigate with their own observability
   platform
 - **THEN** the extension guide tells them to declare a specialist — its tools,
-  its instruction, its schema, and its signal — where that declaration belongs,
-  and what tests it is expected to carry
+  the provider serving each group of them, its instruction, its schema, and its
+  signal — that the declaration belongs with the crew rather than under a
+  provider's own directory, and what tests it is expected to carry
 
 #### Scenario: One specialist is a complete contribution
 
@@ -184,6 +191,12 @@ page.
 - **THEN** the extension guide makes clear that it runs and contributes
   findings on its own, without any other specialist for that platform
   existing
+
+#### Scenario: A specialist drawing on two providers
+
+- **WHEN** a contributor wants one specialist to draw on two providers
+- **THEN** the guide tells them to name the provider on each toolset, and does
+  not send them to choose which provider's directory the declaration lives in
 
 #### Scenario: Dependencies are reproducible
 

@@ -60,7 +60,13 @@ def _asks_about_containers() -> Specialist:
         signal=Signal.LOGS,
         instruction="Look at what the service runs on.",
         output_schema=_Reported,
-        toolsets=(Toolset(name="kubernetes", tools=("search_datadog_k8s_resources",)),),
+        toolsets=(
+            Toolset(
+                provider="datadog",
+                name="kubernetes",
+                tools=("search_datadog_k8s_resources",),
+            ),
+        ),
     )
 
 
