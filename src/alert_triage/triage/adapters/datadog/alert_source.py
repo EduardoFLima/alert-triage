@@ -19,7 +19,6 @@ from datadog_api_client.v2.model.events_list_request import EventsListRequest
 from datadog_api_client.v2.model.events_list_response import EventsListResponse
 from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
-
 from urllib3.exceptions import HTTPError as TransportError
 
 from alert_triage.configuration.settings import Ingestion
