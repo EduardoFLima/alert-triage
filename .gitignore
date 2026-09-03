@@ -7,8 +7,9 @@ venv/
 .env.*
 !.env.example
 
-# Behaviour config
+# Behaviour config, and the compose fragment that mounts it into a container
 config.yaml
+compose.override.yaml
 
 # Local run state: the default ledger lands here, and it is a run's history
 data/

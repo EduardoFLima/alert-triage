@@ -10,8 +10,10 @@
 .env
 .env.*
 
-# Behaviour config: a deployment's own, never baked into a shared image.
+# Behaviour config: a deployment's own, never baked into a shared image. The
+# override names a host path, so it means nothing to a build in any case.
 config.yaml
+compose.override.yaml
 
 # Local run state — someone's real incident history.
 data/
