@@ -40,10 +40,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 # The ledger's default is relative to the working directory, which inside a
 # container means the history dies with the run — dedup, continuation and the
 # re-notify cooldown all stop working while the run still exits 0. An absolute
-# path states where a durable mount belongs, and cannot be confused with the
-# data/ directory a checkout keeps. This is the path docs/configuration.md
-# already gives as its example.
-ENV ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/ledger.db
+# path states where a durable mount belongs. Only the directory differs from
+# the default: the filename stays alert_triage.db so that mounting a checkout's
+# own data/ here continues that checkout's history rather than starting a
+# second one beside it.
+ENV ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/alert_triage.db
 
 # Deliberately no VOLUME. Declaring one makes the runtime invent an anonymous
 # volume per run, so an operator who mounted nothing gets a ledger that appears

@@ -159,6 +159,23 @@ point it at a `config.yaml`, mount that too:
 docker run --rm -v ./config.yaml:/app/config.yaml:ro ... alert-triage
 ```
 
+To carry on from the history a local run already built, mount the checkout's
+own `data/` instead of a named volume. The image keeps the ledger under the
+same filename a local run uses, so the two share one file rather than opening
+a ledger each:
+
+```bash
+docker run --rm \
+  -v ./data:/var/lib/alert-triage \
+  --env-file .env \
+  alert-triage
+```
+
+That is the case the UID note above applies to: on Linux the host `data/` must
+be owned by UID 10001, and a `sudo chown -R 10001:10001 data` is the whole of
+it. Where you only want a run to remember its own previous run, the named
+volume asks nothing of the host and is the better default.
+
 For a repeat local run, `compose.yaml` writes the mount and the `.env` down
 once so the second run reaches the first run's ledger:
 
@@ -184,7 +201,7 @@ What a run did goes in its exit status, which is what a scheduler acts on:
 
 ## Development
 
-The five commands below are exactly what CI runs — nothing more, nothing
+The four commands below are exactly what CI runs — nothing more, nothing
 CI-only:
 
 ```bash
@@ -192,13 +209,14 @@ uv run ruff check src tests      # lint
 uv run ruff format --check src tests
 uv run mypy                      # strict type checking
 uv run pytest                    # full suite, with coverage
-docker build -t alert-triage .   # the image the run ships as
 ```
 
-The build is its own step so that a Dockerfile which stops building fails as a
-build rather than as a puzzling test error. The tests that exercise the built
-image skip — saying so under `-rs` — where no container runtime is available,
-which is why a checkout without Docker still runs green.
+CI builds the image as its own step ahead of the tests, so that a Dockerfile
+which stops building fails as a build rather than as a puzzling test error.
+You do not need a fifth command to match it: the tests that exercise the image
+build one on demand when nothing has named one already, and skip — saying so
+under `-rs` — where no container runtime is available, which is why a checkout
+without Docker still runs green.
 
 Useful selections while working:
 

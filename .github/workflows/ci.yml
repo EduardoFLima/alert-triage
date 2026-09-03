@@ -1,9 +1,8 @@
 name: CI
 
 # The gate is the four commands from the README's Development section, in the
-# same order, plus the image build — which is a fifth thing a developer can run
-# locally too. Nothing CI-only lives here, so a green local run predicts green
-# CI.
+# same order, with the image build hoisted ahead of the tests. Nothing CI-only
+# lives here, so a green local run predicts green CI.
 
 on:
   push:
@@ -50,9 +49,6 @@ jobs:
       - name: Type check
         run: uv run mypy
 
-      # Its own step, before the tests, so a Dockerfile that stops building
-      # fails as a build naming the step rather than as a confusing test error.
-      # The tests then reuse this tag instead of each racing to build one.
       - name: Build the image
         run: docker build --tag alert-triage:ci .
 

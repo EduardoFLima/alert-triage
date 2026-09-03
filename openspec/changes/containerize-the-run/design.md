@@ -45,10 +45,15 @@ time someone appended something; and because the console script is what the
 README already documents. Exec form rather than shell form so no `sh` sits
 between the signal and the process.
 
-**The ledger lives at `/var/lib/alert-triage/`, set as `ENV` in the image, and
-the image declares no `VOLUME`.** The `ENV` means the operator does not have to
-know the variable to get a working default, and an absolute path under
-`/var/lib` cannot be confused with the `data/` directory in the build context.
+**The ledger lives at `/var/lib/alert-triage/alert_triage.db`, set as `ENV` in
+the image, and the image declares no `VOLUME`.** The `ENV` means the operator
+does not have to know the variable to get a working default, and an absolute
+path under `/var/lib` does not depend on where the image happens to `WORKDIR`.
+Only the *directory* differs from the checkout default: the filename stays
+`alert_triage.db`, so mounting a checkout's own `data/` at that directory
+continues that checkout's ledger instead of opening a second one beside it.
+A distinct `ledger.db` was written first and changed on review — two names for
+one thing bought nothing and quietly made the two paths unshareable.
 Alternative: leave the default `data/alert_triage.db` relative to the working
 directory and mount over it. Rejected because it makes the mount point depend on
 where the image happens to `WORKDIR`. The `VOLUME` omission is the deliberate
@@ -110,6 +115,15 @@ than each test racing to build one. Alternative: let the tests build on demand.
 Rejected because a build failure would then surface as a confusing test error
 instead of a named build step, and because the build is worth failing on even if
 the smoke tests skip.
+
+**The build is not a fifth command in the local per-change loop.** It was added
+to `AGENTS.md` as one and removed on review: the four fast commands are what a
+developer runs constantly, and a container build does not belong in a loop that
+tight. Nothing is lost, because the `image` fixture builds on demand when no
+gate has named a tag — so `uv run pytest` already covers the image wherever a
+runtime exists, and CI's own step remains the thing that never skips. Running
+`docker build` by hand stays worthwhile only when the Dockerfile or the
+dependency set is what is changing and the failure is wanted in isolation.
 
 ## Risks / Trade-offs
 

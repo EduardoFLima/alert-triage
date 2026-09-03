@@ -13,6 +13,8 @@ second run finds what the first one left rather than writing over it.
 import subprocess
 from collections.abc import Callable
 
+from alert_triage.triage.adapters.sqlite import DEFAULT_LEDGER_PATH
+
 PackagedRun = Callable[..., subprocess.CompletedProcess[str]]
 
 LEDGER_DIRECTORY = "/var/lib/alert-triage"
@@ -87,6 +89,32 @@ def test_a_configured_run_leaves_its_ledger_on_the_mount(
     )
 
     assert _contents_of(run_image, ledger_volume).strip() != ""
+
+
+def test_the_ledger_takes_the_name_a_run_from_a_checkout_would_give_it(
+    run_image: PackagedRun,
+    configured_environment: dict[str, str],
+    ledger_volume: str,
+) -> None:
+    """Only the directory differs from the default, never the filename.
+
+    The README tells an operator to mount a checkout's own ``data/`` here to
+    carry on from the history a local run built. That only works while both
+    resolve to one file: a container writing some other name would sit beside
+    the checkout's ledger reporting everything afresh, with two plausible
+    databases in one directory and nothing saying which is live.
+
+    Taken from the source rather than written out, so the two cannot drift.
+    """
+    run_image(
+        environment=configured_environment,
+        mounts={ledger_volume: LEDGER_DIRECTORY},
+        network="none",
+    )
+
+    left_behind = _contents_of(run_image, ledger_volume).split()
+
+    assert DEFAULT_LEDGER_PATH.name in left_behind
 
 
 def test_a_second_container_keeps_what_the_first_one_left(

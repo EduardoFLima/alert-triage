@@ -123,13 +123,19 @@ uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy
 uv run pytest
-docker build -t alert-triage .
 ```
 
-All five must pass. A green local run is meant to predict a green CI run — if
-it does not, fix the discrepancy rather than working around it. The container
-tests skip, saying so under `-rs`, where no runtime is available; the build is
-what CI never skips.
+All four must pass. A green local run is meant to predict a green CI run — if
+it does not, fix the discrepancy rather than working around it.
+
+**The image is not a fifth command.** CI builds it as its own step, ahead of
+the tests, so a Dockerfile that stops building fails as a build naming the
+instruction rather than as a puzzling test error. Locally you get the same
+coverage without asking for it: the container tests build an image on demand
+when no gate has named one, and they skip — saying so under `-rs` — where no
+runtime is available. Run `docker build -t alert-triage .` by hand only when
+you are changing the Dockerfile or the dependency set and want the build's
+failure separated from the tests'.
 
 **When you add a file the run reads at runtime**, check the `Dockerfile`. It
 copies by name rather than wholesale — `pyproject.toml`, `uv.lock`, `README.md`,

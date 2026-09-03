@@ -23,11 +23,18 @@ services:
       - path: .env
         required: false
 
-    # The history, kept outside the container that wrote it. A named volume
-    # rather than a bind mount because it is initialised with the image's own
-    # ownership, so the run writes it with no host-side permission work. A bind
-    # mount to a host directory works on Docker Desktop, which ignores
-    # ownership, but on Linux the directory must be owned by UID 10001.
+    # The history, kept outside the container that wrote it, under the same
+    # filename a local run uses — so swapping the source below for ./data
+    # continues a checkout's own ledger rather than opening a second one.
+    #
+    # A named volume is the default here rather than that bind mount, because a
+    # named volume is initialised with the image's own ownership and so asks
+    # nothing of the host. A host directory arrives owned by whoever created it:
+    # on Docker Desktop that is ignored, but on Linux it must be owned by UID
+    # 10001 or the run cannot write. A default that works on one developer's
+    # machine and fails on the next is not a default. The README's container
+    # section gives the bind mount for when sharing the checkout's ledger is
+    # what you actually want.
     volumes:
       - ledger:/var/lib/alert-triage
 
