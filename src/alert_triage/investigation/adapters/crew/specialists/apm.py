@@ -23,13 +23,14 @@ grain.
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
 )
-from alert_triage.investigation.adapters.datadog.specialists.preview import (
+from alert_triage.investigation.adapters.datadog.mcp import DATADOG
+from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
@@ -250,6 +251,7 @@ def apm_specialist(*, preview: bool) -> Specialist:
     if preview:
         return _declared(
             Toolset(
+                provider=DATADOG,
                 name=CORE_TOOLSET,
                 tools=(
                     METRIC_TOOL,
@@ -261,6 +263,7 @@ def apm_specialist(*, preview: bool) -> Specialist:
                 ),
             ),
             Toolset(
+                provider=DATADOG,
                 name=APM_TOOLSET,
                 tools=(
                     BOTTLENECK_TOOL,
@@ -274,6 +277,7 @@ def apm_specialist(*, preview: bool) -> Specialist:
 
     return _declared(
         Toolset(
+            provider=DATADOG,
             name=CORE_TOOLSET,
             tools=(
                 METRIC_TOOL,

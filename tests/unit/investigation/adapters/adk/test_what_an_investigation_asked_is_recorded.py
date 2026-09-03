@@ -25,14 +25,16 @@ LOGS = Specialist(
     signal=Signal.LOGS,
     instruction="Look at the logs.",
     output_schema=_Reported,
-    toolsets=(Toolset(name="core", tools=("search_datadog_logs",)),),
+    toolsets=(
+        Toolset(provider="datadog", name="core", tools=("search_datadog_logs",)),
+    ),
 )
 APM = Specialist(
     name="apm_specialist",
     signal=Signal.APM,
     instruction="Look at the golden signals.",
     output_schema=_Reported,
-    toolsets=(Toolset(name="core", tools=("get_datadog_metric",)),),
+    toolsets=(Toolset(provider="datadog", name="core", tools=("get_datadog_metric",)),),
 )
 
 

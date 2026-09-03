@@ -13,7 +13,7 @@ import re
 
 import pytest
 
-from alert_triage.investigation.adapters.adk.crew import CREW
+from alert_triage.investigation.adapters.crew.roster import CREW
 from alert_triage.investigation.domain.specialist import Specialist
 
 QUOTED_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")

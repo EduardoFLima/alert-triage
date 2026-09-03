@@ -218,7 +218,7 @@ flowchart LR
             InvContract["contract<br/>InvestigationTarget · Findings"]
             InvDomain["domain<br/>Specialist · citation discipline"]
             InvPorts["ports<br/>Investigator"]
-            InvAdapters["adapters<br/>adk (framework)<br/>datadog (platform)"]
+            InvAdapters["adapters<br/>crew (declarations)<br/>adk (framework)<br/>datadog (a provider)"]
             InvAdapters --> InvPorts --> InvDomain --> InvContract
         end
 
@@ -264,7 +264,8 @@ src/alert_triage/
 ├── investigation/  contract.py, and everything private behind it
 │   ├── domain/     what a specialist is; what may be cited; what an account shows
 │   ├── ports/      Investigator: the one question this context answers
-│   └── adapters/   adk (the framework, and the two reasoners) · datadog
+│   └── adapters/   crew (specialists · reasoners · roster) · adk (the
+│                   framework) · datadog (one provider's plumbing)
 ├── notification/   contract.py, the Notifier port, and the channels
 │   └── adapters/   email · teams · fan-out over every configured channel
 └── app/            composition root: the only place adapters are named,
@@ -283,11 +284,13 @@ found by the module's own path.
 Two kinds of extension, and they have different shapes. **Most of it is a port
 to implement** — a notification channel under `notification/adapters/`, the
 triage ledger or an alert source under `triage/adapters/`. **Observability
-tooling is a platform to add** — a directory under
-`investigation/adapters/`, holding how its MCP server is reached and the
-specialists declared against it. A specialist is one value: the platform's
-tools and the instruction that uses them, and a single one is a complete
-contribution. Both guides are in [`docs/adapters.md`](docs/adapters.md).
+tooling is a specialist to declare** — one value under
+`investigation/adapters/crew/specialists/`, naming the tools it may reach and
+the provider serving each group of them, plus the instruction that uses them. A
+single specialist is a complete contribution. A provider nothing has reached
+yet is a directory under `investigation/adapters/` beside `datadog/`, holding
+how its MCP server is reached and how its items are addressed. Both guides are
+in [`docs/adapters.md`](docs/adapters.md).
 
 ## License
 

@@ -7,6 +7,7 @@ and from the deployment it runs in.
 
 from typing import Any
 
+import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from pydantic import BaseModel
 
@@ -14,6 +15,7 @@ from alert_triage.investigation.adapters.adk.agent import (
     CONNECT_TIMEOUT_SECONDS,
     READ_TIMEOUT_SECONDS,
     Deployment,
+    PlatformAccess,
     build_agent,
     connection_for,
 )
@@ -37,7 +39,9 @@ def _specialist(
     name: str = "logs_specialist",
     instruction: str = "Look at the logs and report what recurs.",
     model: str | None = None,
-    toolsets: tuple[Toolset, ...] = (Toolset(name="core", tools=("search_logs",)),),
+    toolsets: tuple[Toolset, ...] = (
+        Toolset(provider="datadog", name="core", tools=("search_logs",)),
+    ),
 ) -> Specialist:
     return Specialist(
         name=name,
@@ -54,9 +58,31 @@ def _deployment(
     headers: dict[str, str] | None = None,
     default: str = "a-default-model",
 ) -> Deployment:
+    """A deployment holding the one provider these declarations name."""
     return Deployment(
-        endpoint=endpoint,
-        headers=headers or {"DD_API_KEY": "key", "DD_APPLICATION_KEY": "app"},
+        platforms={
+            "datadog": PlatformAccess(
+                endpoint=endpoint,
+                headers=headers or {"DD_API_KEY": "key", "DD_APPLICATION_KEY": "app"},
+            )
+        },
+        model_for=lambda named: named or default,
+    )
+
+
+def _over_two_providers(default: str = "a-default-model") -> Deployment:
+    """A deployment holding two providers, each at its own address and key."""
+    return Deployment(
+        platforms={
+            "datadog": PlatformAccess(
+                endpoint="https://mcp.datadoghq.com/v1/mcp",
+                headers={"DD_API_KEY": "key"},
+            ),
+            "deploy_history": PlatformAccess(
+                endpoint="https://deploys.example/mcp",
+                headers={"AUTHORIZATION": "Bearer other"},
+            ),
+        },
         model_for=lambda named: named or default,
     )
 
@@ -82,7 +108,11 @@ def test_an_agent_is_built_from_the_declaration_and_nothing_else() -> None:
 
 def test_the_toolset_is_filtered_to_the_tools_the_declaration_named() -> None:
     specialist = _specialist(
-        toolsets=(Toolset(name="core", tools=("search_logs", "aggregate_logs")),)
+        toolsets=(
+            Toolset(
+                provider="datadog", name="core", tools=("search_logs", "aggregate_logs")
+            ),
+        )
     )
 
     agent = build_agent(specialist, _deployment(), Retrieved())
@@ -99,7 +129,7 @@ def test_a_tool_the_declaration_did_not_name_is_not_among_the_ones_exposed() -> 
 
 def test_the_endpoint_asks_the_platform_for_the_declared_toolsets() -> None:
     connection = connection_for(
-        Toolset(name="core", tools=("search_logs",)), _deployment()
+        Toolset(provider="datadog", name="core", tools=("search_logs",)), _deployment()
     )
 
     assert connection.url == "https://mcp.datadoghq.com/v1/mcp?toolsets=core"
@@ -108,8 +138,8 @@ def test_the_endpoint_asks_the_platform_for_the_declared_toolsets() -> None:
 def test_a_specialist_declaring_several_toolsets_gets_one_each() -> None:
     specialist = _specialist(
         toolsets=(
-            Toolset(name="core", tools=("search_logs",)),
-            Toolset(name="apm", tools=("list_spans",)),
+            Toolset(provider="datadog", name="core", tools=("search_logs",)),
+            Toolset(provider="datadog", name="apm", tools=("list_spans",)),
         )
     )
 
@@ -118,9 +148,74 @@ def test_a_specialist_declaring_several_toolsets_gets_one_each() -> None:
     assert _permitted(agent) == [["search_logs"], ["list_spans"]]
 
 
+def test_each_toolset_reaches_the_server_of_the_provider_it_named() -> None:
+    """The whole point of the slice: two toolsets, two servers, one deployment."""
+    deployment = _over_two_providers()
+
+    logs = connection_for(
+        Toolset(provider="datadog", name="core", tools=("search_logs",)), deployment
+    )
+    deploys = connection_for(
+        Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+        deployment,
+    )
+
+    assert logs.url == "https://mcp.datadoghq.com/v1/mcp?toolsets=core"
+    assert deploys.url == "https://deploys.example/mcp?toolsets=releases"
+
+
+def test_each_toolset_authenticates_with_its_own_providers_credentials() -> None:
+    deployment = _over_two_providers()
+
+    logs = connection_for(
+        Toolset(provider="datadog", name="core", tools=("search_logs",)), deployment
+    )
+    deploys = connection_for(
+        Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+        deployment,
+    )
+
+    assert logs.headers == {"DD_API_KEY": "key"}
+    assert deploys.headers == {"AUTHORIZATION": "Bearer other"}
+
+
+def test_one_specialist_may_gather_from_two_providers_at_once() -> None:
+    specialist = _specialist(
+        toolsets=(
+            Toolset(provider="datadog", name="core", tools=("search_logs",)),
+            Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+        )
+    )
+
+    agent = build_agent(specialist, _over_two_providers(), Retrieved())
+
+    assert _permitted(agent) == [["search_logs"], ["list_tags"]]
+
+
+def test_a_toolset_naming_a_provider_the_deployment_does_not_hold_is_refused() -> None:
+    """Named rather than guessed.
+
+    Resolving it against whichever server happens to be configured is how a
+    specialist silently queries the wrong platform and reports the answer.
+    """
+    with pytest.raises(KeyError, match="deploy_history"):
+        connection_for(
+            Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+            _deployment(),
+        )
+
+
+def test_the_refusal_says_which_providers_the_deployment_does_hold() -> None:
+    with pytest.raises(KeyError, match="datadog"):
+        connection_for(
+            Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
+            _deployment(),
+        )
+
+
 def test_the_credentials_reach_the_connection_as_headers() -> None:
     connection = connection_for(
-        Toolset(name="core", tools=("search_logs",)),
+        Toolset(provider="datadog", name="core", tools=("search_logs",)),
         _deployment(headers={"DD_API_KEY": "key", "DD_APPLICATION_KEY": "app"}),
     )
 
@@ -166,7 +261,7 @@ def test_the_same_declaration_is_unchanged_by_where_it_is_deployed() -> None:
 def test_the_connection_bounds_are_set_rather_than_left_to_the_framework() -> None:
     """ADK's own defaults are 5s to connect and 300s to read; neither is our intent."""
     connection = connection_for(
-        Toolset(name="core", tools=("search_logs",)), _deployment()
+        Toolset(provider="datadog", name="core", tools=("search_logs",)), _deployment()
     )
 
     assert connection.timeout == CONNECT_TIMEOUT_SECONDS

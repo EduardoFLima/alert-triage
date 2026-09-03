@@ -27,10 +27,10 @@ from alert_triage.investigation.adapters.adk.evidence import (
     keep_evidence_callback,
     log_tool_call,
 )
-from alert_triage.investigation.adapters.adk.reasoners.diagnostician import (
+from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
+from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     DIAGNOSTICIAN,
 )
-from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
 from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -64,40 +64,77 @@ from is the composition root's business, not a declaration's.
 
 
 @dataclass(frozen=True)
-class Deployment:
-    """Where this deployment's platform is, and what it reasons with.
+class PlatformAccess:
+    """One provider's MCP server, and what authenticates against it.
 
     Attributes:
-        endpoint: The platform's MCP server, without the toolsets it is asked
-            for: each declaration asks for its own.
-        headers: What the server authenticates a request with.
-        model_for: The model a specialist reasons on, given what it asked for.
+        endpoint: The server, without the toolsets it is asked for: each
+            declaration asks for its own.
+        headers: What that server authenticates a request with.
     """
 
     endpoint: str
     headers: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class Deployment:
+    """Which providers this deployment holds, and what it reasons with.
+
+    A map rather than the single endpoint and headers this carried before. A
+    specialist's toolsets each name the provider serving them and may name
+    different ones, so the deployment answers a question — *where is this
+    provider* — rather than stating one address every toolset must have come
+    from.
+
+    What a deployment holds is also what it offers: a specialist naming a
+    provider absent from this map cannot gather what it was declared to
+    gather, and the roster leaves it unoffered rather than running it against
+    half its evidence.
+
+    Attributes:
+        platforms: Each provider this deployment configured, by the name a
+            declaration knows it as.
+        model_for: The model a specialist reasons on, given what it asked for.
+    """
+
+    platforms: Mapping[str, PlatformAccess]
     model_for: ModelFor
 
 
 def connection_for(
     toolset: Toolset, deployment: Deployment
 ) -> "StreamableHTTPConnectionParams":
-    """How to reach one toolset on this deployment's platform.
+    """How to reach one toolset, on the server of the provider it named.
 
     Args:
-        toolset: The group of tools to ask the platform for.
-        deployment: Where the platform is and how to authenticate.
+        toolset: The group of tools to ask for, and whose server to ask.
+        deployment: The providers this deployment holds.
 
     Returns:
         The connection parameters, bounded explicitly rather than by default.
+
+    Raises:
+        KeyError: The toolset names a provider this deployment did not
+            configure. Refused rather than resolved against whichever provider
+            happens to be configured — that would be a specialist quietly
+            querying the wrong platform and reporting the answer as its own.
     """
     from google.adk.tools.mcp_tool.mcp_session_manager import (
         StreamableHTTPConnectionParams,
     )
 
+    access = deployment.platforms.get(toolset.provider)
+    if access is None:
+        held = ", ".join(sorted(deployment.platforms)) or "none"
+        raise KeyError(
+            f"Toolset '{toolset.name}' names provider '{toolset.provider}', which "
+            f"this deployment does not configure. Configured providers: {held}"
+        )
+
     return StreamableHTTPConnectionParams(
-        url=f"{deployment.endpoint}?toolsets={toolset.name}",
-        headers=dict(deployment.headers),
+        url=f"{access.endpoint}?toolsets={toolset.name}",
+        headers=dict(access.headers),
         timeout=CONNECT_TIMEOUT_SECONDS,
         sse_read_timeout=READ_TIMEOUT_SECONDS,
     )

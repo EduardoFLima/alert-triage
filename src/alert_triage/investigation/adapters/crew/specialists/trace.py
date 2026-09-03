@@ -23,12 +23,13 @@ nowhere to write a waterfall into.
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.datadog.specialists.dialect import (
+from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
 )
-from alert_triage.investigation.adapters.datadog.specialists.preview import (
+from alert_triage.investigation.adapters.datadog.mcp import DATADOG
+from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
 )
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
@@ -182,10 +183,15 @@ def trace_specialist(*, preview: bool) -> Specialist:
         instructed only in what those tools can establish.
     """
     core = Toolset(
+        provider=DATADOG,
         name=CORE_TOOLSET,
         tools=(SPAN_SEARCH_TOOL, TRACE_TOOL, SKILL_LIST_TOOL, SKILL_LOAD_TOOL),
     )
-    ranking = (Toolset(name=APM_TOOLSET, tools=(TRACE_QUERY_TOOL,)),) if preview else ()
+    ranking = (
+        (Toolset(provider=DATADOG, name=APM_TOOLSET, tools=(TRACE_QUERY_TOOL,)),)
+        if preview
+        else ()
+    )
     return Specialist(
         name="trace_specialist",
         signal=Signal.TRACE,
