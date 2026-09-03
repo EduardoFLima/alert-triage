@@ -1,0 +1,51 @@
+# What never reaches the build daemon. The Dockerfile copies by name rather
+# than wholesale, so this is not what makes the image clean — the tests in
+# tests/integration/deployment/ establish that against the image itself. This
+# is the second lock: it keeps a checkout's credentials and run history out of
+# the context entirely, and stops a 200MB host virtualenv being shipped to the
+# daemon on every build.
+
+# Connection settings: a build context is not a commit, and gitignored is not
+# the same as excluded here.
+.env
+.env.*
+
+# Behaviour config: a deployment's own, never baked into a shared image. The
+# override names a host path, so it means nothing to a build in any case.
+config.yaml
+compose.override.yaml
+
+# Local run state — someone's real incident history.
+data/
+
+# Host virtualenvs: built for the wrong platform, and enormous.
+.venv/
+venv/
+
+# Caches and build artifacts, none of which the image install reuses.
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# History and tooling the run has no use for.
+.git
+.gitignore
+.github/
+.claude/
+openspec/
+docs/
+tests/
+
+# Editor and OS noise.
+.DS_Store
+.idea/
+.vscode/

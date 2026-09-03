@@ -1,7 +1,8 @@
 name: CI
 
 # The gate is the four commands from the README's Development section, in the
-# same order. Nothing CI-only lives here, so a green local run predicts green CI.
+# same order, with the image build hoisted ahead of the tests. Nothing CI-only
+# lives here, so a green local run predicts green CI.
 
 on:
   push:
@@ -48,5 +49,10 @@ jobs:
       - name: Type check
         run: uv run mypy
 
+      - name: Build the image
+        run: docker build --tag alert-triage:ci .
+
       - name: Test
-        run: uv run pytest
+        env:
+          ALERT_TRIAGE_IMAGE: alert-triage:ci
+        run: uv run pytest -rs

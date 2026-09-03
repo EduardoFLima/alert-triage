@@ -106,9 +106,9 @@ without restating what the application does.
 
 ### Requirement: Quality gate runs on every change
 
-Lint, formatting, static type checking, and the full test suite SHALL run
-automatically on pushes and pull requests. A failure in any of them SHALL fail
-the overall check.
+Lint, formatting, static type checking, the full test suite, and the build of
+the distributable image SHALL run automatically on pushes and pull requests. A
+failure in any of them SHALL fail the overall check.
 
 #### Scenario: Change violates lint or formatting rules
 
@@ -128,9 +128,16 @@ the overall check.
   fail
 - **THEN** the gate reports failure and surfaces the failing test output
 
+#### Scenario: Change breaks the image build
+
+- **WHEN** a pull request leaves the distributable image unable to build
+- **THEN** the gate reports failure and surfaces the failing build step, rather
+  than passing on checks that never built it
+
 #### Scenario: Change passes every check
 
-- **WHEN** a pull request passes lint, formatting, type checking, and all tests
+- **WHEN** a pull request passes lint, formatting, type checking, all tests, and
+  the image build
 - **THEN** the gate reports success
 
 ### Requirement: Contributors can set up and verify the project from the README
@@ -138,6 +145,12 @@ the overall check.
 The README SHALL give a contributor an unfamiliar-machine path to a working
 environment and a way to confirm the setup succeeded, and SHALL carry the
 architecture diagram and the extension guide for adding new adapters.
+
+The README SHALL document two ways to reach a run — from a checkout, and from
+the container image — each with what it needs in its environment and each with
+a way to confirm it worked. The container path SHALL state what a packaged run
+must be given from outside it, including the mount that gives the run a durable
+history and what is lost without one.
 
 The extension guide SHALL distinguish the two kinds of extension the project
 accepts, because they have different shapes. Adding a notification channel is
@@ -168,6 +181,20 @@ page.
   on a machine with no prior project state
 - **THEN** they reach an environment where the documented verification command
   runs the test suite successfully
+
+#### Scenario: A run from the image
+
+- **WHEN** an operator with a container runtime and no checkout follows the
+  README's container instructions
+- **THEN** they reach a complete run, having been told every setting it needs
+  and where its history is kept
+
+#### Scenario: A repeated local run keeps its history
+
+- **WHEN** an operator follows the README's documented local invocation of the
+  image a second time
+- **THEN** the second run reads the history the first one recorded, without the
+  operator restating where it is kept
 
 #### Scenario: Adding a notification channel
 

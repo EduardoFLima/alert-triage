@@ -143,7 +143,7 @@ Where the ledger keeps its records is a deployment fact on the same rule — wit
 a default, since a path is not a credential:
 
 ```bash
-export ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/ledger.db
+export ALERT_TRIAGE_LEDGER_PATH=/var/lib/alert-triage/alert_triage.db
 # optional; defaults to data/alert_triage.db under the working directory
 ```
 
@@ -156,6 +156,16 @@ opens a new incident and is reported — there is no migration step and an empty
 ledger is not an error. Because the default path is relative, a run started
 from another directory starts from an empty ledger and re-reports everything;
 set the variable explicitly for anything but a quick local run.
+
+**In a container the variable is already set**, to
+`/var/lib/alert-triage/alert_triage.db` — an absolute path, because the
+working-directory default would put the history inside a filesystem that does
+not survive the run. Only the directory differs from the default; the filename
+is the same one a checkout uses, so mounting a checkout's `data/` at
+`/var/lib/alert-triage/` continues that checkout's history rather than opening
+a second ledger beside it. Mount something durable there; a run without it
+exits `0` having kept nothing, which is the failure this default exists to
+make avoidable. See [the README](../README.md#in-a-container).
 
 Incidents that have gone quiet past both the grouping window and the cooldown
 are closed and kept for the retention period. To read that history — what was

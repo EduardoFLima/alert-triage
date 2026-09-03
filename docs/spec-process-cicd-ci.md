@@ -263,12 +263,14 @@ re-run its checks.
 - **VLD-006**: The workflow declares no `permissions` beyond `contents: read`.
 - **VLD-007**: The workflow references no secret.
 - **VLD-008**: `uv.lock` is respected: no run resolves dependencies afresh.
+- **VLD-009**: A deliberate Dockerfile defect produces a failing run whose log
+  names the build step and the instruction that failed, with the tests unrun.
 
 ### Confirmed failure modes
 
-VLD-002…VLD-005 are the criteria a local run cannot settle. They are claims
-about what a *run* does rather than about what a command prints, so they are
-established against the remote and the runs recorded here. Confirmed
+VLD-002…VLD-005 and VLD-009 are the criteria a local run cannot settle. They
+are claims about what a *run* does rather than about what a command prints, so
+they are established against the remote and the runs recorded here. Confirmed
 2026-09-02 on the scratch branch `ci-gate-failure-modes`, since deleted; one
 defect per push, because the gate is fail-fast and a second defect in the same
 commit would never be reached.
@@ -280,7 +282,16 @@ commit would never be reached.
 | VLD-004 | `triage/domain/alert.py` importing `investigation.domain.evidence` | [33605273573](https://github.com/EduardoFLima/alert-triage/actions/runs/33605273573) | **Test**: `Contexts do not reach past each other's contracts BROKEN`, then `alert_triage.triage.domain.alert -> alert_triage.investigation.domain.evidence (l.6)`. The other 919 tests passed, so the report is the whole failure. |
 | VLD-005 | None — the defect removed and nothing else changed | [33605341178](https://github.com/EduardoFLima/alert-triage/actions/runs/33605341178) | Nothing. Every step passed, which is what makes the three red runs above evidence about the defects rather than about the branch. |
 
-A fifth run is worth knowing about because it failed for the wrong reason. A
+VLD-009 was added with the image build and confirmed the same way on
+2026-09-02, on the scratch branch `ci-image-build-failure-mode`, since deleted.
+
+| Criterion | Deliberate defect | Run | What the failing step named |
+|-----------|-------------------|-----|------------------------------|
+| VLD-009 | `COPY` of a `NOT_A_REAL_FILE` that is not in the build context | [33658792347](https://github.com/EduardoFLima/alert-triage/actions/runs/33658792347) | **Build the image**: `ERROR: failed to build: failed to solve: failed to compute cache key: ... "/NOT_A_REAL_FILE": not found`, with the offending instruction quoted and its line number, `22 \| >>> COPY pyproject.toml uv.lock README.md LICENSE NOT_A_REAL_FILE ./`. **Test** never ran, which is the point of ordering the build before it. |
+| VLD-005 | None — the defect removed and nothing else changed | [33658893831](https://github.com/EduardoFLima/alert-triage/actions/runs/33658893831) | Nothing. Every step passed, including the build and the 12 container tests. |
+
+A fifth run from the earlier round is worth knowing about because it failed for
+the wrong reason. A
 git worktree this repository hosts under `.claude/worktrees/` is staged by
 `git add -A` as a gitlink with no `.gitmodules` entry, and `actions/checkout`
 fails on it — `fatal: No url found for submodule path` — before any check runs,
@@ -299,8 +310,8 @@ excludes that directory.
 1. **Specification Update**: Amend this document first; it is the contract.
 2. **Review & Approval**: Pull-request review by a maintainer.
 3. **Implementation**: Apply the change to `.github/workflows/ci.yml`.
-4. **Testing**: Re-run the VLD-002…VLD-005 pair of negative and positive proofs
-   on a scratch branch.
+4. **Testing**: Re-run the VLD-002…VLD-005 and VLD-009 pairs of negative and
+   positive proofs on a scratch branch.
 5. **Deployment**: Merge. The workflow is live on the next push.
 
 Adding a check to the gate means adding the same command to `README.md`
@@ -313,6 +324,7 @@ same pull request. A CI-only check violates REQ-005.
 |---------|------|---------|--------|
 | 1.0 | 2026-08-04 | Initial specification | alert-triage maintainers |
 | 1.1 | 2026-09-02 | Recorded the confirmed failure modes for VLD-002…VLD-005 | alert-triage maintainers |
+| 1.2 | 2026-09-02 | Added the image build to the gate; recorded VLD-009 | alert-triage maintainers |
 
 ## Related Specifications
 

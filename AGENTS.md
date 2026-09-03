@@ -128,6 +128,22 @@ uv run pytest
 All four must pass. A green local run is meant to predict a green CI run — if
 it does not, fix the discrepancy rather than working around it.
 
+**The image is not a fifth command.** CI builds it as its own step, ahead of
+the tests, so a Dockerfile that stops building fails as a build naming the
+instruction rather than as a puzzling test error. Locally you get the same
+coverage without asking for it: the container tests build an image on demand
+when no gate has named one, and they skip — saying so under `-rs` — where no
+runtime is available. Run `docker build -t alert-triage .` by hand only when
+you are changing the Dockerfile or the dependency set and want the build's
+failure separated from the tests'.
+
+**When you add a file the run reads at runtime**, check the `Dockerfile`. It
+copies by name rather than wholesale — `pyproject.toml`, `uv.lock`, `README.md`,
+`LICENSE` and `src/` — so a new file the run needs is absent from the image
+unless it is added there, and a new file holding a deployment's own settings
+belongs in `.dockerignore` instead. A build context is not a commit: being
+gitignored keeps nothing out of an image.
+
 A green run is not the whole story where the change touches a tool name, a
 specialist's instruction, or a composed URL. Those are established only against
 a real account, by tests that skip silently without credentials — see
