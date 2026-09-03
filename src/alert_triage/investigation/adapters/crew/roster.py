@@ -12,6 +12,7 @@ loader that read it.
 from collections.abc import Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import replace
+from typing import NoReturn
 
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import SpecialistModel
@@ -102,7 +103,7 @@ def crew_for(
     declared = {specialist.name for specialist in CREW}
     unknown = sorted(set(configured) - declared)
     if unknown:
-        _raise_uknown_specialist_config_error(declared, unknown)
+        _raise_unknown_specialist_config_error(declared, unknown)
 
     crew = offered_from(CREW, providers)
     if not crew:
@@ -116,7 +117,10 @@ def crew_for(
     )
 
 
-def _raise_uknown_specialist_config_error(declared, unknown):
+def _raise_unknown_specialist_config_error(
+    declared: AbstractSet[str], unknown: Sequence[str]
+) -> NoReturn:
+    """Refuse a model named for a specialist nobody declared, by name."""
     raise ConfigError(
         f"Unknown specialist(s) under 'investigation.specialists': "
         f"{', '.join(unknown)}. Declared specialists: "
@@ -124,7 +128,8 @@ def _raise_uknown_specialist_config_error(declared, unknown):
     )
 
 
-def _raise_missing_provider_config_error(providers):
+def _raise_missing_provider_config_error(providers: AbstractSet[str]) -> NoReturn:
+    """Refuse a deployment that can reach nobody, saying what it would need."""
     wanted = sorted(
         {toolset.provider for specialist in CREW for toolset in specialist.toolsets}
     )
