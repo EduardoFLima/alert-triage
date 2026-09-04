@@ -101,20 +101,20 @@
 
 ## 6. Criticality reaches the investigation and the report
 
-- [ ] 6.1 Red: assert `Incident.investigation_target` states criticality for a
+- [x] 6.1 Red: assert `Incident.investigation_target` states criticality for a
   critical service and states it false otherwise.
-- [ ] 6.2 Green: add the field to `InvestigationTarget` in
+- [x] 6.2 Green: add the field to `InvestigationTarget` in
   `investigation/contract.py` and take the `ScopedService` where the target is
   built.
-- [ ] 6.3 Red: assert a report for a critical service marks it in the subject,
+- [x] 6.3 Red: assert a report for a critical service marks it in the subject,
   that an ordinary service's subject is byte-for-byte what it is today, and
   that the marking never lands in the body's place.
-- [ ] 6.4 Green: mark the subject in `triage/domain/report.py` beside
+- [x] 6.4 Green: mark the subject in `triage/domain/report.py` beside
   `SUBJECT_PREFIX`, for both the investigated and the pass-through report.
-- [ ] 6.5 Extend the Diagnostician's instruction to say the target may be
+- [x] 6.5 Extend the Diagnostician's instruction to say the target may be
   critical and what that licenses — look harder, never be surer — in the terms
   the `investigation` delta uses.
-- [ ] 6.6 Red: assert criticality changes no cadence — a critical service
+- [x] 6.6 Red: assert criticality changes no cadence — a critical service
   inside its cooldown is still not reported, and one within its acceptable
   latency is still left alone.
 

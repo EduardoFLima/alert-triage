@@ -549,3 +549,30 @@ def test_an_incident_nobody_was_owed_a_report_about_closes() -> None:
         window=WINDOW,
         cooldown=COOLDOWN,
     )
+
+
+def test_a_critical_service_inside_its_cooldown_is_still_not_reported() -> None:
+    """Importance is not a reason to tell a team more often than they asked."""
+    critical = ScopedService(name="checkout", critical=True)
+    on_record = _on_record(_alert("a"))
+
+    _, should_report = _decide(
+        _group(_alert("b", timedelta(minutes=5))),
+        [on_record],
+        at=NOON + timedelta(hours=1),
+        service=critical,
+    )
+
+    assert not should_report
+
+
+def test_a_critical_service_within_its_acceptable_latency_is_still_left_alone() -> None:
+    """A measurement that was fine does not become a problem for mattering."""
+    critical = ScopedService(name="checkout", acceptable_latency_ms=250, critical=True)
+
+    decision = _investigate(
+        _group(_alert("a", latency_ms=180)), [], at=NOON, service=critical
+    )
+
+    assert not decision.should_report
+    assert not decision.should_investigate

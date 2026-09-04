@@ -58,6 +58,22 @@ operator tunes per team.
 """
 
 
+CRITICAL_SERVICE = (
+    "This service is one its operators declared critical. That is a reason to "
+    "look harder — to consult a signal you might otherwise have skipped, and "
+    "to be slower to settle for one specialist's answer. It is never a reason "
+    "to be surer: the same evidence earns the same confidence here as it would "
+    "anywhere, and a hypothesis you would not otherwise have stated is not one "
+    "this licenses."
+)
+"""What a target says about a service its operators called critical.
+
+Stated in the contract rather than in each agent's instruction: it is the
+meaning of the field, and an agent reading the target reads what the field is
+entitled to mean.
+"""
+
+
 @dataclass(frozen=True)
 class InvestigationTarget:
     """One investigation's subject, stated without reference to an incident.
@@ -74,11 +90,20 @@ class InvestigationTarget:
             gathered around the problem.
         alert_count: How many alerts are on record for it. Volume is context a
             specialist weighs; which alerts they were is not its business.
+        critical: Whether the service is one its operators declared critical.
+            A fact about the service rather than about the alerts, and it
+            crosses as one: what an investigation learns is that this service
+            matters more to its owners, not which configuration said so, what
+            tier it sits in, or what an incident is. It licenses looking
+            harder — which signals are worth consulting, how readily one
+            specialist's answer is settled for — and never being surer: the
+            same evidence earns the same confidence whoever owns the service.
     """
 
     service: str
     window: Window
     alert_count: int
+    critical: bool = False
 
     def __post_init__(self) -> None:
         """Widen a window too narrow for the platform to answer a question about."""
@@ -93,13 +118,22 @@ class InvestigationTarget:
         )
 
     def describe(self) -> str:
-        """State the target to a specialist, in terms any of them can use."""
-        return (
-            f"Service: {self.service}\n"
-            f"Window start: {self.window.start.isoformat()}\n"
-            f"Window end: {self.window.end.isoformat()}\n"
-            f"Alerts in this incident: {self.alert_count}"
-        )
+        """State the target to a specialist, in terms any of them can use.
+
+        Criticality is stated only where it holds, so a target that says
+        nothing about it reads exactly as targets read before there was
+        anything to say — a deployment declaring no service critical sees no
+        change at all.
+        """
+        stated = [
+            f"Service: {self.service}",
+            f"Window start: {self.window.start.isoformat()}",
+            f"Window end: {self.window.end.isoformat()}",
+            f"Alerts in this incident: {self.alert_count}",
+        ]
+        if self.critical:
+            stated.append(CRITICAL_SERVICE)
+        return "\n".join(stated)
 
 
 class Signal(StrEnum):

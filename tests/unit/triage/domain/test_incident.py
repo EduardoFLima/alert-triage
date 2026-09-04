@@ -2,10 +2,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
 
 NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
+UNDESCRIBED = ScopedService(name="checkout")
 
 
 def _alert(offset: timedelta = timedelta(), source_id: str = "") -> Alert:
@@ -46,7 +48,7 @@ def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() 
     first = _alert()
     last = _alert(timedelta(minutes=7))
 
-    target = _incident(last, first).investigation_target
+    target = _incident(last, first).investigation_target(UNDESCRIBED)
 
     assert target.service == "checkout"
     assert target.window == _incident(last, first).window
@@ -55,7 +57,7 @@ def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() 
 
 def test_an_incident_of_one_alert_is_still_askable_about_a_period() -> None:
     """One alert spans an instant, and no metric query accepts one."""
-    target = _incident(_alert()).investigation_target
+    target = _incident(_alert()).investigation_target(UNDESCRIBED)
 
     assert target.window.end > target.window.start
     assert target.window.start <= NOON <= target.window.end
@@ -143,3 +145,16 @@ def test_spending_an_attempt_leaves_the_rest_of_the_incident_alone() -> None:
     assert failed.service == incident.service
     assert failed.alerts == (opening,)
     assert failed.last_reported_at == NOON
+
+
+def test_an_incident_states_whether_its_service_is_critical() -> None:
+    """A fact about the service, which is why the scope is what supplies it."""
+    incident = _incident(_alert())
+
+    critical = incident.investigation_target(
+        ScopedService(name="checkout", critical=True)
+    )
+    ordinary = incident.investigation_target(ScopedService(name="checkout"))
+
+    assert critical.critical
+    assert not ordinary.critical

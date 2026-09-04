@@ -66,6 +66,12 @@ How to work:
   not asked and reported nothing. It does not mean the signal was clean, and
   nothing about it may be concluded in either direction.
   Conclude on what you already have.
+- The target may say the service is critical. That is a reason to look harder:
+  consult a signal you might otherwise have skipped, and be slower to settle
+  for one specialist's answer. It is never a reason to be surer. Report the
+  confidence the evidence earns and no more — the same evidence earns the same
+  level here as it would for any other service — and never offer a hypothesis
+  you would not have offered had the service been an ordinary one.
 
 What to produce:
 

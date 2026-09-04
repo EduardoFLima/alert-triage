@@ -16,6 +16,7 @@ Delivering what comes out is the notification context's work, and
 ``TriageReport`` is the contract it publishes for the purpose.
 """
 
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.investigation.contract import Diagnosis
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.domain.alert import Alert
@@ -36,8 +37,20 @@ Triage's rather than the investigation's: it identifies the sender, which is a
 fact about the run and not about what was found.
 """
 
+CRITICAL_MARKER = "[critical]"
+"""What marks a subject as being about a service its operators called critical.
 
-def build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
+Beside ``SUBJECT_PREFIX`` and for the same reason: whether a service is
+critical is a configuration fact about the service, not something an
+investigation found, so it is not the Report agent's to write. It changes how a
+report reads and nothing else — not when one is delivered, not which channels
+carry it, and not how long its cooldown runs.
+"""
+
+
+def build_report(
+    incident: Incident, diagnosis: Diagnosis | None, service: ScopedService
+) -> TriageReport:
     """Build the report an incident has earned, given what was learned about it.
 
     The presence of a diagnosis is the whole decision. ``None`` means no
@@ -51,16 +64,20 @@ def build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageRepor
         incident: The incident to report.
         diagnosis: What the investigation came back with, or ``None`` when none
             completed.
+        service: What the scope says about the incident's service, which is
+            what says whether the subject is marked critical.
 
     Returns:
         The report to deliver.
     """
     if diagnosis is None:
-        return _build_pass_through_report(incident)
-    return _build_investigated_report(incident, diagnosis)
+        return _build_pass_through_report(incident, service)
+    return _build_investigated_report(incident, diagnosis, service)
 
 
-def _build_pass_through_report(incident: Incident) -> TriageReport:
+def _build_pass_through_report(
+    incident: Incident, service: ScopedService
+) -> TriageReport:
     """Build the report an incident gets when nothing could look at it.
 
     It carries the incident's own alerts and no conclusion of any kind, which is
@@ -69,6 +86,8 @@ def _build_pass_through_report(incident: Incident) -> TriageReport:
 
     Args:
         incident: The incident to report, with the alerts absorbed so far.
+        service: What the scope says about its service, which marks the
+            subject where the service is a critical one.
 
     Returns:
         A report naming the service and listing every alert on record for it.
@@ -76,13 +95,13 @@ def _build_pass_through_report(incident: Incident) -> TriageReport:
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
-        subject=_subject(incident),
+        subject=_subject(incident, service),
         body=_body(incident),
     )
 
 
 def _build_investigated_report(
-    incident: Incident, diagnosis: Diagnosis
+    incident: Incident, diagnosis: Diagnosis, service: ScopedService
 ) -> TriageReport:
     """Build the report for an incident an investigation actually looked at.
 
@@ -100,6 +119,8 @@ def _build_investigated_report(
     Args:
         incident: The incident to report, with the alerts absorbed so far.
         diagnosis: What the investigation found and concluded.
+        service: What the scope says about its service, which marks the
+            subject where the service is a critical one.
 
     Returns:
         A report announcing the incident in the investigation's own words and
@@ -108,7 +129,7 @@ def _build_investigated_report(
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
-        subject=f"{SUBJECT_PREFIX} {diagnosis.headline}",
+        subject=f"{_marked(service)} {diagnosis.headline}",
         body=_investigated_body(incident, diagnosis),
     )
 
@@ -127,12 +148,19 @@ def _investigated_body(incident: Incident, diagnosis: Diagnosis) -> str:
     return "\n".join(lines)
 
 
-def _subject(incident: Incident) -> str:
+def _subject(incident: Incident, service: ScopedService) -> str:
     """Announce the incident in the one line every channel can carry."""
     return (
-        f"{SUBJECT_PREFIX} {_one_line(incident.service)}: "
+        f"{_marked(service)} {_one_line(incident.service)}: "
         f"{_alert_count(len(incident.alerts))} awaiting triage"
     )
+
+
+def _marked(service: ScopedService) -> str:
+    """What every subject opens with: the sender, and criticality where it holds."""
+    if not service.critical:
+        return SUBJECT_PREFIX
+    return f"{SUBJECT_PREFIX} {CRITICAL_MARKER}"
 
 
 def _body(incident: Incident) -> str:

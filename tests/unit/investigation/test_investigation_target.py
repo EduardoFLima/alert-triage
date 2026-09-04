@@ -73,3 +73,16 @@ def test_a_window_already_wide_enough_is_left_alone() -> None:
     target = InvestigationTarget(service="checkout", window=spanning, alert_count=9)
 
     assert target.window == spanning
+
+
+def test_a_critical_service_is_stated_to_whoever_is_asked_about_it() -> None:
+    """A target that says nothing about it must read exactly as it did before."""
+    critical = InvestigationTarget(
+        service="checkout",
+        window=Window(start=NOON, end=NOON + timedelta(minutes=7)),
+        alert_count=2,
+        critical=True,
+    )
+
+    assert "critical" in critical.describe().lower()
+    assert "critical" not in _target().describe().lower()

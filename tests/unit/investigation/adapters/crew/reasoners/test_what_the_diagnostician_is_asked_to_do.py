@@ -146,3 +146,12 @@ def test_it_is_told_a_clean_signal_is_not_a_reason_to_stop() -> None:
 
     assert "reason to consult another" in lowered
     assert "never a reason to stop" in lowered
+
+
+def test_it_is_told_what_a_critical_target_licenses_and_what_it_does_not() -> None:
+    """Look harder, never be surer: importance is not evidence."""
+    lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
+
+    assert "critical" in lowered
+    assert "look harder" in lowered
+    assert "confidence" in lowered

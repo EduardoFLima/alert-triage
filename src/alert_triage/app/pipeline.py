@@ -39,8 +39,8 @@ from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
 _log = logging.getLogger(__name__)
 
-ReportBuilder = Callable[[Incident, Diagnosis | None], TriageReport]
-"""How an incident and what was learned about it become the report.
+ReportBuilder = Callable[[Incident, Diagnosis | None, ScopedService], TriageReport]
+"""How an incident, what was learned about it, and its service become the report.
 
 ``None`` means no investigation of the incident ever completed, which is the
 only case the report of last resort is for. Deliberately a callable rather than
@@ -243,7 +243,7 @@ def _handle(
     )
 
     diagnosis, investigation_failure = _investigated(
-        decision, investigator=investigator
+        decision, service=service, investigator=investigator
     )
 
     incident = (
@@ -255,6 +255,7 @@ def _handle(
     delivered, delivery_failure = _delivered(
         incident,
         diagnosis,
+        service=service,
         should_report=decision.should_report,
         unowed=unowed,
         exhausted=incident.investigation_attempts >= config.investigation.max_attempts,
@@ -278,7 +279,10 @@ def _handle(
 
 
 def _investigated(
-    decision: TriageDecision, *, investigator: Investigator
+    decision: TriageDecision,
+    *,
+    service: ScopedService,
+    investigator: Investigator,
 ) -> tuple[Diagnosis | None, RunFailure | None]:
     """Investigate the incident if it is owed one, and say what came back.
 
@@ -288,7 +292,7 @@ def _investigated(
     incident = decision.incident
     if not decision.should_investigate:
         return None, None
-    target = incident.investigation_target
+    target = incident.investigation_target(service)
     _log.info(
         journal.banner(
             "INVESTIGATING",
@@ -330,6 +334,7 @@ def _delivered(
     incident: Incident,
     diagnosis: Diagnosis | None,
     *,
+    service: ScopedService,
     should_report: bool,
     unowed: str,
     exhausted: bool,
@@ -366,7 +371,7 @@ def _delivered(
             )
         )
         return False, None
-    report = build_report(incident, diagnosis)
+    report = build_report(incident, diagnosis, service)
     try:
         notifier.deliver(report)
     except NotifierError as error:

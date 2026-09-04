@@ -22,6 +22,7 @@ from alert_triage.configuration.settings import (
     Ledger,
     ReNotify,
     Scope,
+    ScopedService,
 )
 from alert_triage.investigation.contract import (
     Confidence,
@@ -197,7 +198,9 @@ def _ids() -> Callable[[], str]:
     return lambda: f"incident-{next(counter)}"
 
 
-def _build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
+def _build_report(
+    incident: Incident, diagnosis: Diagnosis | None, service: ScopedService
+) -> TriageReport:
     """A builder standing in for the one the composition root injects."""
     return TriageReport(
         incident_id=incident.id,

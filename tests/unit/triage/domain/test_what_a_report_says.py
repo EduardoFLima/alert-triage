@@ -13,6 +13,7 @@ managed to look at.
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.investigation.contract import (
     Confidence,
     Diagnosis,
@@ -25,9 +26,14 @@ from alert_triage.investigation.domain.account import compose
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
-from alert_triage.triage.domain.report import NOT_INVESTIGATED, build_report
+from alert_triage.triage.domain.report import (
+    CRITICAL_MARKER,
+    NOT_INVESTIGATED,
+    build_report,
+)
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
+UNDESCRIBED = ScopedService(name="checkout")
 
 
 EVERY_SIGNAL = tuple(Signal)
@@ -35,7 +41,7 @@ EVERY_SIGNAL = tuple(Signal)
 
 def _uninvestigated(incident: Incident) -> TriageReport:
     """The report an incident gets when no investigation ever completed."""
-    return build_report(incident, None)
+    return build_report(incident, None, UNDESCRIBED)
 
 
 def _finding(observation: str = "OOMKilled recurs every 40s") -> Finding:
@@ -85,7 +91,7 @@ def _investigated(
     incident: Incident, diagnosis: Diagnosis | None = None
 ) -> TriageReport:
     """The report an incident gets when one did."""
-    return build_report(incident, diagnosis or _diagnosis())
+    return build_report(incident, diagnosis or _diagnosis(), UNDESCRIBED)
 
 
 def _incident(incident_id: str = "incident-1", service: str = "checkout") -> Incident:
@@ -249,8 +255,8 @@ def test_the_report_for_an_incident_is_chosen_by_whether_one_completed() -> None
     """Why an investigation failed is the run's business; a report only knows if."""
     incident = _incident()
 
-    assert build_report(incident, None) == _uninvestigated(incident)
-    assert build_report(incident, _diagnosis()) == _investigated(incident)
+    assert build_report(incident, None, UNDESCRIBED) == _uninvestigated(incident)
+    assert build_report(incident, _diagnosis(), UNDESCRIBED) == _investigated(incident)
 
 
 def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
@@ -263,7 +269,10 @@ def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
         confidence=None,
     )
 
-    assert build_report(incident, None).body != build_report(incident, clean).body
+    assert (
+        build_report(incident, None, UNDESCRIBED).body
+        != build_report(incident, clean, UNDESCRIBED).body
+    )
 
 
 def test_the_last_resort_report_carries_no_hypothesis_and_no_confidence() -> None:
@@ -291,3 +300,42 @@ def test_triage_does_not_read_the_investigations_vocabulary_to_build_a_body() ->
     assert "EvidenceItem" not in source
     assert "Finding" not in source
     assert "Signal" not in source
+
+
+def test_a_report_about_a_critical_service_says_so_in_its_subject() -> None:
+    """A reader scanning subjects can tell which one to open first."""
+    incident = _incident()
+    critical = ScopedService(name="checkout", critical=True)
+
+    investigated = build_report(incident, _diagnosis(), critical)
+    passed_through = build_report(incident, None, critical)
+
+    assert CRITICAL_MARKER in investigated.subject
+    assert CRITICAL_MARKER in passed_through.subject
+
+
+def test_an_ordinary_services_subject_is_what_it_has_always_been() -> None:
+    """The marking means something by its absence as well as its presence."""
+    incident = _incident()
+    ordinary = ScopedService(name="checkout")
+
+    assert (
+        build_report(incident, _diagnosis(), ordinary).subject
+        == _investigated(incident).subject
+    )
+    assert (
+        build_report(incident, None, ordinary).subject
+        == _uninvestigated(incident).subject
+    )
+
+
+def test_criticality_marks_the_subject_and_nothing_beneath_it() -> None:
+    """It announces the report; it is not something an investigation found."""
+    incident = _incident()
+    critical = ScopedService(name="checkout", critical=True)
+
+    assert (
+        build_report(incident, _diagnosis(), critical).body
+        == _investigated(incident).body
+    )
+    assert build_report(incident, None, critical).body == _uninvestigated(incident).body
