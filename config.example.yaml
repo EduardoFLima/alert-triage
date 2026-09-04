@@ -1,7 +1,8 @@
 # Behavior: what the system watches and how it triages.
 #
 # Copy to `config.yaml` and keep only the keys you want to change — every key
-# below except `scope.owner` is optional and the value shown is the default.
+# below is optional and the value shown is the default, except that `scope`
+# must name an owner, some services, or both.
 # The file itself is optional too.
 #
 # Connection settings (credentials, endpoints, where reports go) are never read
@@ -12,13 +13,15 @@
 # both are set, the environment wins.
 
 scope:
-  # MANDATORY. The team whose alerts are triaged; no default, and a run that
-  # cannot resolve it refuses to start.
+  # The team whose alerts are triaged; no default. Either this or `services`
+  # must resolve, from here or from the environment, or the run refuses to
+  # start — there is no watch-everything fallback.
   owner: sre
   # Optional. The services watched, and what their operators say about them.
-  # Naming any narrows the run to those alone: alerts the owner owns for a
-  # service not named here are not fetched, triaged, or recorded. Leave the
-  # list out — the default — to watch every service the owner owns.
+  # Naming any narrows the run to those alone: an alert for a service not
+  # named here is not fetched, triaged, or recorded. Leave the list out — the
+  # default — to watch every service the owner owns. Named without an owner,
+  # these are the whole scope, and the services are watched whoever owns them.
   #
   # An entry must name a service; every other key within it is optional.
   # SCOPE_SERVICES names the set from the environment, as a comma-separated

@@ -24,7 +24,7 @@ Every key here can also be set as an environment variable by mapping its
 
 ```yaml
 scope:
-  owner: sre              # mandatory: whose alerts are triaged. No default.
+  owner: sre              # whose alerts are triaged. No default.
   services:               # optional: the services watched. All of them if absent.
     - name: search
     - name: checkout
@@ -43,14 +43,21 @@ investigation:
   max_attempts: 3           # investigations one incident may be given in total
 ```
 
+A scope says what a run watches, and it is the one thing the system will not
+decide for itself: name an owner, name the services, or name both, from the
+file or the environment. A run that resolves neither refuses to start, because
+the fallback that does not exist is "watch everything".
+
 Set `scope.owner` to the team that owns the alerts you want triaged; the
 Datadog adapter spends it as a `team:` term in its event query.
 
-`scope.services` narrows what that owner's run watches. Leave it out and every
+`scope.services` says which services are watched. Leave it out and every
 service the owner owns is triaged, which is what an owner-only scope has always
 meant. Name any and those are watched alone: alerts for a service not named are
-not fetched, triaged, or recorded. Each entry must name a service, and may say
-two things about it:
+not fetched, triaged, or recorded. Named without an owner, they are the whole
+scope — the services are watched whoever owns them — and named alongside one,
+an alert must satisfy both. Each entry must name a service, and may say two
+things about it:
 
 - `acceptable_latency_ms` — the latency the service is expected to operate
   within. An incident whose every alert reports a latency at or under it is
@@ -248,8 +255,8 @@ What each level shows, and what the log looks like, is in
 
 Which channels are active follows from which of them you configured. Configure
 at least one, or the run refuses to start, the same way it refuses a missing
-`scope.owner` — a run that can investigate but can tell nobody what it found
-has no reason to start.
+scope — a run that can investigate but can tell nobody what it found has no
+reason to start.
 
 **Email.** The host activates the channel; the sender and recipients are then
 required, and a half-configured channel is an error rather than a silent skip.

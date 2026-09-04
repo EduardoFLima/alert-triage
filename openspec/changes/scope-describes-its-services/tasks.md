@@ -163,3 +163,31 @@
   confirm all four pass.
 - [ ] 9.4 Confirm the container tests still pass, since the config schema they
   exercise has changed.
+
+## 10. Either half of a scope is a scope
+
+Raised in review of the pull request: `scope.owner` and `scope.services` narrow
+along different axes, so requiring the owner makes a deployment that knows its
+services name one it does not use.
+
+- [x] 10.1 Red: assert `Scope(services=(ScopedService(name="checkout"),))`
+  resolves with no owner, and that a `Scope` naming neither an owner nor a
+  service is refused as watching nothing.
+- [x] 10.2 Green: make `owner` optional on `Scope` and add the guard.
+- [x] 10.3 Red: in the loader tests, resolve a scope from `SCOPE_SERVICES`
+  alone and from a file naming services alone; assert a config naming neither
+  raises `ConfigError` naming both ways it may be given.
+- [x] 10.4 Green: replace the `owner`-only check in `_scope`.
+- [x] 10.5 Red: assert the Datadog query asks for no owner where the scope
+  names none, still narrows to the services, and is unchanged where an owner
+  is named. Assert a failed fetch names what it was fetching for.
+- [x] 10.6 Green: compose the query from whichever halves the scope names.
+- [x] 10.7 Reword `config.example.yaml`, `docs/configuration.md`, the README,
+  and `docs/vision.md` where they call `scope.owner` the one mandatory setting.
+
+## 11. What review asked for in the documents
+
+- [x] 11.1 `.env.example`: keep the `SCOPE_*` variables together in one block,
+  and cut the commentary the configuration reference already carries.
+- [x] 11.2 `README.md`: say a run watches its defined scope, and leave the
+  possibilities to `docs/configuration.md`.

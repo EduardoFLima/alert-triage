@@ -1,22 +1,26 @@
 ## MODIFIED Requirements
 
 ### Requirement: Only alerts within the configured scope
-The system SHALL return only alerts belonging to the owner resolved as
-`scope`. Alerts belonging to any other owner SHALL NOT be returned. The
-adapter SHALL translate the platform-neutral owner into whatever the platform
-uses to express ownership.
+The system SHALL return only the alerts a run's `scope` watches, and a scope
+narrows along two axes that compose rather than compete.
 
-Where `scope` also names the services it watches, the system SHALL return only
-alerts for those services. An alert the owner owns for a service the scope does
-not name SHALL NOT be returned, so that narrowing the scope narrows what a run
-fetches rather than only what it acts on. Where `scope` names no services,
-ownership alone decides, as before. The service names SHALL be translated into
-the platform's own way of expressing them by the adapter, as the owner already
-is — the configuration exposes no platform-specific form of either.
+Where `scope` names an owner, the system SHALL return only alerts belonging to
+that owner; alerts belonging to any other owner SHALL NOT be returned. Where
+`scope` names the services it watches, the system SHALL return only alerts for
+those services; an alert for a service the scope does not name SHALL NOT be
+returned, whoever owns it, so that narrowing the scope narrows what a run
+fetches rather than only what it acts on. Where `scope` names both, an alert
+SHALL satisfy both to be returned. Where it names only one, that one decides
+alone — an owner-only scope returns every service that owner owns, and a
+service-only scope returns those services whoever owns them.
+
+The adapter SHALL translate the platform-neutral owner, and the
+platform-neutral service names, into whatever that platform uses to express
+each — the configuration exposes no platform-specific form of either.
 
 #### Scenario: Alerts from another owner are excluded
-- **WHEN** the platform holds recent alerts for the configured scope owner and
-  for a different owner
+- **WHEN** the scope names an owner and the platform holds recent alerts for
+  that owner and for a different one
 - **THEN** only the configured owner's alerts are returned
 
 #### Scenario: Alerts for an unwatched service are excluded
@@ -28,6 +32,11 @@ is — the configuration exposes no platform-specific form of either.
 - **WHEN** the scope names an owner and no services
 - **THEN** every one of that owner's recent alerts is returned, whatever its
   service
+
+#### Scenario: A scope naming no owner is not narrowed by ownership
+- **WHEN** the scope names services and no owner
+- **THEN** the alerts for those services are returned whoever owns them, and
+  the request asks the platform for no owner in particular
 
 ## ADDED Requirements
 

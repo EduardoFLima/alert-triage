@@ -456,24 +456,28 @@ tool, and no manager. What they now bound has moved:
 ## Config file
 
 A single YAML file (e.g. `config.yaml`) is the one place configuration is
-described. The file's existence is still optional — but the `scope` value
-it (or an environment variable) provides is not:
+described. The file's existence is still optional — but the `scope` it (or an
+environment variable) provides is not:
 
-- `scope.owner` — **mandatory value, from either source.** For v1, a single
-  team: the job watches only alerts belonging to that owner. It can
-  be set in `config.yaml`, or via an environment variable (see below), or
-  both — if both are set, the environment variable wins. It must resolve
-  from one of the two. No default, no "watch
-  everything" fallback: if neither `config.yaml` nor the environment
-  provides it, the application refuses to start. The name is deliberately
-  platform-neutral: turning the owner into a `team:` term in a Datadog query
-  is the alert source adapter's job, so a second platform reads the same key
-  without it lying about where the value came from. Widening scope beyond a
-  single team (multiple teams, tag-based scoping, etc.) is a future
-  extension, not v1.
-- `scope.services` — optional, the services watched and what their operators
-  say about them: `acceptable_latency_ms` and `critical`, each optional and
-  neither defaulted. Absent or empty watches every service the owner owns.
+- `scope` — **mandatory, from either source.** It is named by an owner, by the
+  services it watches, or by both, each settable in `config.yaml` or via an
+  environment variable (see below); where both sources set one, the
+  environment wins. At least one of the two must resolve. No default, no
+  "watch everything" fallback: a run told nothing about what to watch refuses
+  to start rather than triaging an organisation's whole alert volume on
+  somebody's behalf.
+- `scope.owner` — for v1, a single team: the job watches only alerts belonging
+  to that owner. The name is deliberately platform-neutral: turning the owner
+  into a `team:` term in a Datadog query is the alert source adapter's job, so
+  a second platform reads the same key without it lying about where the value
+  came from. Widening ownership beyond a single team (multiple teams,
+  tag-based scoping, etc.) is a future extension, not v1.
+- `scope.services` — the services watched and what their operators say about
+  them: `acceptable_latency_ms` and `critical`, each optional and neither
+  defaulted. Absent or empty watches every service the owner owns; named, they
+  are watched alone. The two halves narrow along different axes and compose:
+  an owner alone watches everything it owns, services alone are watched
+  whoever owns them, and both together intersect.
 - `circuit_breakers` — optional, the thresholds listed above. Defaults
   apply if absent.
 - `ingestion` — optional. How far back a run looks for alerts
@@ -710,8 +714,8 @@ testable, building only on the slices before it.
    skeleton.
 1. **Core domain & config** — Alert entity, grouping logic, Config port +
    YAML loader with defaults for optional sections, mandatory `scope`
-   (v1: Datadog team) with no fallback if missing, and environment
-   variable overrides for any config value. Testable as pure unit tests.
+   (v1: a Datadog team, and from slice 11 the services too) with no fallback
+   if missing, and environment variable overrides for any config value. Testable as pure unit tests.
 2. **Alert ingestion** — AlertSource port + Datadog REST adapter over the
    Events API. Testable against canned event payloads, with no network.
 3. **TriageLedger** — dedup/cooldown persistence, kept in SQLite over the
@@ -839,7 +843,9 @@ testable, building only on the slices before it.
     what `AGENTS.md`, [`docs/adapters.md`](adapters.md) and the `investigation`
     spec say about a specialist living under the platform it queries.
 11. **Scope describes its services** — `scope` gains an optional `services`
-    list, and a non-empty one narrows what a run watches. A named service may
+    list, and a non-empty one narrows what a run watches. Either half names a
+    scope: the owner stops being mandatory in its own right, and what is
+    mandatory is that `scope` says something. A named service may
     declare the latency it is expected to operate within, below which an
     incident is left alone entirely, and whether it is critical, which reaches
     the investigation as a fact about its target and marks the report's

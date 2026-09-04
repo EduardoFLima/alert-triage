@@ -7,7 +7,7 @@ laptop, a container, and a scheduled job with three different paths. A key
 naming a location written into the config file is inert.
 
 Unlike a credential this has a default, because a path is not a secret and a
-manual v1 run should need no configuration beyond ``scope.owner``. The default
+manual v1 run should need no configuration beyond its ``scope``. The default
 is relative and sits under ``data/``, so a run from a checkout gathers its
 state in one directory the repository ignores rather than beside the source.
 Being relative, a run started from another directory starts from an empty

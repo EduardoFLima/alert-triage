@@ -153,14 +153,22 @@ _NAME = "name"
 
 
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
-    """Resolve the one value that has no default and no fallback."""
+    """Resolve the one section that has no default and no fallback.
+
+    Either half names a scope: an owner watches everything it owns, services
+    watch themselves whoever owns them, and both compose. What has no default
+    is the section as a whole — a run may not decide for itself to watch
+    everything.
+    """
     supplied = _supplied(Scope, ("scope",), data, env, except_for=(_SERVICES,))
-    if "owner" not in supplied:
+    services = _services(data.get(_SERVICES), env)
+    if not supplied.get("owner") and not services:
         raise ConfigError(
-            "scope.owner is required and has no default: set it in "
-            "config.yaml or as the SCOPE_OWNER environment variable"
+            "scope is required and has no default: name an owner "
+            "(scope.owner, or the SCOPE_OWNER environment variable), the "
+            "services to watch (scope.services, or SCOPE_SERVICES), or both"
         )
-    return Scope(**supplied, services=_services(data.get(_SERVICES), env))
+    return Scope(**supplied, services=services)
 
 
 def _services(entries: Any, env: Mapping[str, str]) -> tuple[ScopedService, ...]:

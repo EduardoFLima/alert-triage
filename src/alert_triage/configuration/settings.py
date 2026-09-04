@@ -45,20 +45,41 @@ class ScopedService:
 class Scope:
     """What the job watches. Mandatory: there is no "watch everything" default.
 
-    The owner is a plain identifier in this project's vocabulary. Spending it
-    as a query term an observability platform understands is the alert source
+    Two axes that compose rather than compete. An owner alone watches
+    everything that owner owns; services alone watch those services whoever
+    owns them; both together watch the named services of that owner. Either
+    half is a scope on its own, so a deployment that knows which services it
+    cares about does not have to name an owner it does not otherwise use.
+
+    Both are plain identifiers in this project's vocabulary. Spending either as
+    a query term an observability platform understands is the alert source
     adapter's job, so this stays free of any one platform's naming.
 
     Attributes:
-        owner: The single owner (v1: a team) whose alerts are in scope.
+        owner: The single owner (v1: a team) whose alerts are in scope, or
+            ``None`` where the services say what is watched by themselves.
         services: The services watched, or empty for every service the owner
             owns — which is what an owner-only scope has always meant and
-            stays the default. A non-empty list narrows the run: alerts the
-            owner owns for a service not named here are not triaged at all.
+            stays the default. A non-empty list narrows the run: an alert for
+            a service not named here is not triaged at all.
     """
 
-    owner: str
+    owner: str | None = None
     services: tuple[ScopedService, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Reject a scope that watches nothing, which nothing else could mean.
+
+        The one thing a run must never do is decide for itself what to watch:
+        guessing means triaging an organisation's whole alert volume on
+        somebody's behalf. So a scope naming neither is not a scope, and the
+        value refuses to be one — whatever built it.
+        """
+        if not self.owner and not self.services:
+            raise ValueError(
+                "A scope watches something: name an owner, the services, or "
+                "both. There is no watch-everything default."
+            )
 
 
 def describing(services: Iterable[ScopedService], name: str) -> ScopedService:

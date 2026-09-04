@@ -25,6 +25,7 @@ from urllib3.exceptions import MaxRetryError
 
 from alert_triage.configuration.settings import Ingestion, Scope, ScopedService
 from alert_triage.triage.adapters.datadog.alert_source import (
+    MONITOR_ALERT_QUERY,
     DatadogAlertSource,
     build_configuration,
 )
@@ -531,3 +532,37 @@ def test_an_unreadable_account_costs_its_sibling_nothing() -> None:
 
     assert unreadable.observed_latency_ms is None
     assert readable.observed_latency_ms == 250
+
+
+def test_a_scope_naming_no_owner_asks_for_no_owner_in_particular() -> None:
+    """An owner nobody named is not a term to invent: it would match nothing."""
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events,
+        scope=Scope(services=(ScopedService(name="checkout"),)),
+        web_host="app.datadoghq.com",
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "team:" not in request.filter.query
+    assert "service:checkout" in request.filter.query
+    assert request.filter.query.startswith(MONITOR_ALERT_QUERY)
+
+
+def test_a_fetch_for_a_scope_of_services_names_them_when_it_fails() -> None:
+    events = FakeEvents(_transport_failure())
+    source = DatadogAlertSource(
+        events=events,
+        scope=Scope(services=(ScopedService(name="checkout"),)),
+        web_host="app.datadoghq.com",
+    )
+
+    with pytest.raises(AlertSourceError, match="checkout"):
+        source.fetch_since(SINCE)
+
+
+def test_a_fetch_for_an_owner_still_names_the_owner_when_it_fails() -> None:
+    with pytest.raises(AlertSourceError, match="sre"):
+        _source(_transport_failure()).fetch_since(SINCE)

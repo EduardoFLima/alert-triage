@@ -2,7 +2,9 @@
 
 See proposal.md — Why. Three constraints shape the approach:
 
-- `Scope` today is one field, `owner`, and is the only mandatory setting.
+- `Scope` today is one field, `owner`, and is the only mandatory setting. It
+  is the only setting with no default and no fallback, because "watch
+  everything" is not an answer a run may reach on its own.
   `critical_services` is a sibling `Mapping[str, CriticalService]` on the
   `Config` port that nothing outside configuration reads.
 - The YAML loader derives every environment variable name mechanically from a
@@ -42,6 +44,18 @@ See proposal.md — Why. Three constraints shape the approach:
 adding `scope.services` beside it — was rejected in the proposal: two sections
 describing one service is the duplication being removed, and the criticality
 flag has no meaning apart from the service it is declared on.
+
+**An owner and a list of services are two axes, and either alone is a scope.**
+`scope.owner` stops being mandatory in its own right; what is mandatory is that
+`scope` says *something* about what is watched. Owner alone watches everything
+that owner owns, services alone watch those services whoever owns them, and
+both together intersect. The alternative — keeping the owner mandatory and
+making `services` a pure narrowing of it — forces a deployment that knows its
+services to invent an owner it does not otherwise use, and an invented owner is
+a query term that silently returns nothing. The rule lives on `Scope` itself as
+well as in the loader: the loader's refusal is the one an operator reads,
+because it can name the two settings and where each is read from, while the
+value's own guard is what makes a scope that watches nothing unconstructible.
 
 **The adapter filters locally and narrows the query as well.** Narrowing the
 Datadog query with the service terms is what makes a scoped run cheap, but the

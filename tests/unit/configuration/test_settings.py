@@ -102,6 +102,27 @@ def test_a_scope_watches_every_service_its_owner_owns_by_default() -> None:
     assert Scope(owner="sre").services == ()
 
 
+def test_the_services_alone_are_a_scope() -> None:
+    """An owner and a list of services narrow along different axes."""
+    scope = Scope(services=(ScopedService(name="checkout"),))
+
+    assert scope.owner is None
+    assert [service.name for service in scope.services] == ["checkout"]
+
+
+def test_an_owner_and_its_services_are_a_scope_together() -> None:
+    scope = Scope(owner="sre", services=(ScopedService(name="checkout"),))
+
+    assert scope.owner == "sre"
+    assert [service.name for service in scope.services] == ["checkout"]
+
+
+def test_a_scope_naming_neither_watches_nothing_and_is_refused() -> None:
+    """The fallback that does not exist is "watch everything"."""
+    with pytest.raises(ValueError, match="owner"):
+        Scope()
+
+
 def test_the_re_notify_cooldown_defaults_to_the_documented_two_days() -> None:
     assert ReNotify().cooldown_seconds == ReNotify.DEFAULT_COOLDOWN_SECONDS
     assert ReNotify().cooldown == timedelta(days=2)

@@ -526,3 +526,60 @@ def test_a_config_still_declaring_critical_services_refuses_to_start(
 
     with pytest.raises(ConfigError, match="critical_services"):
         load_config(path, env={})
+
+
+def test_a_scope_of_services_alone_resolves_without_an_owner(
+    tmp_path: Path,
+) -> None:
+    """Naming what you watch is naming a scope, owner or no owner."""
+    path = _write(
+        tmp_path,
+        """
+scope:
+  services:
+    - name: checkout
+      acceptable_latency_ms: 250
+""",
+    )
+
+    config = load_config(path, env={})
+
+    assert config.scope.owner is None
+    assert config.scope.services == (
+        ScopedService(name="checkout", acceptable_latency_ms=250),
+    )
+
+
+def test_the_environment_alone_can_name_a_scope_by_its_services(
+    tmp_path: Path,
+) -> None:
+    config = load_config(
+        tmp_path / "absent.yaml", env={"SCOPE_SERVICES": "checkout,payments"}
+    )
+
+    assert config.scope.owner is None
+    assert [service.name for service in config.scope.services] == [
+        "checkout",
+        "payments",
+    ]
+
+
+def test_an_owner_and_services_resolve_together(tmp_path: Path) -> None:
+    path = _write(tmp_path, SCOPED + "  services:\n    - name: checkout\n")
+
+    config = load_config(path, env={})
+
+    assert config.scope.owner == "sre"
+    assert [service.name for service in config.scope.services] == ["checkout"]
+
+
+def test_a_scope_naming_neither_refuses_to_start_naming_both_ways(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, "circuit_breakers:\n  max_agent_hops: 4\n")
+
+    with pytest.raises(ConfigError) as refusal:
+        load_config(path, env={})
+
+    assert "SCOPE_OWNER" in str(refusal.value)
+    assert "SCOPE_SERVICES" in str(refusal.value)

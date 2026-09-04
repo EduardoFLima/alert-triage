@@ -1,3 +1,55 @@
+## MODIFIED Requirements
+
+### Requirement: Mandatory scope with no fallback
+The system SHALL require a `scope` naming what is watched, resolved from
+`config.yaml`, the environment, or both. `scope` is named by an owner
+(`scope.owner`, from `SCOPE_OWNER`), by the services it watches
+(`scope.services`, from `SCOPE_SERVICES`), or by both — they narrow along
+different axes and compose rather than compete: an owner alone watches
+everything that owner owns, services alone watch those services whoever owns
+them, and both together watch the named services of that owner.
+
+The system SHALL refuse to start when neither resolves. There is no default and
+no "watch everything" fallback: a run that was told nothing about what to watch
+has been told nothing worth guessing at, and guessing means triaging an
+organisation's entire alert volume on somebody's behalf.
+
+Both settings SHALL be named in platform-neutral terms, so that an alert source
+for a different observability platform supplies them without the name lying
+about where the value came from; translating either into a platform's own query
+vocabulary is the alert source adapter's responsibility, not the config's.
+
+#### Scenario: Scope provided only in config file
+- **WHEN** `config.yaml` sets `scope.owner` and no corresponding environment
+  variable is set
+- **THEN** the system starts using the value from `config.yaml`
+
+#### Scenario: Scope provided only via environment variable
+- **WHEN** no `config.yaml` exists (or it omits `scope`) and the `SCOPE_OWNER`
+  environment variable is set
+- **THEN** the system starts using the environment variable's value
+
+#### Scenario: Scope named by its services alone
+- **WHEN** `scope` names one or more services and no owner
+- **THEN** the system starts and watches those services, whoever owns them
+
+#### Scenario: Scope named by both
+- **WHEN** `scope` names an owner and one or more services
+- **THEN** the system watches the named services of that owner, and an alert
+  that fails either test is not watched
+
+#### Scenario: Scope missing from both sources
+- **WHEN** neither an owner nor any service resolves, from `config.yaml` or
+  from the environment
+- **THEN** the system refuses to start and reports that `scope` is required,
+  naming both of the ways it may be given
+
+#### Scenario: Owner is expressed in the platform's terms by the adapter
+- **WHEN** the resolved owner is used to fetch alerts from an observability
+  platform
+- **THEN** the adapter translates it into that platform's own way of
+  expressing ownership, and the config exposes no platform-specific form
+
 ## ADDED Requirements
 
 ### Requirement: Scope may name the services it watches
@@ -9,8 +61,13 @@ optional.
 When the list is absent or empty, the system SHALL watch every service the
 owner owns, which is the behavior of an owner-only scope and remains the
 default. When the list names one or more services, the system SHALL watch those
-services alone: alerts the owner owns for any service not named SHALL NOT be
-triaged, reported, or recorded.
+services alone: an alert for any service not named SHALL NOT be triaged,
+reported, or recorded, whoever owns it.
+
+The list SHALL be able to name the scope by itself. Where it does and no owner
+is resolved, the services alone decide what is watched — a deployment that
+knows which services it cares about should not have to name an owner it does
+not use to say so.
 
 Which services are watched SHALL be resolvable from the environment as well as
 from the file, because narrowing scope is exactly the kind of value that
@@ -24,6 +81,11 @@ beyond its name.
 #### Scenario: No services named
 - **WHEN** `scope` names an owner and no services
 - **THEN** the system watches every service that owner owns
+
+#### Scenario: Services named and no owner
+- **WHEN** `scope` names services and no owner
+- **THEN** the system watches those services, whoever owns them, rather than
+  refusing to start for want of an owner
 
 #### Scenario: The list narrows what is watched
 - **WHEN** `scope` names two services and the owner also owns a third

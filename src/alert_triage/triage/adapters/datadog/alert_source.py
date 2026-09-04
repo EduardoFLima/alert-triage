@@ -80,17 +80,12 @@ class DatadogAlertSource:
         self._watched = frozenset(service.name for service in scope.services)
         self._web_host = web_host
 
-    @property
-    def _owner(self) -> str:
-        """The owner in scope, which is what a failure and a banner name."""
-        return self._scope.owner
-
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
         _log.info(
             journal.banner(
                 "FETCHING ALERTS",
-                owner=self._owner,
+                owner=self._scope.owner or "any owner",
                 services=_watching(self._watched),
                 since=since.isoformat(),
             )
@@ -147,8 +142,8 @@ class DatadogAlertSource:
             return self._events.search_events(body=self._request(since, cursor))
         except (OpenApiException, TransportError) as error:
             raise AlertSourceError(
-                f"Could not fetch alerts for owner {self._owner!r} from Datadog: "
-                f"{error}"
+                f"Could not fetch alerts for {_scope_of(self._scope)} from "
+                f"Datadog: {error}"
             ) from error
 
     def _request(self, since: datetime, cursor: str | None) -> EventsListRequest:
@@ -166,20 +161,28 @@ class DatadogAlertSource:
         )
 
     def _query(self) -> str:
-        """Ask Datadog for as little as it can be asked for.
+        """Ask Datadog for as little as the scope lets it be asked for.
 
-        Narrowing the search to the watched services is what makes a scoped run
-        cheap, and nothing more: ``_in_scope`` is what guarantees the result,
+        One term per half the scope names. An owner nobody named contributes no
+        term rather than an empty one: ``team:`` with nothing after it is a
+        query that matches nothing, which would read as a quiet week.
+
+        Narrowing to the watched services is what makes a scoped run cheap, and
+        nothing more: ``_in_scope`` is what guarantees that half of the result,
         so a name this grammar mishandles costs a wasted page rather than an
-        alert nobody notices was triaged.
+        alert nobody notices was triaged. Ownership has no such second line —
+        an alert carries no owner once translated — so that half does rest on
+        the query, as it always has.
         """
-        owned = f"{MONITOR_ALERT_QUERY} team:{self._owner}"
-        if not self._watched:
-            return owned
-        services = " OR ".join(
-            f"{SERVICE_TAG_PREFIX}{name}" for name in sorted(self._watched)
-        )
-        return f"{owned} ({services})"
+        terms = [MONITOR_ALERT_QUERY]
+        if self._scope.owner:
+            terms.append(f"team:{self._scope.owner}")
+        if self._watched:
+            services = " OR ".join(
+                f"{SERVICE_TAG_PREFIX}{name}" for name in sorted(self._watched)
+            )
+            terms.append(f"({services})")
+        return " ".join(terms)
 
     def _to_alert(self, event: EventResponse) -> Alert | None:
         """Translate one event, or ``None`` when it carries no service tag.
@@ -278,6 +281,19 @@ def build_alert_source(
 def _watching(services: frozenset[str]) -> str:
     """Name the services a fetch is narrowed to, so a quiet run says why."""
     return ", ".join(sorted(services)) if services else "every service"
+
+
+def _scope_of(scope: Scope) -> str:
+    """Name what a failed fetch was fetching for, by whichever half named it."""
+    if scope.owner and scope.services:
+        return f"owner {scope.owner!r} and services {_watching(_named(scope))}"
+    if scope.owner:
+        return f"owner {scope.owner!r}"
+    return f"services {_watching(_named(scope))}"
+
+
+def _named(scope: Scope) -> frozenset[str]:
+    return frozenset(service.name for service in scope.services)
 
 
 def _next_cursor(page: EventsListResponse) -> str | None:

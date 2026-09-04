@@ -22,6 +22,11 @@ services it watches**, and the escalation path moves to the roadmap.
 - **BREAKING** A non-empty `services` list narrows what a run watches: only the
   listed services are fetched and triaged. Absent or empty means every service
   the owner owns, which is today's behavior and stays the default.
+- **BREAKING** `scope.owner` stops being the one mandatory setting and becomes
+  one of two ways to say what is watched. A scope is resolved when it names an
+  owner, some services, or both: the two narrow along different axes and
+  compose. A scope naming neither is still refused — the fallback that does not
+  exist is "watch everything", not "name an owner".
 - `Alert` gains an observed latency, read by the Datadog adapter from the
   monitor event's own account of what triggered it, and absent where none can be
   read.
@@ -64,8 +69,9 @@ itself evidence the reformulation is the smaller change.
 ### Modified Capabilities
 
 - `config`: `scope` gains the optional `services` list, its per-entry keys, and
-  the rule that a named entry is mandatory-`name`; the `critical_services`
-  requirements are removed.
+  the rule that a named entry is mandatory-`name`; mandatory scope becomes
+  "an owner, some services, or both"; the `critical_services` requirements are
+  removed.
 - `alert-ingestion`: "Only alerts within the configured scope" narrows from the
   owner alone to the owner and, when declared, the listed services; translation
   populates the observed latency where the platform's account of the alert
@@ -83,7 +89,8 @@ itself evidence the reformulation is the smaller change.
 
 ## Impact
 
-- `configuration/settings.py` — `ScopedService` added to `Scope`;
+- `configuration/settings.py` — `ScopedService` added to `Scope`; `owner`
+  becomes optional, with the value refusing to be a scope that names nothing;
   `CriticalService` deleted. `configuration/port.py` — `critical_services`
   removed. `configuration/adapters/yaml/loader.py` — the list is read, entries
   are keyed by name for environment overrides, and a missing `name` is refused.
