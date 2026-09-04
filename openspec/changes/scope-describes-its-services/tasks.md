@@ -63,28 +63,28 @@
 
 ## 4. An incident within its acceptable latency is left alone
 
-- [ ] 4.1 Red: in the policy tests, decide against an incident whose every
+- [x] 4.1 Red: in the policy tests, decide against an incident whose every
   alert is at or under its service's acceptable latency and assert
   `should_report` and `should_investigate` are both false.
-- [ ] 4.2 Green: take the `ScopedService` in `policy.triage` and let the
+- [x] 4.2 Green: take the `ScopedService` in `policy.triage` and let the
   acceptable-latency check join the cooldown as a second reason a report is not
   due — not a third flag on `TriageDecision` (design.md).
-- [ ] 4.3 Red: cover the four cases that must not silence — one alert above the
+- [x] 4.3 Red: cover the four cases that must not silence — one alert above the
   figure, one alert reporting no latency, a service declaring no acceptable
   latency, and an incident that absorbs a quiet alert after being investigated
   for a loud one.
-- [ ] 4.4 Green: make them pass, and confirm 4.1 still does.
-- [ ] 4.5 Red: in the pipeline tests, run a silenced incident end to end and
+- [x] 4.4 Green: make them pass, and confirm 4.1 still does.
+- [x] 4.5 Red: in the pipeline tests, run a silenced incident end to end and
   assert nothing is investigated, nothing is delivered, the incident is
   recorded with its alerts absorbed and its report stamp and attempts
   untouched, and the run finishes successfully.
-- [ ] 4.6 Green: have `_handle` resolve the group's service from
+- [x] 4.6 Green: have `_handle` resolve the group's service from
   `config.scope` once — a bare `ScopedService(name=...)` when the scope names
   none — and pass that value to the decision, the target, and the report
   builder.
-- [ ] 4.7 Red: assert the run's account names the silenced incident and gives
+- [x] 4.7 Red: assert the run's account names the silenced incident and gives
   the acceptable latency as the reason.
-- [ ] 4.8 Green: add the journal line beside the existing "nothing is
+- [x] 4.8 Green: add the journal line beside the existing "nothing is
   delivered" reasons.
 
 ## 5. Closing follows the same question

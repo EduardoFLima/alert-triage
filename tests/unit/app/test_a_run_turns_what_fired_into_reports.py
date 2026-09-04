@@ -22,6 +22,7 @@ from alert_triage.configuration.settings import (
     Ledger,
     ReNotify,
     Scope,
+    ScopedService,
 )
 from alert_triage.investigation.contract import (
     Confidence,
@@ -367,3 +368,94 @@ def _diagnosed(findings: Findings) -> Diagnosis:
         confidence=Confidence.MEDIUM if findings.findings else None,
         findings=findings,
     )
+
+
+def _watching(service: str, **described: object) -> Scope:
+    return Scope(
+        owner="sre",
+        services=(ScopedService(name=service, **described),),  # type: ignore[arg-type]
+    )
+
+
+def test_an_incident_within_its_acceptable_latency_is_left_alone(
+    config: SuppliedConfig,
+) -> None:
+    """Nothing is looked at, nothing is delivered, and the run is a success."""
+    quiet = replace(_alert("a"), observed_latency_ms=180)
+    ledger = FakeLedger()
+    notifier = FakeNotifier()
+    investigator = FakeInvestigator()
+
+    outcome = _run(
+        FakeAlertSource(alerts=[quiet]),
+        ledger,
+        notifier,
+        replace(config, scope=_watching("checkout", acceptable_latency_ms=250)),
+        investigator=investigator,
+    )
+
+    assert investigator.asked == []
+    assert notifier.delivered == []
+    assert outcome.successful
+    assert outcome.delivered == 0
+
+
+def test_a_silenced_incident_is_still_recorded_with_its_alerts(
+    config: SuppliedConfig,
+) -> None:
+    """An overlapping run must recognise it rather than open a second one."""
+    quiet = replace(_alert("a"), observed_latency_ms=180)
+    on_record = _on_record(
+        replace(_alert("b", offset=timedelta(minutes=-5)), observed_latency_ms=200),
+        last_reported_at=None,
+    )
+    ledger = FakeLedger(on_record=[on_record])
+
+    _run(
+        FakeAlertSource(alerts=[quiet]),
+        ledger,
+        FakeNotifier(),
+        replace(config, scope=_watching("checkout", acceptable_latency_ms=250)),
+    )
+
+    (recorded,) = ledger.incidents
+    assert recorded.id == "incident-0"
+    assert {alert.source_id for alert in recorded.alerts} == {"a", "b"}
+
+
+def test_leaving_an_incident_alone_stamps_and_spends_nothing(
+    config: SuppliedConfig,
+) -> None:
+    """Nothing was delivered and nothing was attempted, so neither is recorded."""
+    quiet = replace(_alert("a"), observed_latency_ms=180)
+    ledger = FakeLedger()
+
+    _run(
+        FakeAlertSource(alerts=[quiet]),
+        ledger,
+        FakeNotifier(),
+        replace(config, scope=_watching("checkout", acceptable_latency_ms=250)),
+    )
+
+    (recorded,) = ledger.incidents
+    assert recorded.last_reported_at is None
+    assert recorded.investigation_attempts == 0
+
+
+def test_a_loud_alert_in_a_watched_service_is_worked_as_ever(
+    config: SuppliedConfig,
+) -> None:
+    loud = replace(_alert("a"), observed_latency_ms=900)
+    notifier = FakeNotifier()
+    investigator = FakeInvestigator()
+
+    outcome = _run(
+        FakeAlertSource(alerts=[loud]),
+        FakeLedger(),
+        notifier,
+        replace(config, scope=_watching("checkout", acceptable_latency_ms=250)),
+        investigator=investigator,
+    )
+
+    assert len(investigator.asked) == 1
+    assert outcome.delivered == 1

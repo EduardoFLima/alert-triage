@@ -18,6 +18,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from alert_triage.configuration.port import Config
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.investigation.contract import Diagnosis
 from alert_triage.investigation.ports.investigator import (
     Investigator,
@@ -28,7 +29,11 @@ from alert_triage.notification.ports.notifier import Notifier, NotifierError
 from alert_triage.shared import journal
 from alert_triage.triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.triage.domain.incident import Incident
-from alert_triage.triage.domain.policy import TriageDecision, triage
+from alert_triage.triage.domain.policy import (
+    TriageDecision,
+    triage,
+    within_acceptable_latency,
+)
 from alert_triage.triage.ports.alert_source import AlertSource, AlertSourceError
 from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
@@ -209,15 +214,20 @@ def _handle(
         )
         return _Handled(failures=(RunFailure(Stage.READ, group.service, str(error)),))
 
+    service = _described(group.service, config)
+
     decision = triage(
         group,
         known,
+        service=service,
         now=now,
         window=config.grouping.window,
         cooldown=config.re_notify.cooldown,
         max_attempts=config.investigation.max_attempts,
         new_id=new_id,
     )
+
+    unowed = _why_nothing_is_owed(decision, service)
 
     _log.info(
         journal.event(
@@ -228,7 +238,7 @@ def _handle(
                 if decision.should_investigate
                 else "not owed one"
             ),
-            report="due now" if decision.should_report else "inside its cooldown",
+            report="due now" if decision.should_report else unowed,
         )
     )
 
@@ -246,6 +256,7 @@ def _handle(
         incident,
         diagnosis,
         should_report=decision.should_report,
+        unowed=unowed,
         exhausted=incident.investigation_attempts >= config.investigation.max_attempts,
         notifier=notifier,
         build_report=build_report,
@@ -300,11 +311,27 @@ def _investigated(
     return diagnosis, None
 
 
+def _why_nothing_is_owed(decision: TriageDecision, service: ScopedService) -> str:
+    """Which silence a run chose, in the words a reader needs to tell them apart.
+
+    An incident nobody was ever owed a report about reads nothing like one that
+    was reported yesterday, and a reader looking for the incident nobody
+    examined must be able to tell it from the incident the run never saw.
+    """
+    if within_acceptable_latency(decision.incident, service):
+        return (
+            f"within {service.name}'s acceptable latency of "
+            f"{service.acceptable_latency_ms}ms"
+        )
+    return "inside its cooldown"
+
+
 def _delivered(
     incident: Incident,
     diagnosis: Diagnosis | None,
     *,
     should_report: bool,
+    unowed: str,
     exhausted: bool,
     notifier: Notifier,
     build_report: ReportBuilder,
@@ -325,10 +352,7 @@ def _delivered(
 
     if not should_report:
         _log.info(
-            journal.event(
-                "nothing is delivered",
-                because="the incident is inside its re-notify cooldown",
-            )
+            journal.event("nothing is delivered", incident=incident.id, because=unowed)
         )
         return False, None
     if diagnosis is None and not exhausted:
@@ -356,6 +380,20 @@ def _delivered(
         return False, RunFailure(Stage.DELIVER, incident.service, str(error))
     _log.info(journal.event("delivered", incident=incident.id, subject=report.subject))
     return True, None
+
+
+def _described(service: str, config: Config) -> ScopedService:
+    """What the scope says about this service, looked up once for the whole group.
+
+    A scope naming no services describes none of them, and a scope naming some
+    can still be handling one it does not describe. Either way the answer is a
+    service with nothing said about it, which is what every decision below
+    reads as "no threshold, not critical".
+    """
+    for described in config.scope.services:
+        if described.name == service:
+            return described
+    return ScopedService(name=service)
 
 
 def _spanned(group: AlertGroup) -> str:

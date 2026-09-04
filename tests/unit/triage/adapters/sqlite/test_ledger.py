@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.triage.adapters.sqlite import SqliteTriageLedger
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.grouping import AlertGroup
@@ -270,6 +271,7 @@ def test_retained_history_decides_as_though_the_record_were_deleted(
         triage(
             arriving,
             ledger.open_incidents("checkout", at),
+            service=ScopedService(name="checkout"),
             now=at,
             window=WINDOW,
             cooldown=COOLDOWN,

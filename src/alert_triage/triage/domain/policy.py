@@ -21,6 +21,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.triage.domain.grouping import AlertGroup
 from alert_triage.triage.domain.incident import Incident
 
@@ -49,6 +50,7 @@ def triage(
     group: AlertGroup,
     known: Iterable[Incident],
     *,
+    service: ScopedService,
     now: datetime,
     window: timedelta,
     cooldown: timedelta,
@@ -75,9 +77,18 @@ def triage(
     The returned incident is never stamped as reported. That stamp belongs to
     the delivery, which has not happened yet when this returns.
 
+    A second reason a report is not due joins the cooldown: an incident every
+    one of whose alerts came in at or under its service's acceptable latency is
+    left alone entirely. It is a reason a report is not *due* rather than a
+    flag of its own, so investigation, delivery, and closing inherit it without
+    an ``if`` each — they already follow from what is due.
+
     Args:
         group: The alerts one run grouped, oldest first.
         known: The open incidents on record for the group's service.
+        service: What the scope says about the group's service. A service its
+            operators described nothing about accepts no particular latency,
+            and nothing about it is judged against a figure.
         now: The instant to decide against. Supplied rather than read, so the
             same inputs always reach the same decision.
         window: The grouping window, applied here across runs.
@@ -97,7 +108,9 @@ def triage(
     if max_attempts < 1:
         raise ValueError("max_attempts must allow at least one investigation")
     incident = continue_or_open(group, known, window=window, new_id=new_id)
-    should_report = _is_due(incident, now, cooldown)
+    should_report = _is_due(incident, now, cooldown) and not within_acceptable_latency(
+        incident, service
+    )
     return TriageDecision(
         incident=incident,
         should_report=should_report,
@@ -111,6 +124,32 @@ def _is_due(incident: Incident, now: datetime, cooldown: timedelta) -> bool:
     if incident.last_reported_at is None:
         return True
     return now - incident.last_reported_at >= cooldown
+
+
+def within_acceptable_latency(incident: Incident, service: ScopedService) -> bool:
+    """Whether this incident is the service performing as its operators said.
+
+    Public because a run has to say *which* silence it chose — an incident
+    nobody was owed a report about reads nothing like one inside its cooldown.
+    Asking the rule rather than restating it is what keeps the two answers from
+    drifting apart.
+
+    Only ever decided against figures that were actually read. A service that
+    declared no acceptable latency has stated nothing to judge against, and an
+    alert nobody measured has not been shown to be acceptable — so an incident
+    holding one is worked as usual, whatever its quieter siblings reported.
+
+    It follows that absorbing an alert can end an incident's silence and can
+    never begin it: the loud alert that earned an investigation stays absorbed.
+    """
+    acceptable = service.acceptable_latency_ms
+    if acceptable is None:
+        return False
+    return all(
+        alert.observed_latency_ms is not None
+        and alert.observed_latency_ms <= acceptable
+        for alert in incident.alerts
+    )
 
 
 def is_closed(

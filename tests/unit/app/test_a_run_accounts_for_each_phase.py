@@ -12,7 +12,7 @@ contained to one group is captioned under the phase it happened in.
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -27,6 +27,7 @@ from alert_triage.configuration.settings import (
     Ledger,
     ReNotify,
     Scope,
+    ScopedService,
 )
 from alert_triage.investigation.contract import (
     Confidence,
@@ -137,6 +138,7 @@ def _ran(
     ledger: _Ledger | None = None,
     notifier: _Notifier | None = None,
     investigator: _Investigator | None = None,
+    config: _Config | None = None,
 ) -> str:
     with caplog.at_level(logging.INFO):
         run(
@@ -145,7 +147,7 @@ def _ran(
             notifier=notifier or _Notifier(),
             investigator=investigator or _Investigator(),
             build_report=_report,
-            config=_Config(),
+            config=config or _Config(),
             now=NOON + timedelta(minutes=10),
             new_id=lambda: "incident-1",
         )
@@ -242,3 +244,26 @@ def test_a_report_no_channel_took_says_so_where_it_was_delivered(
 
     assert "── the report was not delivered" in written
     assert "no channel accepted it" in written
+
+
+def test_an_incident_left_alone_says_the_acceptable_latency_is_why(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reader must tell an incident nobody looked at from one nobody saw."""
+    quiet = [
+        replace(_alert("a"), observed_latency_ms=100),
+        replace(_alert("b", timedelta(minutes=3)), observed_latency_ms=180),
+    ]
+    watching = _Config(
+        scope=Scope(
+            owner="sre",
+            services=(ScopedService(name="checkout", acceptable_latency_ms=250),),
+        )
+    )
+
+    written = _ran(caplog, source=_Source(quiet), config=watching)
+
+    assert "REPORTING · checkout" in written
+    assert "acceptable latency" in written
+    assert "250" in written
+    assert "incident-1" in written

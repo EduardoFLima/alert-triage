@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.grouping import AlertGroup, group_alerts
 from alert_triage.triage.domain.incident import Incident
@@ -21,9 +22,25 @@ NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
 
 def _alert(
-    source_id: str, offset: timedelta = timedelta(), service: str = "checkout"
+    source_id: str,
+    offset: timedelta = timedelta(),
+    service: str = "checkout",
+    latency_ms: int | None = None,
 ) -> Alert:
-    return Alert(service=service, fired_at=NOON + offset, source_id=source_id)
+    return Alert(
+        service=service,
+        fired_at=NOON + offset,
+        source_id=source_id,
+        observed_latency_ms=latency_ms,
+    )
+
+
+UNDESCRIBED = ScopedService(name="checkout")
+"""A service its operators have said nothing about, which is most of them."""
+
+
+def _accepting(latency_ms: int) -> ScopedService:
+    return ScopedService(name="checkout", acceptable_latency_ms=latency_ms)
 
 
 def _group(*alerts: Alert) -> AlertGroup:
@@ -136,10 +153,12 @@ def _decide(
     known: list[Incident],
     at: datetime,
     cooldown: timedelta = COOLDOWN,
+    service: ScopedService = UNDESCRIBED,
 ) -> tuple[Incident, bool]:
     decision = triage(
         group,
         known,
+        service=service,
         now=at,
         window=WINDOW,
         cooldown=cooldown,
@@ -308,10 +327,12 @@ def _investigate(
     known: list[Incident],
     at: datetime,
     max_attempts: int = MAX_ATTEMPTS,
+    service: ScopedService = UNDESCRIBED,
 ) -> TriageDecision:
     return triage(
         group,
         known,
+        service=service,
         now=at,
         window=WINDOW,
         cooldown=COOLDOWN,
@@ -434,3 +455,62 @@ def test_an_incident_reported_and_long_quiet_still_closes() -> None:
         window=WINDOW,
         cooldown=COOLDOWN,
     )
+
+
+def test_an_incident_within_its_acceptable_latency_is_left_alone() -> None:
+    """Telling a team a service performed as they said it should is the noise."""
+    group = _group(_alert("a", latency_ms=180), _alert("b", latency_ms=250))
+
+    decision = _investigate(group, [], at=NOON, service=_accepting(250))
+
+    assert not decision.should_report
+    assert not decision.should_investigate
+
+
+def test_one_alert_above_the_figure_earns_the_incident_its_investigation() -> None:
+    group = _group(
+        _alert("a", latency_ms=180),
+        _alert("b", latency_ms=200),
+        _alert("c", latency_ms=900),
+    )
+
+    decision = _investigate(group, [], at=NOON, service=_accepting(250))
+
+    assert decision.should_report
+    assert decision.should_investigate
+
+
+def test_an_alert_nobody_measured_has_not_been_shown_to_be_acceptable() -> None:
+    group = _group(_alert("a", latency_ms=180), _alert("b", latency_ms=None))
+
+    decision = _investigate(group, [], at=NOON, service=_accepting(250))
+
+    assert decision.should_report
+    assert decision.should_investigate
+
+
+def test_a_service_declaring_no_acceptable_latency_silences_nothing() -> None:
+    """No figure was ever stated, so there is nothing to judge it against."""
+    group = _group(_alert("a", latency_ms=1), _alert("b", latency_ms=2))
+
+    decision = _investigate(group, [], at=NOON, service=UNDESCRIBED)
+
+    assert decision.should_report
+    assert decision.should_investigate
+
+
+def test_a_quiet_alert_does_not_silence_an_incident_already_worked() -> None:
+    """Absorbing an alert can end a silence and must never begin one."""
+    loud = _alert("a", latency_ms=900)
+    on_record = Incident(id="incident-0", service="checkout", alerts=(loud,))
+
+    decision = _investigate(
+        _group(_alert("b", offset=timedelta(minutes=5), latency_ms=100)),
+        [on_record],
+        at=NOON,
+        service=_accepting(250),
+    )
+
+    assert decision.incident.id == "incident-0"
+    assert decision.should_report
+    assert decision.should_investigate
