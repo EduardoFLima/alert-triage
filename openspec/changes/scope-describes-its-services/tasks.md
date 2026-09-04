@@ -191,3 +191,7 @@ services name one it does not use.
   and cut the commentary the configuration reference already carries.
 - [x] 11.2 `README.md`: say a run watches its defined scope, and leave the
   possibilities to `docs/configuration.md`.
+- [x] 11.3 Delete `REMOVED_SECTIONS`, `_reject_removed`, and the test asserting
+  the refusal. Review: the project has no production deployment carrying a
+  `critical_services` section, so the refusal guards nobody. This supersedes
+  7.2 — the section is now ignored like any other the schema does not know.

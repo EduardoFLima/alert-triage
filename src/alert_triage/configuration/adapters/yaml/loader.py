@@ -40,25 +40,6 @@ from alert_triage.configuration.settings import (
 
 DEFAULT_CONFIG_PATH = Path("config.yaml")
 
-REMOVED_SECTIONS = {
-    "critical_services": (
-        "describe each service under 'scope.services' instead, naming it and "
-        "setting 'critical: true'. Note that listing services under 'scope' "
-        "also narrows what is watched, which 'critical_services' never did: a "
-        "deployment that watches every service its owner owns should leave "
-        "'scope.services' absent"
-    ),
-}
-"""Sections that once existed, and where their settings went.
-
-A section the schema simply does not know is left alone — a deployment may
-write its connection facts into the file, where they are inert rather than
-fatal. A section that was *removed* is different: an operator wrote it meaning
-something by it, and starting with it silently dropped would leave them
-believing a setting is in force that nothing reads. So these are refused by
-name, with the replacement named too.
-"""
-
 
 @dataclass(frozen=True)
 class ResolvedConfig:
@@ -90,7 +71,6 @@ def load_config(
             does not exist, or leaves the mandatory ``scope`` unresolved.
     """
     document = _read(path)
-    _reject_removed(document)
     environment = os.environ if env is None else env
     return ResolvedConfig(
         scope=_scope(_section_data(document, "scope"), environment),
@@ -103,14 +83,6 @@ def load_config(
             CircuitBreakers, ("circuit_breakers",), document, environment
         ),
     )
-
-
-def _reject_removed(document: Mapping[str, Any]) -> None:
-    """Fail on a section that used to exist, rather than dropping what it says."""
-    for section in sorted(set(document) & set(REMOVED_SECTIONS)):
-        raise ConfigError(
-            f"Config section '{section}' no longer exists: {REMOVED_SECTIONS[section]}"
-        )
 
 
 def _read(path: Path) -> Mapping[str, Any]:

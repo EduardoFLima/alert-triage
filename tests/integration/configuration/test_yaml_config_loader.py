@@ -516,18 +516,6 @@ scope:
     assert config.scope.services == ()
 
 
-def test_a_config_still_declaring_critical_services_refuses_to_start(
-    tmp_path: Path,
-) -> None:
-    """Refused by name, rather than started with the section silently dropped."""
-    path = _write(
-        tmp_path, SCOPED + "\ncritical_services:\n  checkout:\n    tier: critical\n"
-    )
-
-    with pytest.raises(ConfigError, match="critical_services"):
-        load_config(path, env={})
-
-
 def test_a_scope_of_services_alone_resolves_without_an_owner(
     tmp_path: Path,
 ) -> None:

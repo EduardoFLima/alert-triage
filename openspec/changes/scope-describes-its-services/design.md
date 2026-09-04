@@ -153,11 +153,14 @@ incident already reported, because a delivered report is stamped.
 ## Migration Plan
 
 Configuration only; there is no stored state to migrate. `critical_services`
-becomes an unknown key, which the loader already refuses by name, so a
-deployment carrying one fails at startup with the key named rather than
-starting with a setting silently dropped. `config.example.yaml` and
-`docs/configuration.md` carry the replacement, and the removed requirement in
-the `config` delta carries the mapping. Rollback is reverting the commit: no
+becomes a section the schema does not know, which the loader leaves alone — the
+same tolerance that lets a deployment write its connection facts into the file
+where they are inert. Refusing it by name was implemented and then removed in
+review: the project has no production deployment carrying that section, so the
+refusal guarded nobody and was machinery to carry forever for a key nothing
+will write again. `config.example.yaml` and `docs/configuration.md` carry the
+replacement, and the removed requirement in the `config` delta carries the
+mapping for anyone editing a file by hand. Rollback is reverting the commit: no
 schema, ledger, or report format changes shape.
 
 ## Open Questions

@@ -166,7 +166,9 @@ describing the same service is the duplication the reformulation removes.
 that listing services under `scope` also narrows what is watched, which
 `critical_services` never did — a deployment that wants to keep watching every
 service its owner owns should leave `scope.services` absent, or list every
-service it watches rather than only the critical ones.
+service it watches rather than only the critical ones. A `critical_services`
+section left in a file is a section the schema no longer knows: it is ignored
+rather than refused, as any unknown section is.
 
 ### Requirement: Threshold defaults within a declared critical service
 **Reason**: The section that carried these thresholds is removed, and its one
