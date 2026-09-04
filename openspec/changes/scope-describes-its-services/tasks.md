@@ -1,39 +1,39 @@
 ## 1. Configuration describes a service
 
-- [ ] 1.1 Red: in `tests/unit/configuration/test_settings.py`, assert
+- [x] 1.1 Red: in `tests/unit/configuration/test_settings.py`, assert
   `ScopedService("checkout")` carries no acceptable latency and is not
   critical, and that `Scope("sre")` watches no named services. Watch it fail
   for want of the type.
-- [ ] 1.2 Green: add `ScopedService` to `configuration/settings.py` with
+- [x] 1.2 Green: add `ScopedService` to `configuration/settings.py` with
   `name`, `acceptable_latency_ms: int | None = None`, `critical: bool = False`,
   and give `Scope` a `services: tuple[ScopedService, ...] = ()`.
-- [ ] 1.3 Red: in the loader tests, read a `scope.services` list of two entries
+- [x] 1.3 Red: in the loader tests, read a `scope.services` list of two entries
   — one bare name, one with both keys — and assert what resolves. Add a test
   that an entry naming no service raises `ConfigError` identifying that entry.
-- [ ] 1.4 Green: read the list in `_scope`, refusing a nameless entry, and
+- [x] 1.4 Green: read the list in `_scope`, refusing a nameless entry, and
   resolve each entry through the existing `_supplied` path so unknown keys stay
   refused by name.
-- [ ] 1.5 Red: set `SCOPE_SERVICES_CHECKOUT_CRITICAL=false` for a service the
+- [x] 1.5 Red: set `SCOPE_SERVICES_CHECKOUT_CRITICAL=false` for a service the
   file declares critical and assert it resolves as not critical. Watch it fail
   — `bool("false")` is `True`. Add a second test that a value that is neither
   true nor false raises `ConfigError` naming the variable.
-- [ ] 1.6 Green: teach `_coerce` a `bool` case accepting `true/false/yes/no/1/0`
+- [x] 1.6 Green: teach `_coerce` a `bool` case accepting `true/false/yes/no/1/0`
   case-insensitively and refusing the rest by name, and unwrap `X | None` to
   `X` so `acceptable_latency_ms` coerces as an int.
-- [ ] 1.7 Red: set `SCOPE_SERVICES=checkout,payments` against a file naming a
+- [x] 1.7 Red: set `SCOPE_SERVICES=checkout,payments` against a file naming a
   different set, and assert the environment's set wins while each named
   service's settings still come from its file entry where one exists.
-- [ ] 1.8 Green: read `SCOPE_SERVICES` as a comma-separated list of names that
+- [x] 1.8 Green: read `SCOPE_SERVICES` as a comma-separated list of names that
   replaces the file's set, per design.md.
 
 ## 2. An alert carries what it fired at
 
-- [ ] 2.1 Red: in the `Alert` tests, assert an alert built with an observed
+- [x] 2.1 Red: in the `Alert` tests, assert an alert built with an observed
   latency exposes it, and one built without exposes `None` — distinguishable
   from `0`. Watch it fail for want of the field.
-- [ ] 2.2 Green: add the optional observed latency in milliseconds to
+- [x] 2.2 Green: add the optional observed latency in milliseconds to
   `triage/domain/alert.py`, defaulting to `None`.
-- [ ] 2.3 Add a grouping test that two alerts differing only in observed
+- [x] 2.3 Add a grouping test that two alerts differing only in observed
   latency still group together, and extend the existing "grouping ignores the
   added fields" test to name it. This one guards rather than drives — say so
   in the commit rather than pretending it was red.

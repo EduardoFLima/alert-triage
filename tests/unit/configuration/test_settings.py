@@ -13,6 +13,7 @@ from alert_triage.configuration.settings import (
     Ledger,
     ReNotify,
     Scope,
+    ScopedService,
 )
 
 
@@ -89,6 +90,18 @@ def test_changing_an_ingestion_bound_leaves_the_breakers_alone() -> None:
 
     assert config.circuit_breakers.mcp_call_timeout_seconds == 30
     assert config.circuit_breakers.max_mcp_retries == 3
+
+
+def test_a_watched_service_is_ordinary_until_an_operator_says_otherwise() -> None:
+    service = ScopedService(name="checkout")
+
+    assert service.name == "checkout"
+    assert service.acceptable_latency_ms is None
+    assert service.critical is False
+
+
+def test_a_scope_watches_every_service_its_owner_owns_by_default() -> None:
+    assert Scope(owner="sre").services == ()
 
 
 def test_critical_service_thresholds_have_documented_defaults() -> None:

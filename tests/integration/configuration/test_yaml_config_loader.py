@@ -5,7 +5,7 @@ import pytest
 
 from alert_triage.configuration.adapters.yaml import load_config
 from alert_triage.configuration.port import Config, ConfigError
-from alert_triage.configuration.settings import CriticalService
+from alert_triage.configuration.settings import CriticalService, ScopedService
 from alert_triage.triage.adapters.datadog.connection import resolve_connection
 from alert_triage.triage.adapters.sqlite import (
     DEFAULT_LEDGER_PATH,
@@ -416,3 +416,169 @@ def test_a_ledger_location_in_the_file_is_not_where_records_are_kept(
 
     assert not hasattr(config, "ledger_storage")
     assert resolve_ledger_path(env={}) == DEFAULT_LEDGER_PATH
+
+
+def test_a_scope_naming_no_services_watches_every_one_of_them(
+    tmp_path: Path,
+) -> None:
+    config = load_config(_write(tmp_path, SCOPED), env={})
+
+    assert config.scope.services == ()
+
+
+def test_a_scope_names_the_services_it_watches(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: payments
+    - name: checkout
+      acceptable_latency_ms: 250
+      critical: true
+""",
+    )
+
+    config = load_config(path, env={})
+
+    assert config.scope.services == (
+        ScopedService(name="payments"),
+        ScopedService(name="checkout", acceptable_latency_ms=250, critical=True),
+    )
+
+
+def test_a_scoped_service_naming_nothing_refuses_to_start(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: payments
+    - acceptable_latency_ms: 250
+""",
+    )
+
+    with pytest.raises(ConfigError, match=r"scope\.services\[1\]"):
+        load_config(path, env={})
+
+
+def test_an_unknown_key_within_a_scoped_service_is_refused_by_name(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: checkout
+      tier: critical
+""",
+    )
+
+    with pytest.raises(ConfigError, match="tier"):
+        load_config(path, env={})
+
+
+def test_the_environment_can_stand_a_declared_service_down_from_critical(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: checkout
+      critical: true
+""",
+    )
+
+    config = load_config(path, env={"SCOPE_SERVICES_CHECKOUT_CRITICAL": "false"})
+
+    assert config.scope.services == (ScopedService(name="checkout", critical=False),)
+
+
+def test_a_value_that_is_neither_true_nor_false_is_refused_by_variable(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: checkout
+""",
+    )
+
+    with pytest.raises(ConfigError, match="SCOPE_SERVICES_CHECKOUT_CRITICAL"):
+        load_config(path, env={"SCOPE_SERVICES_CHECKOUT_CRITICAL": "perhaps"})
+
+
+def test_the_environment_adjusts_one_declared_services_acceptable_latency(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: checkout
+      acceptable_latency_ms: 250
+      critical: true
+""",
+    )
+
+    config = load_config(
+        path, env={"SCOPE_SERVICES_CHECKOUT_ACCEPTABLE_LATENCY_MS": "400"}
+    )
+
+    assert config.scope.services == (
+        ScopedService(name="checkout", acceptable_latency_ms=400, critical=True),
+    )
+
+
+def test_the_environment_names_the_services_the_file_named_others(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: search
+    - name: checkout
+      acceptable_latency_ms: 250
+      critical: true
+""",
+    )
+
+    config = load_config(path, env={"SCOPE_SERVICES": "checkout,payments"})
+
+    assert config.scope.services == (
+        ScopedService(name="checkout", acceptable_latency_ms=250, critical=True),
+        ScopedService(name="payments"),
+    )
+
+
+def test_the_environment_can_widen_a_narrowed_scope_back_to_every_service(
+    tmp_path: Path,
+) -> None:
+    path = _write(
+        tmp_path,
+        """
+scope:
+  owner: sre
+  services:
+    - name: checkout
+""",
+    )
+
+    config = load_config(path, env={"SCOPE_SERVICES": ""})
+
+    assert config.scope.services == ()

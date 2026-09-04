@@ -6,10 +6,14 @@ value fails here rather than at first use.
 
 The environment variable for a value is derived from its path in the file --
 ``scope.owner`` is ``SCOPE_OWNER`` -- so a new setting needs no override
-wiring of its own. A per-service entry under ``critical_services``
-follows the same rule (``CRITICAL_SERVICES_CHECKOUT_TIER``), but the set of
-critical services itself comes from the file: the environment can adjust a
-service the file declares, not declare one.
+wiring of its own. A watched service's own keys follow the same rule under its
+name (``SCOPE_SERVICES_CHECKOUT_CRITICAL``).
+
+Which services are watched is the one set the environment may state outright:
+``SCOPE_SERVICES`` names them, replacing the file's list rather than adding to
+it, because narrowing scope is what differs between deployments of the same
+behavior and a container has no file of its own to edit. A service it names
+that the file does not describe is watched with no settings beyond its name.
 """
 
 import os
@@ -17,7 +21,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, get_type_hints
+from typing import Any, get_args, get_type_hints
 
 import yaml
 
@@ -31,6 +35,7 @@ from alert_triage.configuration.settings import (
     Ledger,
     ReNotify,
     Scope,
+    ScopedService,
     SpecialistModel,
 )
 
@@ -118,15 +123,84 @@ def _section[SectionT](
     return cls(**_supplied(cls, path, _section_data(document, path[-1]), env))
 
 
+_SERVICES = "services"
+_NAME = "name"
+
+
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
     """Resolve the one value that has no default and no fallback."""
-    supplied = _supplied(Scope, ("scope",), data, env)
+    supplied = _supplied(Scope, ("scope",), data, env, except_for=(_SERVICES,))
     if "owner" not in supplied:
         raise ConfigError(
             "scope.owner is required and has no default: set it in "
             "config.yaml or as the SCOPE_OWNER environment variable"
         )
-    return Scope(**supplied)
+    return Scope(**supplied, services=_services(data.get(_SERVICES), env))
+
+
+def _services(entries: Any, env: Mapping[str, str]) -> tuple[ScopedService, ...]:
+    """Read the services the scope watches. Naming none watches every one of them."""
+    declared = _declared_services(entries, env)
+    named = env.get(_env_name(("scope", _SERVICES)))
+    if named is None:
+        return declared
+    described = {service.name: service for service in declared}
+    return tuple(
+        described.get(name, ScopedService(name=name)) for name in _names(named)
+    )
+
+
+def _names(named: str) -> tuple[str, ...]:
+    """Read the comma-separated services an environment names. None is every one."""
+    return tuple(name.strip() for name in named.split(",") if name.strip())
+
+
+def _declared_services(
+    entries: Any, env: Mapping[str, str]
+) -> tuple[ScopedService, ...]:
+    """Read the services the file describes, in the order it describes them."""
+    if entries is None:
+        return ()
+    if not isinstance(entries, list):
+        raise ConfigError(
+            "Config section 'scope.services' must be a list of service entries"
+        )
+    return tuple(
+        _service(position, entry, env) for position, entry in enumerate(entries)
+    )
+
+
+def _service(position: int, entry: Any, env: Mapping[str, str]) -> ScopedService:
+    """Read one watched service, which is only worth writing to name a service.
+
+    A service's own name keys its overrides, as a specialist's does
+    (``SCOPE_SERVICES_CHECKOUT_CRITICAL``), so an operator adjusts one service
+    without restating the list. The name itself is the key rather than a value
+    under it: there is nothing to key an override of a name by.
+    """
+    location = f"scope.{_SERVICES}[{position}]"
+    data = _entry(location, entry)
+    name = data.get(_NAME)
+    if name is None:
+        raise ConfigError(
+            f"{location}.{_NAME} is required: an entry naming no service has "
+            f"nothing for its settings to describe"
+        )
+    return _named_service(str(name), data, env)
+
+
+def _named_service(
+    name: str, data: Mapping[str, Any], env: Mapping[str, str]
+) -> ScopedService:
+    """Resolve one named service's settings from its entry and its overrides."""
+    supplied = _supplied(
+        ScopedService,
+        ("scope", _SERVICES, name),
+        data,
+        env,
+        except_for=(_NAME,),
+    )
+    return ScopedService(name=name, **supplied)
 
 
 _SPECIALISTS = "specialists"
@@ -249,10 +323,17 @@ def _env_name(path: tuple[str, ...]) -> str:
     return "_".join(re.sub(r"[^0-9a-zA-Z]+", "_", part).upper() for part in path)
 
 
-def _coerce(raw: str, target: type[Any], path: tuple[str, ...]) -> Any:
+TRUE = ("true", "yes", "1")
+FALSE = ("false", "no", "0")
+
+
+def _coerce(raw: str, target: Any, path: tuple[str, ...]) -> Any:
     """Read an environment variable as the type its config key is declared with."""
+    target = _stated(target)
     if target is str:
         return raw
+    if target is bool:
+        return _as_bool(raw, path)
     try:
         return target(raw)
     except (TypeError, ValueError) as error:
@@ -260,3 +341,35 @@ def _coerce(raw: str, target: type[Any], path: tuple[str, ...]) -> Any:
             f"{_env_name(path)}={raw!r} is not a valid {target.__name__} "
             f"for config key '{'.'.join(path)}'"
         ) from error
+
+
+def _stated(target: Any) -> Any:
+    """The type an operator states, for a key that may also be left unstated.
+
+    A variable that is present states a value, so ``X | None`` is coerced as
+    ``X``: the way to leave the key unstated is not to set it.
+    """
+    alternatives = [
+        alternative for alternative in get_args(target) if alternative is not type(None)
+    ]
+    if len(alternatives) == 1:
+        return alternatives[0]
+    return target
+
+
+def _as_bool(raw: str, path: tuple[str, ...]) -> bool:
+    """Read a flag, refusing anything that is neither true nor false.
+
+    ``bool("false")`` is ``True``, so the built-in call every other type takes
+    would read a stand-down as a declaration — which is the worst reading
+    available for a flag like ``critical``.
+    """
+    stated = raw.strip().lower()
+    if stated in TRUE:
+        return True
+    if stated in FALSE:
+        return False
+    raise ConfigError(
+        f"{_env_name(path)}={raw!r} is neither true nor false for config key "
+        f"'{'.'.join(path)}': use one of {', '.join((*TRUE, *FALSE))}"
+    )

@@ -21,6 +21,11 @@ class Alert:
             across runs so the same alert is recognisable when seen again.
         title: The alert's own title, as the platform reported it.
         link: URL at which a human can open the alert in that platform.
+        observed_latency_ms: The latency that triggered the alert, in
+            milliseconds, where the platform stated one. ``None`` means nobody
+            said how slow it was, which is the opposite evidence to a latency
+            of zero: a decision downstream turns on which of the two holds, so
+            an unmeasured alert is never given a number to stand in for one.
     """
 
     service: str
@@ -28,3 +33,4 @@ class Alert:
     source_id: str = ""
     title: str = ""
     link: str = ""
+    observed_latency_ms: int | None = None

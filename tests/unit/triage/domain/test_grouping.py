@@ -81,6 +81,7 @@ def test_grouping_ignores_identity_and_provenance() -> None:
         source_id="evt-1",
         title="Latency above threshold",
         link="https://app.datadoghq.com/event/event?id=evt-1",
+        observed_latency_ms=1400,
     )
     second = Alert(
         service="checkout",
@@ -88,9 +89,25 @@ def test_grouping_ignores_identity_and_provenance() -> None:
         source_id="evt-2",
         title="Error rate above threshold",
         link="https://app.datadoghq.com/event/event?id=evt-2",
+        observed_latency_ms=None,
     )
 
     groups = group_alerts([first, second], window=WINDOW)
 
     assert len(groups) == 1
     assert groups[0].alerts == (first, second)
+
+
+def test_grouping_ignores_what_an_alert_fired_at() -> None:
+    """How slow it was is reporting, not identity: it must not split a group."""
+    quiet = Alert(service="checkout", fired_at=NOON, observed_latency_ms=40)
+    loud = Alert(
+        service="checkout",
+        fired_at=NOON + timedelta(minutes=1),
+        observed_latency_ms=9000,
+    )
+
+    groups = group_alerts([quiet, loud], window=WINDOW)
+
+    assert len(groups) == 1
+    assert groups[0].alerts == (quiet, loud)

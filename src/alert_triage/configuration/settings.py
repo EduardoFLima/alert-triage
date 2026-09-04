@@ -17,6 +17,31 @@ from typing import ClassVar
 
 
 @dataclass(frozen=True)
+class ScopedService:
+    """One service the job watches, and what its operators say about it.
+
+    The one place a service is described. A service is watched by being named
+    here; everything else about it is optional, because an operator who has
+    nothing to say about a service should not have to invent something.
+
+    Attributes:
+        name: The service tag, in the same vocabulary an alert carries.
+        acceptable_latency_ms: The latency this service is expected to operate
+            within, in milliseconds. ``None`` — the default — means nobody has
+            stated one, so nothing about it is ever judged against a threshold:
+            a figure the system chose for itself is the one figure a silence
+            must never rest on.
+        critical: Whether its operators declared this service critical.
+            Criticality is stated, never inferred from a threshold, from alert
+            volume, or from a name.
+    """
+
+    name: str
+    acceptable_latency_ms: int | None = None
+    critical: bool = False
+
+
+@dataclass(frozen=True)
 class Scope:
     """What the job watches. Mandatory: there is no "watch everything" default.
 
@@ -26,9 +51,14 @@ class Scope:
 
     Attributes:
         owner: The single owner (v1: a team) whose alerts are in scope.
+        services: The services watched, or empty for every service the owner
+            owns — which is what an owner-only scope has always meant and
+            stays the default. A non-empty list narrows the run: alerts the
+            owner owns for a service not named here are not triaged at all.
     """
 
     owner: str
+    services: tuple[ScopedService, ...] = ()
 
 
 @dataclass(frozen=True)
