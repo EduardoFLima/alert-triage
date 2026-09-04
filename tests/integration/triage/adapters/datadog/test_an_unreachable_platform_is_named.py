@@ -20,7 +20,7 @@ import pytest
 from datadog_api_client import ApiClient
 from datadog_api_client.v2.api.events_api import EventsApi
 
-from alert_triage.configuration.settings import Ingestion
+from alert_triage.configuration.settings import Ingestion, Scope
 from alert_triage.triage.adapters.datadog.alert_source import (
     DatadogAlertSource,
     build_configuration,
@@ -61,7 +61,7 @@ def _source_pointed_at_nowhere() -> DatadogAlertSource:
     configuration.host = UNREACHABLE_HOST
     return DatadogAlertSource(
         events=EventsApi(ApiClient(configuration)),
-        owner=OWNER,
+        scope=Scope(owner=OWNER),
         web_host="app.datadoghq.com",
     )
 

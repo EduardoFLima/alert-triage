@@ -40,25 +40,25 @@
 
 ## 3. Ingestion narrows what it fetches and reads what triggered it
 
-- [ ] 3.1 Red: drive `DatadogAlertSource` with a scope naming two services and
+- [x] 3.1 Red: drive `DatadogAlertSource` with a scope naming two services and
   canned events covering three, and assert only the two are returned.
-- [ ] 3.2 Green: filter retrieved alerts against the scope's service names in
+- [x] 3.2 Green: filter retrieved alerts against the scope's service names in
   the adapter, unconditionally — the port's guarantee does not rest on query
   syntax (design.md).
-- [ ] 3.3 Red: assert the request body's query narrows to the named services,
+- [x] 3.3 Red: assert the request body's query narrows to the named services,
   and that a scope naming none leaves today's owner-only query untouched.
-- [ ] 3.4 Green: compose the service terms into the query as the optimisation
+- [x] 3.4 Green: compose the service terms into the query as the optimisation
   it is, leaving 3.2's filter in place.
-- [ ] 3.5 Red: feed canned events whose account states a triggering latency in
+- [x] 3.5 Red: feed canned events whose account states a triggering latency in
   milliseconds and in seconds, and assert both translate to the same
   millisecond figure.
-- [ ] 3.6 Green: add the reader — a number with a time unit, identified as a
+- [x] 3.6 Green: add the reader — a number with a time unit, identified as a
   latency by its surrounding text, normalised to milliseconds.
-- [ ] 3.7 Red: feed an event stating no measurement, one stating an error count
+- [x] 3.7 Red: feed an event stating no measurement, one stating an error count
   or a percentage, one stating two candidate figures, and one whose account is
   unparseable alongside a readable sibling. Assert every alert is still
   returned and each of the four carries no latency.
-- [ ] 3.8 Green: make the reader yield nothing on all four, per design.md's
+- [x] 3.8 Green: make the reader yield nothing on all four, per design.md's
   "deliberately timid".
 
 ## 4. An incident within its acceptable latency is left alone

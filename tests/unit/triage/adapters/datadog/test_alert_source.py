@@ -23,12 +23,13 @@ from datadog_api_client.v2.model.events_response_metadata_page import (
 from urllib3 import HTTPSConnectionPool
 from urllib3.exceptions import MaxRetryError
 
-from alert_triage.configuration.settings import Ingestion
+from alert_triage.configuration.settings import Ingestion, Scope, ScopedService
 from alert_triage.triage.adapters.datadog.alert_source import (
     DatadogAlertSource,
     build_configuration,
 )
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
+from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.ports.alert_source import AlertSourceError
 
 SINCE = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
@@ -58,16 +59,19 @@ def _event(
     title: str = "Latency above threshold",
     timestamp: datetime = SINCE,
     monitor_id: int | None = 12345678,
+    message: str | None = None,
 ) -> EventResponse:
     inner = (
         EventAttributes(title=title)
         if monitor_id is None
         else EventAttributes(title=title, monitor_id=monitor_id)
     )
+    said = {} if message is None else {"message": message}
     attributes = EventResponseAttributes(
         timestamp=timestamp,
         tags=["team:sre"] if tags is None else tags,
         attributes=inner,
+        **said,
     )
     return EventResponse(id=identifier, attributes=attributes)
 
@@ -83,7 +87,15 @@ def _page(*events: EventResponse, after: str | None = None) -> EventsListRespons
 
 def _source(*pages: EventsListResponse | Exception) -> DatadogAlertSource:
     return DatadogAlertSource(
-        events=FakeEvents(*pages), owner="sre", web_host="app.datadoghq.com"
+        events=FakeEvents(*pages),
+        scope=Scope(owner="sre"),
+        web_host="app.datadoghq.com",
+    )
+
+
+def _watching(*names: str) -> Scope:
+    return Scope(
+        owner="sre", services=tuple(ScopedService(name=name) for name in names)
     )
 
 
@@ -129,7 +141,7 @@ def test_an_event_is_translated_into_an_alert() -> None:
 def test_the_link_points_at_the_configured_site() -> None:
     source = DatadogAlertSource(
         events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
-        owner="sre",
+        scope=Scope(owner="sre"),
         web_host="app.datadoghq.eu",
     )
 
@@ -142,7 +154,7 @@ def test_an_organisation_on_its_own_subdomain_is_linked_there() -> None:
     """``app`` is where most accounts live, not where every account lives."""
     source = DatadogAlertSource(
         events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
-        owner="sre",
+        scope=Scope(owner="sre"),
         web_host="foobar.datadoghq.eu",
     )
 
@@ -228,7 +240,7 @@ def test_a_naive_fire_time_is_read_as_utc() -> None:
 def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events, scope=Scope(owner="sre"), web_host="app.datadoghq.com"
     )
 
     source.fetch_since(SINCE)
@@ -240,7 +252,7 @@ def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
 def test_the_request_asks_only_for_monitor_alerts() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events, scope=Scope(owner="sre"), web_host="app.datadoghq.com"
     )
 
     source.fetch_since(SINCE)
@@ -252,7 +264,7 @@ def test_the_request_asks_only_for_monitor_alerts() -> None:
 def test_the_request_carries_the_requested_time_bound() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events, scope=Scope(owner="sre"), web_host="app.datadoghq.com"
     )
 
     source.fetch_since(SINCE)
@@ -269,7 +281,7 @@ def test_alerts_from_every_cursor_page_are_returned() -> None:
         _page(_event("evt-3", tags=["service:payments"])),
     )
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events, scope=Scope(owner="sre"), web_host="app.datadoghq.com"
     )
 
     alerts = source.fetch_since(SINCE)
@@ -403,3 +415,119 @@ def test_the_client_is_pointed_at_the_configured_site_and_credentials() -> None:
     assert configuration.server_variables["site"] == "datadoghq.eu"
     assert configuration.api_key["apiKeyAuth"] == "api"
     assert configuration.api_key["appKeyAuth"] == "app"
+
+
+def test_a_scope_naming_services_returns_only_those_services() -> None:
+    source = DatadogAlertSource(
+        events=FakeEvents(
+            _page(
+                _event("evt-1", tags=["service:checkout", "team:sre"]),
+                _event("evt-2", tags=["service:search", "team:sre"]),
+                _event("evt-3", tags=["service:payments", "team:sre"]),
+            )
+        ),
+        scope=_watching("checkout", "payments"),
+        web_host="app.datadoghq.com",
+    )
+
+    alerts = source.fetch_since(SINCE)
+
+    assert [alert.service for alert in alerts] == ["checkout", "payments"]
+
+
+def test_a_scope_naming_no_services_keeps_every_one_of_them() -> None:
+    source = _source(
+        _page(
+            _event("evt-1", tags=["service:checkout", "team:sre"]),
+            _event("evt-2", tags=["service:search", "team:sre"]),
+        )
+    )
+
+    alerts = source.fetch_since(SINCE)
+
+    assert [alert.service for alert in alerts] == ["checkout", "search"]
+
+
+def test_the_request_narrows_to_the_services_the_scope_names() -> None:
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events,
+        scope=_watching("checkout", "payments"),
+        web_host="app.datadoghq.com",
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "service:checkout" in request.filter.query
+    assert "service:payments" in request.filter.query
+    assert "team:sre" in request.filter.query
+
+
+def test_a_scope_naming_no_services_leaves_the_query_as_it_was() -> None:
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events, scope=Scope(owner="sre"), web_host="app.datadoghq.com"
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert request.filter.query == "source:alert team:sre"
+
+
+def _alert_from(message: str | None) -> Alert:
+    (alert,) = _source(
+        _page(_event("evt-1", tags=["service:checkout"], message=message))
+    ).fetch_since(SINCE)
+    return alert
+
+
+def test_the_latency_an_alert_fired_at_is_read_from_its_own_account() -> None:
+    alert = _alert_from("Latency is 1400ms")
+
+    assert alert.observed_latency_ms == 1400
+
+
+def test_a_latency_stated_in_seconds_is_read_as_the_same_duration() -> None:
+    """Two alerts stating it differently must compare as the durations they are."""
+    assert _alert_from("Latency is 1.4 s").observed_latency_ms == 1400
+    assert _alert_from("Latency is 1400 ms").observed_latency_ms == 1400
+
+
+def test_an_alert_whose_account_states_no_measurement_carries_no_latency() -> None:
+    assert _alert_from("The monitor triggered.").observed_latency_ms is None
+    assert _alert_from(None).observed_latency_ms is None
+
+
+def test_a_figure_that_is_not_a_latency_is_not_read_as_one() -> None:
+    """An error count or a saturation percentage measures something else."""
+    assert _alert_from("Error count is 1400").observed_latency_ms is None
+    assert _alert_from("Saturation is 87%").observed_latency_ms is None
+    assert _alert_from("Latency SLO burn is 87%").observed_latency_ms is None
+    assert _alert_from("Recovered after 30s").observed_latency_ms is None
+
+
+def test_two_candidate_figures_state_no_single_latency() -> None:
+    """A value beside the threshold it crossed: picking one would be a guess."""
+    account = "Latency is 1.4s, above the latency threshold of 1s"
+
+    assert _alert_from(account).observed_latency_ms is None
+
+
+def test_an_unreadable_account_costs_its_sibling_nothing() -> None:
+    source = _source(
+        _page(
+            _event(
+                "evt-1",
+                tags=["service:checkout"],
+                message="Latency is off the charts",
+            ),
+            _event("evt-2", tags=["service:payments"], message="Latency is 250ms"),
+        )
+    )
+
+    unreadable, readable = source.fetch_since(SINCE)
+
+    assert unreadable.observed_latency_ms is None
+    assert readable.observed_latency_ms == 250

@@ -21,9 +21,10 @@ from datadog_api_client.v2.model.events_query_filter import EventsQueryFilter
 from datadog_api_client.v2.model.events_request_page import EventsRequestPage
 from urllib3.exceptions import HTTPError as TransportError
 
-from alert_triage.configuration.settings import Ingestion
+from alert_triage.configuration.settings import Ingestion, Scope
 from alert_triage.shared import journal
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
+from alert_triage.triage.adapters.datadog.latency import read_latency_ms
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.ports.alert_source import AlertSourceError
 
@@ -62,26 +63,36 @@ class DatadogAlertSource:
     lets the tests drive translation and pagination with no network.
     """
 
-    def __init__(self, events: EventSearch, owner: str, web_host: str) -> None:
-        """Bind the adapter to an endpoint, an owner, and a web host.
+    def __init__(self, events: EventSearch, scope: Scope, web_host: str) -> None:
+        """Bind the adapter to an endpoint, a scope, and a web host.
 
         Args:
             events: The Datadog events endpoint to query.
-            owner: Owner whose alerts are in scope, in the project's own terms.
+            scope: What is in scope, in the project's own terms: the owner
+                whose alerts are wanted and, where it names any, the services.
             web_host: Where this account's web app is served, used to build a
                 link a human can open. The whole host rather than the region:
                 an organisation may be issued a sub-domain of its own, and
                 composing ``app`` in here would send its readers nowhere.
         """
         self._events = events
-        self._owner = owner
+        self._scope = scope
+        self._watched = frozenset(service.name for service in scope.services)
         self._web_host = web_host
+
+    @property
+    def _owner(self) -> str:
+        """The owner in scope, which is what a failure and a banner name."""
+        return self._scope.owner
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
         _log.info(
             journal.banner(
-                "FETCHING ALERTS", owner=self._owner, since=since.isoformat()
+                "FETCHING ALERTS",
+                owner=self._owner,
+                services=_watching(self._watched),
+                since=since.isoformat(),
             )
         )
 
@@ -89,7 +100,19 @@ class DatadogAlertSource:
             alert
             for event in self._events_since(since)
             if (alert := self._to_alert(event)) is not None
+            if self._in_scope(alert)
         ]
+
+    def _in_scope(self, alert: Alert) -> bool:
+        """Whether this alert is for a service the scope watches.
+
+        Applied to what came back rather than left to the query: the port
+        guarantees the narrowing, and a guarantee resting on a vendor's query
+        grammar is one nobody can check without an account — and one that
+        fails silently the day a service name carries something the grammar
+        treats specially.
+        """
+        return not self._watched or alert.service in self._watched
 
     def _events_since(self, since: datetime) -> Iterator[EventResponse]:
         """Walk the cursor to exhaustion, so a caller never sees a partial result."""
@@ -135,12 +158,28 @@ class DatadogAlertSource:
             page.cursor = cursor
         return EventsListRequest(
             filter=EventsQueryFilter(
-                query=f"{MONITOR_ALERT_QUERY} team:{self._owner}",
+                query=self._query(),
                 _from=since.isoformat(),
                 to="now",
             ),
             page=page,
         )
+
+    def _query(self) -> str:
+        """Ask Datadog for as little as it can be asked for.
+
+        Narrowing the search to the watched services is what makes a scoped run
+        cheap, and nothing more: ``_in_scope`` is what guarantees the result,
+        so a name this grammar mishandles costs a wasted page rather than an
+        alert nobody notices was triaged.
+        """
+        owned = f"{MONITOR_ALERT_QUERY} team:{self._owner}"
+        if not self._watched:
+            return owned
+        services = " OR ".join(
+            f"{SERVICE_TAG_PREFIX}{name}" for name in sorted(self._watched)
+        )
+        return f"{owned} ({services})"
 
     def _to_alert(self, event: EventResponse) -> Alert | None:
         """Translate one event, or ``None`` when it carries no service tag.
@@ -159,6 +198,7 @@ class DatadogAlertSource:
             source_id=event.id,
             title=getattr(getattr(attributes, "attributes", None), "title", ""),
             link=self._link_to(attributes, service, fired_at),
+            observed_latency_ms=read_latency_ms(getattr(attributes, "message", None)),
         )
 
     def _link_to(self, attributes: object, service: str, fired_at: datetime) -> str:
@@ -213,7 +253,7 @@ def build_configuration(
 
 
 def build_alert_source(
-    connection: DatadogConnection, ingestion: Ingestion, owner: str
+    connection: DatadogConnection, ingestion: Ingestion, scope: Scope
 ) -> DatadogAlertSource:
     """Assemble the adapter and the client it queries through.
 
@@ -223,15 +263,21 @@ def build_alert_source(
     Args:
         connection: Where Datadog is and how to authenticate.
         ingestion: The bounds a fetch runs under.
-        owner: Owner whose alerts are in scope.
+        scope: What is in scope: the owner, and the services where any are
+            named.
 
     Returns:
         An ``AlertSource`` backed by Datadog.
     """
     client = ApiClient(build_configuration(connection, ingestion))
     return DatadogAlertSource(
-        events=EventsApi(client), owner=owner, web_host=connection.web_host
+        events=EventsApi(client), scope=scope, web_host=connection.web_host
     )
+
+
+def _watching(services: frozenset[str]) -> str:
+    """Name the services a fetch is narrowed to, so a quiet run says why."""
+    return ", ".join(sorted(services)) if services else "every service"
 
 
 def _next_cursor(page: EventsListResponse) -> str | None:

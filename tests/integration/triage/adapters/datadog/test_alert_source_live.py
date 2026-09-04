@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.configuration.settings import Ingestion
+from alert_triage.configuration.settings import Ingestion, Scope
 from alert_triage.triage.adapters.datadog.alert_source import build_alert_source
 from alert_triage.triage.adapters.datadog.connection import (
     API_KEY_VARIABLE,
@@ -39,7 +39,9 @@ quiet minute.
 
 
 def _source() -> AlertSource:
-    return build_alert_source(resolve_connection(), Ingestion(), owner=OWNER)
+    return build_alert_source(
+        resolve_connection(), Ingestion(), scope=Scope(owner=OWNER)
+    )
 
 
 def test_a_real_fetch_succeeds_and_yields_alerts() -> None:
