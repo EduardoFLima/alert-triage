@@ -1,7 +1,7 @@
 # Behavior: what the system watches and how it triages.
 #
 # Copy to `config.yaml` and keep only the keys you want to change — every key
-# below is optional and the value shown is the default, except that `scope`
+# below is optional and the value shown is the default, except `scope`, which
 # must name an owner, some services, or both.
 # The file itself is optional too.
 #
@@ -12,33 +12,37 @@
 # `section.key` path to `SECTION_KEY` (`scope.owner` -> `SCOPE_OWNER`). When
 # both are set, the environment wins.
 
+# MANDATORY. What a run watches. Both keys below are optional on their own, but
+# at least one of them must resolve — from here or from the environment — or
+# the run refuses to start. They narrow along different axes and compose: an
+# owner watches everything that owner owns, services are watched whoever owns
+# them, and named together an alert must satisfy both. There is no
+# watch-everything fallback.
 scope:
-  # The team whose alerts are triaged; no default. Either this or `services`
-  # must resolve, from here or from the environment, or the run refuses to
-  # start — there is no watch-everything fallback.
+  # Optional. The team whose alerts are triaged. No default.
   owner: sre
   # Optional. The services watched, and what their operators say about them.
   # Naming any narrows the run to those alone: an alert for a service not
-  # named here is not fetched, triaged, or recorded. Leave the list out — the
-  # default — to watch every service the owner owns. Named without an owner,
-  # these are the whole scope, and the services are watched whoever owns them.
+  # named here is not fetched, triaged, or recorded.
   #
   # An entry must name a service; every other key within it is optional.
   # SCOPE_SERVICES names the set from the environment, as a comma-separated
   # list that replaces this one, and each named service's own keys follow the
   # usual mapping under its name (SCOPE_SERVICES_CHECKOUT_CRITICAL).
-  #services:
-  #  # A service watched with nothing else said about it.
-  #  - name: search
-  #  - name: checkout
-  #    # Optional. The latency this service is expected to operate within, in
-  #    # milliseconds. No default: an incident is left alone — not
-  #    # investigated, not reported — only when every alert in it reports a
-  #    # latency at or under a figure an operator actually stated.
-  #    acceptable_latency_ms: 250
-  #    # Optional. Whether operators declared this service critical. Marks the
-  #    # report and lets an investigation look harder; changes no cadence.
-  #    critical: true
+  #
+  # Left empty, as watching every service the owner owns is the default:
+  # uncommenting an entry is what narrows the run to the services named.
+  services: []
+  # - name: search
+  # - name: checkout
+  #   # Optional. The latency this service is expected to operate within, in
+  #   # milliseconds. No default: an incident is left alone — not
+  #   # investigated, not reported — only when every alert in it reports a
+  #   # latency at or under a figure an operator actually stated.
+  #   acceptable_latency_ms: 250
+  #   # Optional. Whether operators declared this service critical. Marks the
+  #   # report and lets an investigation look harder; changes no cadence.
+  #   critical: true
 
 grouping:
   # Optional. How far apart alerts of one service may fire and still be treated

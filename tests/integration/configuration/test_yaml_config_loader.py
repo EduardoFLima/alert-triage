@@ -571,3 +571,24 @@ def test_a_scope_naming_neither_refuses_to_start_naming_both_ways(
 
     assert "SCOPE_OWNER" in str(refusal.value)
     assert "SCOPE_SERVICES" in str(refusal.value)
+
+
+def test_an_emptied_owner_names_nobody_rather_than_falling_back(
+    tmp_path: Path,
+) -> None:
+    """The environment wins for every value, and clearing one is a thing to mean."""
+    path = _write(tmp_path, SCOPED + "  services:\n    - name: checkout\n")
+
+    config = load_config(path, env={"SCOPE_OWNER": ""})
+
+    assert config.scope.owner is None
+    assert [service.name for service in config.scope.services] == ["checkout"]
+
+
+def test_an_unknown_key_under_scope_is_still_refused_by_name(
+    tmp_path: Path,
+) -> None:
+    path = _write(tmp_path, SCOPED + "  ownr: sre\n")
+
+    with pytest.raises(ConfigError, match="ownr"):
+        load_config(path, env={})

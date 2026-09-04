@@ -53,9 +53,9 @@ correctly, and the architecture boundary holds.
 
 **Configure**
 
-A scope is the only mandatory behavior setting — an owner, the services, or
-both — and at least one notification channel must be configured, or the run
-refuses to start:
+A scope is the only mandatory behavior setting — an owner and/or the services
+— and at least one notification channel must be configured, or the run refuses
+to start:
 
 ```bash
 export SCOPE_OWNER=sre                                     # whose alerts are triaged
@@ -105,10 +105,9 @@ python -m alert_triage   # the same job, without the console script
 
 A run reads everything it needs from its environment:
 
-- `SCOPE_OWNER` and `SCOPE_SERVICES` — what a run watches. A scope must be
-  named, by either or both; they are the settings that may instead live in
-  `config.yaml`, and what they mean is in
-  [`docs/configuration.md`](docs/configuration.md).
+- `SCOPE_OWNER` and/or `SCOPE_SERVICES` — what a run watches. A scope must be
+  named; these are the settings that may instead live in `config.yaml`, and
+  what they mean is in [`docs/configuration.md`](docs/configuration.md).
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
   authenticates with. `DD_SITE` if the account is not on `datadoghq.com`, and
   `DD_WEB_SUBDOMAIN` if its web app is not served from `app`.

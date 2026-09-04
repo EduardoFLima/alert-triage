@@ -120,6 +120,7 @@ def _section[SectionT](
     return cls(**_supplied(cls, path, _section_data(document, path[-1]), env))
 
 
+_OWNER = "owner"
 _SERVICES = "services"
 _NAME = "name"
 
@@ -127,20 +128,37 @@ _NAME = "name"
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
     """Resolve the one section that has no default and no fallback.
 
-    Either half names a scope: an owner watches everything it owns, services
-    watch themselves whoever owns them, and both compose. What has no default
-    is the section as a whole — a run may not decide for itself to watch
-    everything.
+    Read both halves, then ask whether either was named. An owner watches
+    everything it owns, services are watched whoever owns them, and both
+    compose — so what has no default is the section as a whole, never one of
+    its keys. A run may not decide for itself to watch everything.
     """
-    supplied = _supplied(Scope, ("scope",), data, env, except_for=(_SERVICES,))
+    _reject_unknown([field.name for field in fields(Scope)], ("scope",), data)
+    owner = _owner(data, env)
     services = _services(data.get(_SERVICES), env)
-    if not supplied.get("owner") and not services:
+    if not owner and not services:
         raise ConfigError(
             "scope is required and has no default: name an owner "
             "(scope.owner, or the SCOPE_OWNER environment variable), the "
             "services to watch (scope.services, or SCOPE_SERVICES), or both"
         )
-    return Scope(**supplied, services=services)
+    return Scope(owner=owner, services=services)
+
+
+def _owner(data: Mapping[str, Any], env: Mapping[str, str]) -> str | None:
+    """Read the owner the scope names, environment first, or nobody.
+
+    A variable that is set names whoever it names, and an emptied one names
+    nobody rather than handing the question back to the file: the environment
+    wins for every value, and clearing one is a thing an operator may mean —
+    the same way an emptied ``SCOPE_SERVICES`` widens a narrowed scope back to
+    every service.
+    """
+    override = env.get(_env_name(("scope", _OWNER)))
+    if override is not None:
+        return override.strip() or None
+    named = data.get(_OWNER)
+    return None if named is None else str(named)
 
 
 def _services(entries: Any, env: Mapping[str, str]) -> tuple[ScopedService, ...]:

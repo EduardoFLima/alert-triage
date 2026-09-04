@@ -195,3 +195,11 @@ services name one it does not use.
   the refusal. Review: the project has no production deployment carrying a
   `critical_services` section, so the refusal guards nobody. This supersedes
   7.2 — the section is now ignored like any other the schema does not know.
+- [x] 11.4 `config.example.yaml`: show every `scope` property as a real key,
+  marking the section MANDATORY with the one-of rule and each key `# Optional`,
+  following the `investigation.specialists` pattern for the empty list.
+- [x] 11.5 `README.md`: "and/or" where it names the two scope settings.
+- [x] 11.6 Rewrite `_scope` to read both halves and then check them, rather
+  than getting the owner through `_supplied`'s `except_for`. An emptied
+  `SCOPE_OWNER` names nobody rather than falling back to the file, as an
+  emptied `SCOPE_SERVICES` already widens rather than falling back.
