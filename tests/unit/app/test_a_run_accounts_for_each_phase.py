@@ -20,7 +20,6 @@ import pytest
 from alert_triage.app.pipeline import run
 from alert_triage.configuration.settings import (
     CircuitBreakers,
-    CriticalService,
     Grouping,
     Ingestion,
     Investigation,
@@ -56,7 +55,6 @@ class _Config:
     ledger: Ledger = field(default_factory=Ledger)
     circuit_breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
     investigation: Investigation = field(default_factory=Investigation)
-    critical_services: dict[str, CriticalService] = field(default_factory=dict)
 
 
 class _Source:

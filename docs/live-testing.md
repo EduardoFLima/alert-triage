@@ -1,14 +1,17 @@
 # Testing against a real account
 
 Almost everything is exercised offline, against a fake MCP server and a
-scripted model. Seven tests are not, because three things cannot be
+scripted model. Seventeen tests are not, because four things cannot be
 established by a fake — a fake is built from the same assumptions the code is:
 
 - that the tool names in a specialist's declaration **exist** on Datadog's MCP
   server, and that the server's filter admits them,
 - that a real model given the instruction **actually calls** them,
 - that a URL this project composes is a route the platform **accepts**, rather
-  than the 404 a route built from the wrong kind of identifier returns.
+  than the 404 a route built from the wrong kind of identifier returns,
+- that a figure this project reads out of a monitor's own prose is one a
+  monitor's prose actually carries, and that a narrowed query is one the
+  platform's own query grammar admits.
 
 They are gated on real credentials and skip without them, which is why a fresh
 clone and CI stay green.
@@ -21,12 +24,23 @@ uv run pytest tests/integration/investigation/adapters/datadog \
               tests/integration/triage/adapters/datadog -rs
 ```
 
-Those two paths are exactly the seven; nothing else in the suite is
+Those two paths are exactly the seventeen; nothing else in the suite is
 credential-gated. `-rs` is what tells you they ran rather than skipped past —
-without it a skip and a pass look alike in the summary, which is how "7
+without it a skip and a pass look alike in the summary, which is how "17
 skipped" scrolls by unnoticed.
 
 A run costs a model call and a handful of platform calls.
+
+## What the latency reading is asked
+
+An alert's observed latency is read out of prose a monitor's author wrote,
+which is exactly what a canned payload cannot establish: the fake is built from
+the same assumption the reader is. What the live test asks is that the reading
+is *timid* rather than that it fires — no account that never mentions a latency
+yields one, and no figure read is outside a duration a service could plausibly
+have taken. A window in which nothing was read at all passes: yielding nothing
+costs an investigation nobody needed, while a fabricated figure silences an
+incident that mattered, and only one of those is recoverable.
 
 **Reaching the model without a key.** A deployment on the enterprise platform
 authenticates with the credentials it already holds, so `GOOGLE_API_KEY` is
@@ -79,7 +93,7 @@ keeps that an explicit act.
 
 ## The link checks
 
-Two of the seven follow an address this project built and rule out a 404. They
+Two of the seventeen follow an address this project built and rule out a 404. They
 are worth running alone after touching anything that composes a URL:
 
 ```bash
@@ -97,11 +111,11 @@ why these exist.
 
 ## What "live" means twice
 
-`-k live` is the wrong selector: it collects fourteen tests, not seven. The
-email and Teams channel tests are named `_live` in a different sense — a real
-server started **inside the test process**, no account and no credentials —
-and those run on every ordinary `uv run pytest`. Select the seven by path, as
-above.
+`-k live` is the wrong selector: it collects every test with `live` in its
+name, most of which are not these. The email and Teams channel tests are named
+`_live` in a different sense — a real server started **inside the test
+process**, no account and no credentials — and those run on every ordinary
+`uv run pytest`. Select these by path, as above.
 
 ## Settings
 

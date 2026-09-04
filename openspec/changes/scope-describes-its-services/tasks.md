@@ -120,42 +120,42 @@
 
 ## 7. Remove what a service used to be described by
 
-- [ ] 7.1 Delete `CriticalService` from `configuration/settings.py`, the
+- [x] 7.1 Delete `CriticalService` from `configuration/settings.py`, the
   `critical_services` property from `configuration/port.py`, and
   `_critical_services` from the loader.
-- [ ] 7.2 Red: assert a `config.yaml` carrying a `critical_services` section is
+- [x] 7.2 Red: assert a `config.yaml` carrying a `critical_services` section is
   refused at startup naming the key, rather than starting with it dropped.
   Confirm this falls out of the existing unknown-key refusal rather than
   needing a case of its own.
-- [ ] 7.3 Update every test fake `Config` that declares `critical_services`
+- [x] 7.3 Update every test fake `Config` that declares `critical_services`
   (`tests/unit/app/*`, `tests/unit/configuration/*`,
   `tests/integration/configuration/*`) and delete the assertions that only
   existed for the removed section.
 
 ## 8. Say so everywhere a service is described
 
-- [ ] 8.1 `config.example.yaml`: replace the commented `critical_services`
+- [x] 8.1 `config.example.yaml`: replace the commented `critical_services`
   block with `scope.services`, showing a bare entry and one with both keys, and
   noting that a non-empty list narrows what is watched.
-- [ ] 8.2 `docs/configuration.md`: add `scope.services` to the behavior block
+- [x] 8.2 `docs/configuration.md`: add `scope.services` to the behavior block
   and the `SCOPE_SERVICES` variable to the override section.
-- [ ] 8.3 `README.md`: reword where it describes what a run watches.
-- [ ] 8.4 `docs/vision.md`: replace the *Escalation* section with one on scoped
+- [x] 8.3 `README.md`: reword where it describes what a run watches.
+- [x] 8.4 `docs/vision.md`: replace the *Escalation* section with one on scoped
   services; rewrite slice 11; reword slice 12's "trip → partial report +
   auto-escalate" and the acknowledgement entry's "not the escalation path
   (slice 11)"; add the escalation path to *Explicitly deferred*; update the
   `critical-services registry` mention under Ports and the `critical_services`
   bullet under Config file.
-- [ ] 8.5 Confirm no new file is read at runtime, so the `Dockerfile`'s
+- [x] 8.5 Confirm no new file is read at runtime, so the `Dockerfile`'s
   copy-by-name list is unchanged — and say so rather than assuming it.
 
 ## 9. Prove it
 
-- [ ] 9.1 Add a credential-gated live test per `docs/live-testing.md` asserting
+- [x] 9.1 Add a credential-gated live test per `docs/live-testing.md` asserting
   the latency reader against real monitor events on a real account, covering a
   latency monitor and a non-latency one. The change is not done until it has
   run; if it cannot be run, say so plainly.
-- [ ] 9.2 Add a credential-gated live test that a scope naming services fetches
+- [x] 9.2 Add a credential-gated live test that a scope naming services fetches
   only those services, so the narrowed query is established against the real
   query grammar rather than against a canned body.
 - [ ] 9.3 Run the four gate commands — `uv run ruff check src tests`,

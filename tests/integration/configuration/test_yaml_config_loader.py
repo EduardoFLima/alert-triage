@@ -5,7 +5,7 @@ import pytest
 
 from alert_triage.configuration.adapters.yaml import load_config
 from alert_triage.configuration.port import Config, ConfigError
-from alert_triage.configuration.settings import CriticalService, ScopedService
+from alert_triage.configuration.settings import ScopedService
 from alert_triage.triage.adapters.datadog.connection import resolve_connection
 from alert_triage.triage.adapters.sqlite import (
     DEFAULT_LEDGER_PATH,
@@ -59,36 +59,6 @@ circuit_breakers:
     assert config.circuit_breakers.max_tool_calls_per_agent == 8
 
 
-def test_omitting_critical_services_means_no_service_is_critical(
-    tmp_path: Path,
-) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={})
-
-    assert config.critical_services == {}
-
-
-def test_a_partially_specified_critical_service_keeps_defaults_for_the_rest(
-    tmp_path: Path,
-) -> None:
-    path = _write(
-        tmp_path,
-        SCOPED
-        + """
-critical_services:
-  checkout:
-    latency_threshold_ms: 250
-  payments: {}
-""",
-    )
-
-    config = load_config(path, env={})
-
-    assert set(config.critical_services) == {"checkout", "payments"}
-    assert config.critical_services["checkout"].latency_threshold_ms == 250
-    assert config.critical_services["checkout"].tier == CriticalService.DEFAULT_TIER
-    assert config.critical_services["payments"] == CriticalService()
-
-
 def test_scope_resolves_from_the_config_file_alone(tmp_path: Path) -> None:
     config = load_config(_write(tmp_path, SCOPED), env={})
 
@@ -129,25 +99,6 @@ circuit_breakers:
     config = load_config(path, env={"CIRCUIT_BREAKERS_MAX_AGENT_HOPS": "9"})
 
     assert config.circuit_breakers.max_agent_hops == 9
-
-
-def test_environment_overrides_a_declared_critical_service_threshold(
-    tmp_path: Path,
-) -> None:
-    path = _write(
-        tmp_path,
-        SCOPED
-        + """
-critical_services:
-  checkout:
-    latency_threshold_ms: 250
-""",
-    )
-
-    config = load_config(path, env={"CRITICAL_SERVICES_CHECKOUT_TIER": "tier-1"})
-
-    assert config.critical_services["checkout"].tier == "tier-1"
-    assert config.critical_services["checkout"].latency_threshold_ms == 250
 
 
 def test_the_environment_is_read_from_the_process_by_default(
@@ -315,25 +266,6 @@ def test_a_section_that_is_not_a_mapping_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="'scope' must be a mapping"):
         load_config(path, env={})
-
-
-def test_a_critical_service_entry_that_is_not_a_mapping_is_rejected(
-    tmp_path: Path,
-) -> None:
-    path = _write(tmp_path, SCOPED + "\ncritical_services:\n  checkout: tier-1\n")
-
-    with pytest.raises(ConfigError, match=r"critical_services\.checkout"):
-        load_config(path, env={})
-
-
-def test_a_critical_service_listed_with_no_thresholds_is_still_critical(
-    tmp_path: Path,
-) -> None:
-    path = _write(tmp_path, SCOPED + "\ncritical_services:\n  checkout:\n")
-
-    config = load_config(path, env={})
-
-    assert config.critical_services == {"checkout": CriticalService()}
 
 
 def test_a_non_numeric_override_names_the_offending_variable(tmp_path: Path) -> None:
@@ -582,3 +514,15 @@ scope:
     config = load_config(path, env={"SCOPE_SERVICES": ""})
 
     assert config.scope.services == ()
+
+
+def test_a_config_still_declaring_critical_services_refuses_to_start(
+    tmp_path: Path,
+) -> None:
+    """Refused by name, rather than started with the section silently dropped."""
+    path = _write(
+        tmp_path, SCOPED + "\ncritical_services:\n  checkout:\n    tier: critical\n"
+    )
+
+    with pytest.raises(ConfigError, match="critical_services"):
+        load_config(path, env={})

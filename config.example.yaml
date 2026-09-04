@@ -15,6 +15,27 @@ scope:
   # MANDATORY. The team whose alerts are triaged; no default, and a run that
   # cannot resolve it refuses to start.
   owner: sre
+  # Optional. The services watched, and what their operators say about them.
+  # Naming any narrows the run to those alone: alerts the owner owns for a
+  # service not named here are not fetched, triaged, or recorded. Leave the
+  # list out — the default — to watch every service the owner owns.
+  #
+  # An entry must name a service; every other key within it is optional.
+  # SCOPE_SERVICES names the set from the environment, as a comma-separated
+  # list that replaces this one, and each named service's own keys follow the
+  # usual mapping under its name (SCOPE_SERVICES_CHECKOUT_CRITICAL).
+  #services:
+  #  # A service watched with nothing else said about it.
+  #  - name: search
+  #  - name: checkout
+  #    # Optional. The latency this service is expected to operate within, in
+  #    # milliseconds. No default: an incident is left alone — not
+  #    # investigated, not reported — only when every alert in it reports a
+  #    # latency at or under a figure an operator actually stated.
+  #    acceptable_latency_ms: 250
+  #    # Optional. Whether operators declared this service critical. Marks the
+  #    # report and lets an investigation look harder; changes no cadence.
+  #    critical: true
 
 grouping:
   # Optional. How far apart alerts of one service may fire and still be treated
@@ -82,15 +103,3 @@ circuit_breakers:
   # Optional. Timeout of a single MCP call, in seconds.
   mcp_call_timeout_seconds: 30
 
-# Optional. Services escalated beyond the defaults, keyed by service tag.
-# Being listed is what makes a service critical, so the entries below are left
-# commented out: uncommenting one declares that service critical. Every key
-# within an entry is optional, and an entry may be listed with none of them
-# (`payments: {}`).
-critical_services: {}
-  # checkout:
-  #   # Optional. Criticality tier this service is escalated under.
-  #   tier: critical
-  #   # Optional. Latency above which escalation bypasses batching, in
-  #   # milliseconds.
-  #   latency_threshold_ms: 2000

@@ -6,7 +6,6 @@ import pytest
 from alert_triage.configuration.port import Config
 from alert_triage.configuration.settings import (
     CircuitBreakers,
-    CriticalService,
     Grouping,
     Ingestion,
     Investigation,
@@ -28,7 +27,6 @@ class InMemoryConfig:
     re_notify: ReNotify = field(default_factory=ReNotify)
     ledger: Ledger = field(default_factory=Ledger)
     investigation: Investigation = field(default_factory=Investigation)
-    critical_services: dict[str, CriticalService] = field(default_factory=dict)
 
 
 def _config(**overrides: object) -> InMemoryConfig:
@@ -102,19 +100,6 @@ def test_a_watched_service_is_ordinary_until_an_operator_says_otherwise() -> Non
 
 def test_a_scope_watches_every_service_its_owner_owns_by_default() -> None:
     assert Scope(owner="sre").services == ()
-
-
-def test_critical_service_thresholds_have_documented_defaults() -> None:
-    service = CriticalService()
-
-    assert service.tier == CriticalService.DEFAULT_TIER
-    assert service.latency_threshold_ms == 2000
-
-
-def test_no_service_is_critical_unless_the_config_says_so() -> None:
-    config: Config = InMemoryConfig(scope=Scope(owner="sre"))
-
-    assert config.critical_services == {}
 
 
 def test_the_re_notify_cooldown_defaults_to_the_documented_two_days() -> None:

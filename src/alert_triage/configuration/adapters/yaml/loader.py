@@ -28,7 +28,6 @@ import yaml
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import (
     CircuitBreakers,
-    CriticalService,
     Grouping,
     Ingestion,
     Investigation,
@@ -40,6 +39,25 @@ from alert_triage.configuration.settings import (
 )
 
 DEFAULT_CONFIG_PATH = Path("config.yaml")
+
+REMOVED_SECTIONS = {
+    "critical_services": (
+        "describe each service under 'scope.services' instead, naming it and "
+        "setting 'critical: true'. Note that listing services under 'scope' "
+        "also narrows what is watched, which 'critical_services' never did: a "
+        "deployment that watches every service its owner owns should leave "
+        "'scope.services' absent"
+    ),
+}
+"""Sections that once existed, and where their settings went.
+
+A section the schema simply does not know is left alone — a deployment may
+write its connection facts into the file, where they are inert rather than
+fatal. A section that was *removed* is different: an operator wrote it meaning
+something by it, and starting with it silently dropped would leave them
+believing a setting is in force that nothing reads. So these are refused by
+name, with the replacement named too.
+"""
 
 
 @dataclass(frozen=True)
@@ -53,7 +71,6 @@ class ResolvedConfig:
     ledger: Ledger
     investigation: Investigation
     circuit_breakers: CircuitBreakers
-    critical_services: Mapping[str, CriticalService]
 
 
 def load_config(
@@ -73,6 +90,7 @@ def load_config(
             does not exist, or leaves the mandatory ``scope`` unresolved.
     """
     document = _read(path)
+    _reject_removed(document)
     environment = os.environ if env is None else env
     return ResolvedConfig(
         scope=_scope(_section_data(document, "scope"), environment),
@@ -84,8 +102,15 @@ def load_config(
         circuit_breakers=_section(
             CircuitBreakers, ("circuit_breakers",), document, environment
         ),
-        critical_services=_critical_services(document, environment),
     )
+
+
+def _reject_removed(document: Mapping[str, Any]) -> None:
+    """Fail on a section that used to exist, rather than dropping what it says."""
+    for section in sorted(set(document) & set(REMOVED_SECTIONS)):
+        raise ConfigError(
+            f"Config section '{section}' no longer exists: {REMOVED_SECTIONS[section]}"
+        )
 
 
 def _read(path: Path) -> Mapping[str, Any]:
@@ -246,23 +271,6 @@ def _specialist(name: str, entry: Any, env: Mapping[str, str]) -> SpecialistMode
             f"names no model overrides nothing"
         )
     return SpecialistModel(**supplied)
-
-
-def _critical_services(
-    document: Mapping[str, Any], env: Mapping[str, str]
-) -> Mapping[str, CriticalService]:
-    """Read the declared critical services. An absent section declares none."""
-    return {
-        service: CriticalService(
-            **_supplied(
-                CriticalService,
-                ("critical_services", service),
-                _entry(f"critical_services.{service}", entry),
-                env,
-            )
-        )
-        for service, entry in _section_data(document, "critical_services").items()
-    }
 
 
 def _entry(location: str, entry: Any) -> Mapping[str, Any]:

@@ -235,22 +235,3 @@ class CircuitBreakers:
     max_investigation_duration_seconds: int = 300
     max_mcp_retries: int = 3
     mcp_call_timeout_seconds: int = 30
-
-
-@dataclass(frozen=True)
-class CriticalService:
-    """Escalation overrides for a service an operator declared critical.
-
-    Being listed is what makes a service critical; every threshold within the
-    entry is optional and falls back to the default beside it.
-
-    Attributes:
-        tier: Criticality tier this service is escalated under.
-        latency_threshold_ms: Latency above which escalation bypasses batching.
-    """
-
-    DEFAULT_TIER: ClassVar[str] = "critical"
-    DEFAULT_LATENCY_THRESHOLD_MS: ClassVar[int] = 2000
-
-    tier: str = DEFAULT_TIER
-    latency_threshold_ms: int = DEFAULT_LATENCY_THRESHOLD_MS

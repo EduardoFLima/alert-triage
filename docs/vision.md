@@ -117,8 +117,8 @@ In notification:
 
 Configuration is a generic subdomain rather than a context with a contract, so
 its **Config** port is reachable from every context directly: optional YAML,
-providing the critical-services registry, circuit-breaker thresholds, and room
-to grow other settings later. Absence of the file means sensible defaults apply
+providing what is watched and what its operators expect of it, circuit-breaker
+thresholds, and room to grow other settings later. Absence of the file means sensible defaults apply
 everywhere.
 
 The observability platform has no port at all — MCP is already one. The
@@ -366,12 +366,37 @@ The two compose rather than compete no matter how they are set, because
 retention is measured from the moment an incident closes and closing already
 requires the cooldown to have elapsed.
 
-### Escalation
+### Scoped services
 
-A severity/threshold rule (e.g. latency above a defined threshold), with
-per-service overrides from the critical-services config, bypasses batching
-entirely and notifies immediately — a "needs a human now" path that doesn't
-wait on investigation or digest cadence.
+`scope` names the owner whose alerts are triaged and, optionally, the services
+watched. Naming none watches every service that owner owns, which is what an
+owner-only scope has always meant. Naming some narrows the run to those alone:
+an alert the owner owns for a service not named is not fetched, triaged, or
+recorded.
+
+A named service is where an operator says what they expect of it. Two things,
+both optional and neither with a default:
+
+- `acceptable_latency_ms` — the latency the service is expected to operate
+  within. An incident whose every alert reports a latency at or under it is
+  left alone: no investigation, no report, still recorded so an overlapping run
+  recognises it rather than opening a second incident. Telling a team about a
+  service performing exactly as they said it should is the alert fatigue this
+  system exists to reduce, reintroduced one layer up.
+
+  Silence is only ever chosen against figures that were actually read. An alert
+  whose latency the platform did not state has not been shown to be acceptable,
+  so an incident holding one is investigated as usual — which means absorbing
+  an alert can end an incident's silence and can never begin one.
+- `critical` — whether operators declared the service critical. It travels to
+  the investigation as a fact about its target, where it licenses looking
+  harder and never being surer, and it marks the delivered report's subject. It
+  changes no cadence: a critical service inside its cooldown is still not
+  reported, and one within its acceptable latency is still left alone.
+
+A service is described in exactly one place, which is the place that says it is
+watched. What this deliberately is not is an escalation path — see
+[Explicitly deferred](#explicitly-deferred-roadmap-not-v1-scope).
 
 ### Circuit breakers
 
@@ -390,8 +415,8 @@ the same optional YAML, with defaults:
 
 A tripped breaker does not silently truncate: it produces a report marked
 "investigation incomplete" with whatever partial evidence was gathered, and
-routes through the escalation path — an incomplete automated triage is
-itself a signal a human should look sooner.
+says so where a reader will see it — an incomplete automated triage is itself
+a signal a human should look sooner.
 
 Three of these defaults were set against a crew that had one specialist, one
 tool, and no manager. What they now bound has moved:
@@ -446,8 +471,9 @@ it (or an environment variable) provides is not:
   without it lying about where the value came from. Widening scope beyond a
   single team (multiple teams, tag-based scoping, etc.) is a future
   extension, not v1.
-- `critical_services` — optional, service → criticality tier → custom
-  thresholds. Defaults apply if absent.
+- `scope.services` — optional, the services watched and what their operators
+  say about them: `acceptable_latency_ms` and `critical`, each optional and
+  neither defaulted. Absent or empty watches every service the owner owns.
 - `circuit_breakers` — optional, the thresholds listed above. Defaults
   apply if absent.
 - `ingestion` — optional. How far back a run looks for alerts
@@ -512,7 +538,7 @@ equivalent, but some settings live in the environment exclusively and have no
 ### Behavior belongs in the file; connections belong in the environment
 
 `config.yaml` answers "how should the system triage": what it watches, how it
-groups, how far back it looks, when it escalates. It does not answer "where is
+groups, how far back it looks, what it expects of each service. It does not answer "where is
 the platform and how do I authenticate". Sites, regions, endpoints, hostnames,
 and credentials are deployment facts — they change when the same behavior is
 pointed at a different account — and they are read from the environment only,
@@ -612,6 +638,13 @@ after the slice order.
   it takes is set out under [What portability now
   means](#what-portability-now-means): specialists of its own, not an
   adapter implementing ours.
+- An escalation path: a severity/threshold rule that bypasses batching and
+  notifies immediately, a "needs a human now" route that waits on neither
+  investigation nor digest cadence. It buys a second delivery route, a second
+  cadence to tune, and an urgency ranking, and the PoC has evidence for none of
+  the three. `critical` says which services matter without any of it; when a
+  deployment can show that marking a report is not enough, the case for the
+  route will be made out of what that deployment saw.
 
 ### Acknowledgement — the missing input
 
@@ -664,9 +697,8 @@ Two failure modes worth designing against from the start:
   when the incident closes — so that going quiet is always a decision
   someone made recently.
 - **A worsening incident must break through.** Acknowledgement suppresses the
-  routine repeat, not the escalation path (slice 11). If severity crosses a
-  threshold or the blast radius grows, that is new information and the ack
-  should not hold it back.
+  routine repeat, not news. If severity crosses a threshold or the blast radius
+  grows, that is new information and the ack should not hold it back.
 
 ## Capability slices (dependency order)
 
@@ -806,10 +838,18 @@ testable, building only on the slices before it.
     is exercised by one declaration reaching two fake servers. It also rewords
     what `AGENTS.md`, [`docs/adapters.md`](adapters.md) and the `investigation`
     spec say about a specialist living under the platform it queries.
-11. **Escalation path** — severity/threshold rule + critical-services
-    overrides, bypassing batching. Testable as rule-engine unit tests.
+11. **Scope describes its services** — `scope` gains an optional `services`
+    list, and a non-empty one narrows what a run watches. A named service may
+    declare the latency it is expected to operate within, below which an
+    incident is left alone entirely, and whether it is critical, which reaches
+    the investigation as a fact about its target and marks the report's
+    subject. An alert carries the latency that triggered it, read from the
+    platform's own account of it. `critical_services` is removed: a service is
+    described in one place. Testable by the suite it has, plus a
+    credential-gated live test for the reading, which is the half a green
+    suite cannot establish.
 12. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
-    trip → partial report + auto-escalate. The per-agent bound sits in
+    trip → partial report saying so. The per-agent bound sits in
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.

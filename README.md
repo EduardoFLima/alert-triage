@@ -3,8 +3,9 @@
 Teams receive Datadog alerts and ignore them — not because the alerts are
 wrong, but because responding takes time and troubleshooting knowledge nobody
 has in the moment. Alert Triage is a recurring job that watches for recent
-alerts, does the first-pass investigation a knowledgeable human would do, and
-sends the team a triage report.
+alerts — every service one team owns, or only the services it names — does the
+first-pass investigation a knowledgeable human would do, and sends the team a
+triage report.
 
 It does the legwork and presents a hypothesis with its confidence. It does not
 auto-remediate and does not decide for you: the question left to a human is
@@ -106,6 +107,11 @@ A run reads everything it needs from its environment:
 
 - `SCOPE_OWNER` — whose alerts are in scope. Mandatory, and the one setting
   that may instead live in `config.yaml`.
+- `SCOPE_SERVICES` — optionally, which of that owner's services are watched, as
+  a comma-separated list. Naming none — the default — watches every service the
+  owner owns. A service can also declare the latency it is expected to operate
+  within, below which an incident is left alone, and whether it is critical;
+  see [`docs/configuration.md`](docs/configuration.md).
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
   authenticates with. `DD_SITE` if the account is not on `datadoghq.com`, and
   `DD_WEB_SUBDOMAIN` if its web app is not served from `app`.
@@ -260,9 +266,10 @@ uv run pytest tests/unit/triage/domain/test_incident.py::test_an_incident_that_h
 uv run pytest -k "link or address"
 ```
 
-Seven tests are gated on real credentials and skip without them, which is why
-a fresh clone and CI stay green — they cover what no fake can answer, like
-whether a URL this project composes is a route the platform actually accepts.
+Seventeen tests are gated on real credentials and skip without them, which is
+why a fresh clone and CI stay green — they cover what no fake can answer, like
+whether a URL this project composes is a route the platform actually accepts,
+or whether a figure read out of a monitor's prose is one that prose carries.
 How to run them, and how to point them at an existing `.env`, is in
 [`docs/live-testing.md`](docs/live-testing.md).
 

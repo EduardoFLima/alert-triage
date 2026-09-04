@@ -25,6 +25,11 @@ Every key here can also be set as an environment variable by mapping its
 ```yaml
 scope:
   owner: sre              # mandatory: whose alerts are triaged. No default.
+  services:               # optional: the services watched. All of them if absent.
+    - name: search
+    - name: checkout
+      acceptable_latency_ms: 250  # optional: no default, and none is invented
+      critical: true              # optional: defaults to not critical
 grouping:
   window_seconds: 1800    # alerts of one service this close are one incident
 ingestion:
@@ -39,7 +44,34 @@ investigation:
 ```
 
 Set `scope.owner` to the team that owns the alerts you want triaged; the
-Datadog adapter spends it as a `team:` term in its event query. Keep
+Datadog adapter spends it as a `team:` term in its event query.
+
+`scope.services` narrows what that owner's run watches. Leave it out and every
+service the owner owns is triaged, which is what an owner-only scope has always
+meant. Name any and those are watched alone: alerts for a service not named are
+not fetched, triaged, or recorded. Each entry must name a service, and may say
+two things about it:
+
+- `acceptable_latency_ms` — the latency the service is expected to operate
+  within. An incident whose every alert reports a latency at or under it is
+  left alone: not investigated, not reported, still recorded so an overlapping
+  run recognises it. There is no default and none is invented, and silence is
+  only ever chosen against figures that were actually read: an alert whose
+  latency could not be read has not been shown to be acceptable, so an incident
+  holding one is investigated as usual.
+- `critical` — whether operators declared the service critical. It marks the
+  subject of the report and lets an investigation look harder at the incident.
+  It changes no cadence: a critical service inside its cooldown is still not
+  reported, and one within its acceptable latency is still left alone.
+
+From the environment, `SCOPE_SERVICES` names the watched services as a
+comma-separated list that replaces the file's, and each named service's own
+keys follow the usual mapping under its name — for example
+`SCOPE_SERVICES_CHECKOUT_ACCEPTABLE_LATENCY_MS` and
+`SCOPE_SERVICES_CHECKOUT_CRITICAL`. A service the environment names but the
+file does not describe is watched with no settings beyond its name.
+
+Keep
 `ingestion.lookback_seconds` comfortably wider than the interval the job runs
 on, so a delayed run does not step over alerts — re-delivered alerts are
 recognised and absorbed rather than reported twice.
