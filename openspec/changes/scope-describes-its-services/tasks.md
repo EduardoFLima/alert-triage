@@ -158,7 +158,7 @@
 - [x] 9.2 Add a credential-gated live test that a scope naming services fetches
   only those services, so the narrowed query is established against the real
   query grammar rather than against a canned body.
-- [ ] 9.3 Run the four gate commands — `uv run ruff check src tests`,
+- [x] 9.3 Run the four gate commands — `uv run ruff check src tests`,
   `uv run ruff format --check src tests`, `uv run mypy`, `uv run pytest` — and
   confirm all four pass.
 - [ ] 9.4 Confirm the container tests still pass, since the config schema they
