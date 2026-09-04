@@ -10,7 +10,7 @@ Values only: what a consumer asks for the whole of them through is ``Config``,
 in ``port.py`` beside them.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import ClassVar
@@ -59,6 +59,21 @@ class Scope:
 
     owner: str
     services: tuple[ScopedService, ...] = ()
+
+
+def describing(services: Iterable[ScopedService], name: str) -> ScopedService:
+    """What the scope says about one service, or nothing where it says nothing.
+
+    A scope naming no services describes none of them, and a scope naming some
+    can still be asked about one it does not describe. Either way the answer is
+    a service with nothing said about it, which every decision reads as no
+    threshold and not critical — so a caller never branches on whether a
+    description was found.
+    """
+    for described in services:
+        if described.name == name:
+            return described
+    return ScopedService(name=name)
 
 
 @dataclass(frozen=True)

@@ -18,7 +18,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from alert_triage.configuration.port import Config
-from alert_triage.configuration.settings import ScopedService
+from alert_triage.configuration.settings import ScopedService, describing
 from alert_triage.investigation.contract import Diagnosis
 from alert_triage.investigation.ports.investigator import (
     Investigator,
@@ -214,7 +214,7 @@ def _handle(
         )
         return _Handled(failures=(RunFailure(Stage.READ, group.service, str(error)),))
 
-    service = _described(group.service, config)
+    service = describing(config.scope.services, group.service)
 
     decision = triage(
         group,
@@ -380,20 +380,6 @@ def _delivered(
         return False, RunFailure(Stage.DELIVER, incident.service, str(error))
     _log.info(journal.event("delivered", incident=incident.id, subject=report.subject))
     return True, None
-
-
-def _described(service: str, config: Config) -> ScopedService:
-    """What the scope says about this service, looked up once for the whole group.
-
-    A scope naming no services describes none of them, and a scope naming some
-    can still be handling one it does not describe. Either way the answer is a
-    service with nothing said about it, which is what every decision below
-    reads as "no threshold, not critical".
-    """
-    for described in config.scope.services:
-        if described.name == service:
-            return described
-    return ScopedService(name=service)
 
 
 def _spanned(group: AlertGroup) -> str:

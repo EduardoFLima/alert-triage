@@ -1,6 +1,7 @@
 import sqlite3
 import time
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -31,9 +32,14 @@ def _ledger(
     connection: sqlite3.Connection,
     cooldown: timedelta = COOLDOWN,
     retention: timedelta = RETENTION,
+    services: tuple[ScopedService, ...] = (),
 ) -> SqliteTriageLedger:
     return SqliteTriageLedger(
-        connection, window=WINDOW, cooldown=cooldown, retention=retention
+        connection,
+        window=WINDOW,
+        cooldown=cooldown,
+        retention=retention,
+        services=services,
     )
 
 
@@ -310,3 +316,83 @@ def test_a_naive_timestamp_is_read_back_as_an_instant_in_utc(
     (recovered,) = ledger.open_incidents("checkout", NOON)
     assert recovered.alerts[0].fired_at == NOON
     assert recovered.last_reported_at == NOON
+
+
+def test_an_incident_nobody_was_owed_a_report_about_is_closed_on_age(
+    connection: sqlite3.Connection,
+) -> None:
+    """Never reported and never to be: without this the ledger grows unbounded."""
+    ledger = _ledger(
+        connection,
+        services=(ScopedService(name="checkout", acceptable_latency_ms=250),),
+    )
+    left_alone = Incident(
+        id="incident-1",
+        service="checkout",
+        alerts=(replace(_alert("a"), observed_latency_ms=180),),
+        last_reported_at=None,
+    )
+    ledger.record(left_alone, NOON)
+
+    assert ledger.open_incidents("checkout", NOON + WINDOW + timedelta(hours=2)) == []
+
+
+def test_an_incident_that_still_owes_a_report_is_kept_open(
+    connection: sqlite3.Connection,
+) -> None:
+    ledger = _ledger(
+        connection,
+        services=(ScopedService(name="checkout", acceptable_latency_ms=250),),
+    )
+    owed = Incident(
+        id="incident-1",
+        service="checkout",
+        alerts=(replace(_alert("a"), observed_latency_ms=900),),
+        last_reported_at=None,
+        investigation_attempts=1,
+    )
+    ledger.record(owed, NOON)
+
+    still_open = ledger.open_incidents("checkout", NOON + WINDOW + timedelta(hours=2))
+
+    assert [incident.id for incident in still_open] == ["incident-1"]
+
+
+def test_the_latency_an_alert_fired_at_survives_the_ledger(
+    connection: sqlite3.Connection,
+) -> None:
+    """A silence decided next run rests on figures this run read and stored."""
+    ledger = _ledger(connection)
+    measured = replace(_alert("a"), observed_latency_ms=180)
+    unmeasured = replace(_alert("b", timedelta(minutes=5)), observed_latency_ms=None)
+    ledger.record(_incident(measured, unmeasured), NOON)
+
+    (read_back,) = ledger.open_incidents("checkout", NOON)
+
+    assert [alert.observed_latency_ms for alert in read_back.alerts] == [180, None]
+
+
+def test_an_alert_stored_before_the_latency_column_reads_as_unmeasured(
+    connection: sqlite3.Connection,
+) -> None:
+    """A figure that was never stored was never read, and must not be invented."""
+    connection.executescript(
+        """
+        CREATE TABLE incidents (
+            id TEXT PRIMARY KEY, service TEXT NOT NULL, last_reported_at TEXT,
+            closed_at TEXT, investigation_attempts INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE incident_alerts (
+            incident_id TEXT NOT NULL, source_id TEXT NOT NULL,
+            service TEXT NOT NULL, fired_at TEXT NOT NULL, title TEXT NOT NULL,
+            link TEXT NOT NULL
+        );
+        INSERT INTO incidents VALUES ('incident-1', 'checkout', NULL, NULL, 0);
+        INSERT INTO incident_alerts
+        VALUES ('incident-1', 'a', 'checkout', '2026-08-07T12:00:00+00:00', 't', 'l');
+        """
+    )
+
+    (read_back,) = _ledger(connection).open_incidents("checkout", NOON)
+
+    assert read_back.alerts[0].observed_latency_ms is None

@@ -270,7 +270,11 @@ def test_an_incident_past_both_the_window_and_the_cooldown_has_closed() -> None:
     incident = _on_record(_alert("a"))
 
     assert is_closed(
-        incident, now=NOON + COOLDOWN + WINDOW, window=WINDOW, cooldown=COOLDOWN
+        incident,
+        service=UNDESCRIBED,
+        now=NOON + COOLDOWN + WINDOW,
+        window=WINDOW,
+        cooldown=COOLDOWN,
     )
 
 
@@ -280,6 +284,7 @@ def test_a_quiet_incident_still_inside_its_cooldown_stays_open() -> None:
 
     assert not is_closed(
         incident,
+        service=UNDESCRIBED,
         now=NOON + WINDOW + timedelta(minutes=1),
         window=WINDOW,
         cooldown=COOLDOWN,
@@ -290,14 +295,24 @@ def test_an_incident_still_producing_alerts_stays_open() -> None:
     incident = _on_record(_alert("a"))
 
     assert not is_closed(
-        incident, now=NOON + COOLDOWN, window=COOLDOWN, cooldown=COOLDOWN
+        incident,
+        service=UNDESCRIBED,
+        now=NOON + COOLDOWN,
+        window=COOLDOWN,
+        cooldown=COOLDOWN,
     )
 
 
 def test_an_incident_already_stamped_closed_stays_closed() -> None:
     incident = _on_record(_alert("a")).closed(NOON + timedelta(days=3))
 
-    assert is_closed(incident, now=NOON, window=WINDOW, cooldown=COOLDOWN)
+    assert is_closed(
+        incident,
+        service=UNDESCRIBED,
+        now=NOON,
+        window=WINDOW,
+        cooldown=COOLDOWN,
+    )
 
 
 def test_a_closed_incident_is_not_continued_by_later_alerts() -> None:
@@ -440,6 +455,7 @@ def test_an_incident_never_reported_stays_open_however_quiet_it_goes() -> None:
 
     assert not is_closed(
         never_reported,
+        service=UNDESCRIBED,
         now=NOON + WINDOW + timedelta(hours=2),
         window=WINDOW,
         cooldown=COOLDOWN,
@@ -451,6 +467,7 @@ def test_an_incident_reported_and_long_quiet_still_closes() -> None:
 
     assert is_closed(
         reported,
+        service=UNDESCRIBED,
         now=NOON + COOLDOWN + timedelta(seconds=1),
         window=WINDOW,
         cooldown=COOLDOWN,
@@ -514,3 +531,21 @@ def test_a_quiet_alert_does_not_silence_an_incident_already_worked() -> None:
     assert decision.incident.id == "incident-0"
     assert decision.should_report
     assert decision.should_investigate
+
+
+def test_an_incident_nobody_was_owed_a_report_about_closes() -> None:
+    """Never reported and never to be: closing is what bounds the ledger."""
+    left_alone = Incident(
+        id="incident-0",
+        service="checkout",
+        alerts=(_alert("a", latency_ms=180),),
+        last_reported_at=None,
+    )
+
+    assert is_closed(
+        left_alone,
+        service=_accepting(250),
+        now=NOON + WINDOW + timedelta(hours=2),
+        window=WINDOW,
+        cooldown=COOLDOWN,
+    )

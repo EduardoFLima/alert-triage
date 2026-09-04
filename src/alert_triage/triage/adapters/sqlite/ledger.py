@@ -14,6 +14,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
+from alert_triage.configuration.settings import ScopedService, describing
 from alert_triage.triage.adapters.sqlite.schema import ADDED_COLUMNS, SCHEMA
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
@@ -37,17 +38,21 @@ class SqliteTriageLedger:
         window: timedelta,
         cooldown: timedelta,
         retention: timedelta,
+        services: tuple[ScopedService, ...] = (),
     ) -> None:
         """Bind the ledger to a connection, creating its schema if it is new.
 
         Args:
             connection: An open connection to the ledger's database.
             window: The grouping window, which bounds continuation and so is
-                half of what decides an incident has closed.
-            cooldown: How long a report suppresses the next one — the other
-                half.
+                part of what decides an incident has closed.
+            cooldown: How long a report suppresses the next one — another part.
             retention: How long a closed incident is kept for a human to
                 consult before it is deleted.
+            services: What the scope says about the services it watches, which
+                is what says whether a report was ever owed for an incident.
+                Empty describes none of them, so every incident closes on the
+                two bounds alone, as they always have.
 
         Raises:
             TriageLedgerError: The schema could not be established, so nothing
@@ -57,6 +62,7 @@ class SqliteTriageLedger:
         self._window = window
         self._cooldown = cooldown
         self._retention = retention
+        self._services = services
         with _translated("prepare the ledger's schema"):
             self._connection.executescript(SCHEMA)
             self._add_missing_columns()
@@ -114,7 +120,11 @@ class SqliteTriageLedger:
         was and so age the record into deletion early.
         """
         if not is_closed(
-            incident, now=now, window=self._window, cooldown=self._cooldown
+            incident,
+            service=describing(self._services, incident.service),
+            now=now,
+            window=self._window,
+            cooldown=self._cooldown,
         ):
             return False
         self._connection.execute(
@@ -159,8 +169,9 @@ class SqliteTriageLedger:
         )
         self._connection.executemany(
             "INSERT INTO incident_alerts "
-            "(incident_id, source_id, service, fired_at, title, link) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(incident_id, source_id, service, fired_at, title, link, "
+            "observed_latency_ms) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             [
                 (
                     incident.id,
@@ -169,6 +180,7 @@ class SqliteTriageLedger:
                     _as_text(alert.fired_at),
                     alert.title,
                     alert.link,
+                    alert.observed_latency_ms,
                 )
                 for alert in incident.alerts
             ],
@@ -189,7 +201,8 @@ class SqliteTriageLedger:
     def _alerts(self, incident_id: str) -> tuple[Alert, ...]:
         """Read the alerts absorbed into one incident, oldest first."""
         rows = self._connection.execute(
-            "SELECT source_id, service, fired_at, title, link FROM incident_alerts "
+            "SELECT source_id, service, fired_at, title, link, "
+            "observed_latency_ms FROM incident_alerts "
             "WHERE incident_id = ? ORDER BY fired_at",
             (incident_id,),
         ).fetchall()
@@ -200,8 +213,9 @@ class SqliteTriageLedger:
                 source_id=source_id,
                 title=title,
                 link=link,
+                observed_latency_ms=observed_latency_ms,
             )
-            for source_id, service, fired_at, title, link in rows
+            for source_id, service, fired_at, title, link, observed_latency_ms in rows
         )
 
 

@@ -155,6 +155,7 @@ def within_acceptable_latency(incident: Incident, service: ScopedService) -> boo
 def is_closed(
     incident: Incident,
     *,
+    service: ScopedService,
     now: datetime,
     window: timedelta,
     cooldown: timedelta,
@@ -163,22 +164,28 @@ def is_closed(
 
     An incident closes once it can neither be continued — its latest alert is
     further back than the grouping window — nor suppress a report, its last
-    report being further back than the cooldown. Both bounds already exist, so
-    closing needs no setting of its own. A closure already stamped stands: it
-    is a fact about a moment, not a recomputation, so retuning the cooldown
-    afterwards does not reopen an incident or move when it closed.
+    report being further back than the cooldown, nor still owe one. The two
+    bounds already exist, so closing needs no setting of its own. A closure
+    already stamped stands: it is a fact about a moment, not a recomputation,
+    so retuning the cooldown afterwards does not reopen an incident or move
+    when it closed.
 
-    An incident that has never been reported does not close, however quiet it
-    has gone. It still *owes* a report, and owing one is a decision it affects.
-    This only became reachable once a failed investigation was allowed to
-    deliver nothing: before that, an incident was reported on the run that
-    opened it, so it always had a report behind it by the time its alerts aged
-    past the window. Closing it here would discard the attempts it had spent
-    and let the next run open a fresh incident for the same problem, which is
-    precisely the unbounded investigating the attempt bound exists to prevent.
+    Whether a report is still owed is the question the run itself asks, asked
+    once more here rather than answered a second way. An incident whose
+    investigations have failed while attempts remain has never been reported
+    and is owed one, so it stays open however quiet its service has gone:
+    closing it would discard the attempts it had spent and let the next run
+    open a fresh incident for the same problem, which is precisely the
+    unbounded investigating the attempt bound exists to prevent. An incident
+    the run deliberately left alone as within its service's acceptable latency
+    is owed nothing and never was, so it closes on age like any other — which
+    is what stops a silence nobody will ever break from growing the ledger
+    without bound.
 
     Args:
         incident: The incident to judge.
+        service: What the scope says about its service, which is what says
+            whether a report was ever owed for it.
         now: The instant to judge it at.
         window: The grouping window, which bounds continuation.
         cooldown: How long a report suppresses the next one.
@@ -188,9 +195,23 @@ def is_closed(
     """
     if incident.closed_at is not None:
         return True
-    if incident.last_reported_at is None:
+    if _owes_a_report(incident, service):
         return False
     return now - incident.window.end > window and _is_due(incident, now, cooldown)
+
+
+def _owes_a_report(incident: Incident, service: ScopedService) -> bool:
+    """Whether a report about this incident is still to be delivered.
+
+    Nothing has gone out about it, and nothing excuses that: either an
+    investigation is owed it, or one failed and a report of last resort is.
+    An incident left alone as within its acceptable latency is the one case
+    where never having been reported is the end of the matter rather than a
+    debt outstanding.
+    """
+    return incident.last_reported_at is None and not within_acceptable_latency(
+        incident, service
+    )
 
 
 def continue_or_open(

@@ -99,6 +99,7 @@ def execute(
                 window=config.grouping.window,
                 cooldown=config.re_notify.cooldown,
                 retention=config.ledger.retention,
+                services=config.scope.services,
             ),
             notifier=notifier,
             investigator=investigator,

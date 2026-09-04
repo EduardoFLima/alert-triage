@@ -89,14 +89,14 @@
 
 ## 5. Closing follows the same question
 
-- [ ] 5.1 Red: assert an incident left alone as within its acceptable latency,
+- [x] 5.1 Red: assert an incident left alone as within its acceptable latency,
   never reported, closes once its latest alert is older than the grouping
   window.
-- [ ] 5.2 Red: assert an incident that has never been reported because its
+- [x] 5.2 Red: assert an incident that has never been reported because its
   investigations failed while attempts remain still does **not** close on age.
   This must pass before and after 5.3 — it is the behaviour the current
   `last_reported_at is None` guard exists for.
-- [ ] 5.3 Green: replace that guard in `is_closed` with the same "is a report
+- [x] 5.3 Green: replace that guard in `is_closed` with the same "is a report
   due" question the run asks, so both cases fall out of one rule.
 
 ## 6. Criticality reaches the investigation and the report
