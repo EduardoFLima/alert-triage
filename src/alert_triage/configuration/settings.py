@@ -32,6 +32,16 @@ class ServiceScope:
     critical: bool = False
 
 
+NOT_DECLARED = ServiceScope()
+"""What a service nobody named resolves to: in scope on the owner's terms, and
+not critical.
+
+Answering an unnamed service with this rather than with ``None`` keeps every
+caller reading one type, and puts the "not critical" answer where criticality
+is stated rather than where the mapping is held.
+"""
+
+
 @dataclass(frozen=True)
 class Scope:
     """What the job watches. Mandatory: there is no "watch everything" default.
@@ -55,15 +65,15 @@ class Scope:
     owner: str | None = None
     services: Mapping[str, ServiceScope] = field(default_factory=dict)
 
-    def is_critical(self, service: str) -> bool:
-        """Whether this service was declared critical.
+    def for_service(self, service: str) -> ServiceScope:
+        """What this scope says about one service, ``NOT_DECLARED`` where nothing.
 
-        A service nobody named is not critical, which is the answer an
-        owner-bounded run gets for every service it triages: criticality is
-        something declared, never something a service falls into.
+        An owner-bounded run names no service and triages every service the
+        owner owns, so a service absent from the mapping is the ordinary case
+        rather than an error: what it gets back says it was declared nothing,
+        which is what "not critical" means.
         """
-        declared = self.services.get(service)
-        return declared is not None and declared.critical
+        return self.services.get(service, NOT_DECLARED)
 
 
 @dataclass(frozen=True)

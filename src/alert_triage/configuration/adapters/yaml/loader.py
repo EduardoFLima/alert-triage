@@ -156,6 +156,7 @@ def _section[SectionT](
     return cls(**_supplied(cls, path, _section_data(document, path[-1]), env))
 
 
+_OWNER = "owner"
 _SERVICES = "services"
 
 
@@ -164,6 +165,7 @@ def _env_name(path: tuple[str, ...]) -> str:
     return "_".join(re.sub(r"[^0-9a-zA-Z]+", "_", part).upper() for part in path)
 
 
+OWNER_VARIABLE = _env_name(("scope", _OWNER))
 SERVICES_VARIABLE = _env_name(("scope", _SERVICES))
 """The one variable that declares a whole section rather than adjusting a key."""
 
@@ -171,20 +173,31 @@ SERVICES_VARIABLE = _env_name(("scope", _SERVICES))
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
     """Resolve the one section that has no default and no fallback.
 
+    Its two keys are read one each rather than through ``_supplied``: neither
+    is a scalar with a default, which is the only thing that function knows how
+    to resolve.
+
     "At least one" is enforced here rather than in ``Scope`` itself so that a
     deployment configured with neither meets a ``ConfigError`` -- the failure
     the application already refuses to start on, carrying the message that says
     what to set.
     """
-    supplied = _supplied(Scope, ("scope",), data, env, except_for=(_SERVICES,))
+    _reject_unknown([one.name for one in fields(Scope)], ("scope",), data)
+    owner = _owner(data, env)
     services = _services(data.get(_SERVICES), env)
-    if "owner" not in supplied and not services:
+    if owner is None and not services:
         raise ConfigError(
             "scope requires an owner, services, or both, and has no default: "
             "set scope.owner (SCOPE_OWNER) or scope.services (SCOPE_SERVICES) "
             "in config.yaml or the environment"
         )
-    return Scope(**supplied, services=services)
+    return Scope(owner=owner, services=services)
+
+
+def _owner(data: Mapping[str, Any], env: Mapping[str, str]) -> str | None:
+    """Who the run watches: the environment, then the file, then nobody."""
+    owner: str | None = env.get(OWNER_VARIABLE, data.get(_OWNER))
+    return owner
 
 
 def _services(entries: Any, env: Mapping[str, str]) -> Mapping[str, ServiceScope]:

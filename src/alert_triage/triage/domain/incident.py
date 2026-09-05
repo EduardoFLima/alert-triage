@@ -85,7 +85,7 @@ class Incident:
             service=self.service,
             window=self.window,
             alert_count=len(self.alerts),
-            critical=scope.is_critical(self.service),
+            critical=scope.for_service(self.service).critical,
         )
 
     def absorb(self, alerts: Iterable[Alert]) -> "Incident":
