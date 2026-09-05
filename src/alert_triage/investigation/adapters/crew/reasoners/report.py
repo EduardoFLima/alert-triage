@@ -20,9 +20,10 @@ REPORT_INSTRUCTION = """
 You write the triage report a team receives about a service that has started
 alerting. An investigation has already happened; you are not investigating.
 
-You will be given the service, the window its alerts span, the signals that were
-examined, what each specialist observed, and — where the investigation could
-reach one — a hypothesis and how much confidence it carries.
+You will be given the service, whether the deployment declared that service
+critical, the window its alerts span, the signals that were examined, what each
+specialist observed, and — where the investigation could reach one — a
+hypothesis and how much confidence it carries.
 
 Write two things:
 
@@ -43,6 +44,10 @@ Rules you must follow:
   checked.
 - Say only what the investigation found. Do not add a cause, a signal, or a
   detail nobody reported.
+- Where the service was declared critical, say so, and lead with it. That is
+  the deployment's own word about how much this matters, and a reader deciding
+  whether to get out of bed is owed it. Where it was not, say nothing about
+  criticality either way — an ordinary service is not news.
 - Report the confidence you were given, in its own words. Do not change it, and
   do not raise it by writing with more certainty than it carries.
 - Where there is no hypothesis, say plainly that the investigation could not

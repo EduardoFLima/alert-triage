@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from alert_triage.configuration.settings import Scope, ServiceScope
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
 
@@ -46,7 +47,7 @@ def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() 
     first = _alert()
     last = _alert(timedelta(minutes=7))
 
-    target = _incident(last, first).investigation_target
+    target = _incident(last, first).investigation_target(Scope(owner="sre"))
 
     assert target.service == "checkout"
     assert target.window == _incident(last, first).window
@@ -55,10 +56,28 @@ def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() 
 
 def test_an_incident_of_one_alert_is_still_askable_about_a_period() -> None:
     """One alert spans an instant, and no metric query accepts one."""
-    target = _incident(_alert()).investigation_target
+    target = _incident(_alert()).investigation_target(Scope(owner="sre"))
 
     assert target.window.end > target.window.start
     assert target.window.start <= NOON <= target.window.end
+
+
+def test_an_incident_on_a_critical_service_is_stated_as_critical() -> None:
+    """The one fact the scope holds that an investigation is entitled to."""
+    scope = Scope(services={"checkout": ServiceScope(critical=True)})
+
+    assert _incident(_alert()).investigation_target(scope).critical
+
+
+def test_an_incident_on_a_service_in_scope_and_not_declared_critical_is_not() -> None:
+    scope = Scope(owner="sre", services={"checkout": ServiceScope()})
+
+    assert not _incident(_alert()).investigation_target(scope).critical
+
+
+def test_an_incident_on_a_service_the_scope_never_named_is_not_critical() -> None:
+    """An owner-bounded run names no service, and declares none critical."""
+    assert not _incident(_alert()).investigation_target(Scope(owner="sre")).critical
 
 
 def test_there_is_no_incident_without_the_alerts_that_opened_it() -> None:

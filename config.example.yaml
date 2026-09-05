@@ -1,20 +1,38 @@
 # Behavior: what the system watches and how it triages.
 #
 # Copy to `config.yaml` and keep only the keys you want to change — every key
-# below except `scope.owner` is optional and the value shown is the default.
+# below except `scope` itself is optional and the value shown is the default.
 # The file itself is optional too.
 #
 # Connection settings (credentials, endpoints, where reports go) are never read
-# from here; see `.env.example`. Any key naming one is inert.
+# from here; see `.env.example`. A section naming one is refused.
 #
 # Every key here can also be set as an environment variable, by mapping its
 # `section.key` path to `SECTION_KEY` (`scope.owner` -> `SCOPE_OWNER`). When
 # both are set, the environment wins.
 
+# MANDATORY: at least one of `owner` and `services`. There is no default and
+# no "watch everything" fallback, and a run that resolves neither refuses to
+# start. Set both and they narrow together: the named services of that owner.
 scope:
-  # MANDATORY. The team whose alerts are triaged; no default, and a run that
-  # cannot resolve it refuses to start.
+  # Optional once `services` names a service. The team whose alerts are
+  # triaged.
   owner: sre
+  # Optional, keyed by service name. NAMING ANY SERVICE NARROWS TRIAGE TO THE
+  # NAMED SERVICES — this is not a list of services to treat specially
+  # alongside everything else the owner owns. Every key within an entry is
+  # optional, and an entry may be listed with none of them (`payments: {}`).
+  #
+  # Left empty, as the owner alone is the default: uncommenting an entry is
+  # what narrows the run to it. The whole set can equally be declared from the
+  # environment as SCOPE_SERVICES, which replaces this section rather than
+  # adding to it.
+  services: {}
+  # checkout:
+  #   # Optional. Whether an incident on this service is investigated and
+  #   # reported with more urgency. Says nothing about what is watched: a
+  #   # critical service is fetched on the same terms as any other in scope.
+  #   critical: true
 
 grouping:
   # Optional. How far apart alerts of one service may fire and still be treated
@@ -81,16 +99,3 @@ circuit_breakers:
   max_mcp_retries: 3
   # Optional. Timeout of a single MCP call, in seconds.
   mcp_call_timeout_seconds: 30
-
-# Optional. Services escalated beyond the defaults, keyed by service tag.
-# Being listed is what makes a service critical, so the entries below are left
-# commented out: uncommenting one declares that service critical. Every key
-# within an entry is optional, and an entry may be listed with none of them
-# (`payments: {}`).
-critical_services: {}
-  # checkout:
-  #   # Optional. Criticality tier this service is escalated under.
-  #   tier: critical
-  #   # Optional. Latency above which escalation bypasses batching, in
-  #   # milliseconds.
-  #   latency_threshold_ms: 2000

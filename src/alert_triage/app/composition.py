@@ -89,7 +89,10 @@ def execute(
     datadog_connection = resolve_connection(env)
     notifier = resolve_notifier(env)
     source = build_alert_source(
-        datadog_connection, config.ingestion, config.scope.owner
+        datadog_connection,
+        config.ingestion,
+        config.scope.owner,
+        tuple(config.scope.services),
     )
     investigator = build_investigator(env, datadog_connection, config.investigation)
 
