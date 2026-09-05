@@ -237,6 +237,111 @@ def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
     assert "team:sre" in request.filter.query
 
 
+def test_the_request_scopes_to_the_named_services_in_datadogs_own_terms() -> None:
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events,
+        owner=None,
+        services=("checkout", "payments"),
+        web_host="app.datadoghq.com",
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "service:(checkout OR payments)" in request.filter.query
+    assert "team:" not in request.filter.query
+
+
+def test_one_named_service_is_asked_for_by_name() -> None:
+    """A group of one is noise in a query a human reads in the platform's UI."""
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events, owner=None, services=("checkout",), web_host="app.datadoghq.com"
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "service:checkout" in request.filter.query
+
+
+def test_both_filters_narrow_the_same_request() -> None:
+    """Naming services within an owner watches those services *of* that owner."""
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events,
+        owner="sre",
+        services=("checkout",),
+        web_host="app.datadoghq.com",
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "team:sre" in request.filter.query
+    assert "service:checkout" in request.filter.query
+
+
+def test_a_criticality_never_reaches_the_request() -> None:
+    """A critical service is fetched on the same terms as any other in scope."""
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events,
+        owner="sre",
+        services=("checkout", "payments"),
+        web_host="app.datadoghq.com",
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "critical" not in request.filter.query
+
+
+def test_an_owner_alone_asks_for_no_service_at_all() -> None:
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events, owner="sre", web_host="app.datadoghq.com"
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert "service:" not in request.filter.query
+
+
+def test_a_fetch_bounded_by_services_alone_announces_them(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reader of the log has to be able to see what bounded the run."""
+    source = DatadogAlertSource(
+        events=FakeEvents(_page()),
+        owner=None,
+        services=("checkout",),
+        web_host="app.datadoghq.com",
+    )
+
+    with caplog.at_level(logging.INFO):
+        source.fetch_since(SINCE)
+
+    written = " ".join(caplog.text.split())
+    assert "checkout" in written
+    assert "owner" not in written
+
+
+def test_a_failure_of_a_service_bounded_fetch_still_says_what_it_was_for() -> None:
+    source = DatadogAlertSource(
+        events=FakeEvents(ApiException(status=500)),
+        owner=None,
+        services=("checkout",),
+        web_host="app.datadoghq.com",
+    )
+
+    with pytest.raises(AlertSourceError, match="checkout"):
+        source.fetch_since(SINCE)
+
+
 def test_the_request_asks_only_for_monitor_alerts() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(

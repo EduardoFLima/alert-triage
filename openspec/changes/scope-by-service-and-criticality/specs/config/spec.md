@@ -84,6 +84,26 @@ incident on that service is investigated and reported.
 - **WHEN** `scope.services` lists one critical and one non-critical service
 - **THEN** both services are equally in scope
 
+### Requirement: A config section the schema does not know is refused
+The system SHALL refuse to start when `config.yaml` holds a section the
+schema does not resolve, naming the offending section, rather than resolving
+the sections it recognises and dropping the rest. A key that resolves nothing
+is almost always a key an operator believes is resolving something — a section
+that was renamed, a setting that moved to the environment, or a typo — and
+silence there is how a deployment runs on a default it thought it had
+overridden. This is what makes the removed `critical_services` section
+discoverable rather than merely inert.
+
+#### Scenario: A removed section is named rather than ignored
+- **WHEN** `config.yaml` still declares `critical_services`
+- **THEN** the system refuses to start and names that section
+
+#### Scenario: A connection setting written into the behavior file is refused
+- **WHEN** `config.yaml` declares a section holding a site or a credential,
+  which are read from the environment only
+- **THEN** the system refuses to start and names that section, rather than
+  starting with the setting silently unread
+
 ### Requirement: The environment declares the services in scope, replacing the file
 The system SHALL allow the whole set of services in scope to be declared from
 the environment through `SCOPE_SERVICES`, as service names separated by

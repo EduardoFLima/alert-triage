@@ -60,6 +60,17 @@ on. A dataclass `ValueError` would escape unwrapped, the way
 `Investigation.max_attempts` already does. Fixing that inconsistency is a
 separate change; this one does not depend on it.
 
+**A removed section is discoverable because every unknown section now is.**
+The loader validated keys *within* a section and ignored unknown sections
+outright, so `critical_services` would have gone quiet rather than refused. A
+shim knowing that one name would age into a list of names nobody deletes; the
+general rule costs one check and answers the same question for the next
+removal. The cost is that a connection setting written into `config.yaml` —
+until now documented as inert — is refused, which the two tests asserting that
+inertness are rewritten to say. That reads as the stronger promise: a
+credential in the behavior file stops the run rather than leaving it to fail
+on the first fetch.
+
 **Escalation is removed, not deferred.** Slice 12's tripped breaker produces a
 partial report marked incomplete and stops there — the "auto-escalate" half
 had nowhere left to go. `docs/vision.md` references it from six places, and

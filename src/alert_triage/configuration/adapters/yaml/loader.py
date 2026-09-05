@@ -6,10 +6,15 @@ value fails here rather than at first use.
 
 The environment variable for a value is derived from its path in the file --
 ``scope.owner`` is ``SCOPE_OWNER`` -- so a new setting needs no override
-wiring of its own. A per-service entry under ``critical_services``
-follows the same rule (``CRITICAL_SERVICES_CHECKOUT_TIER``), but the set of
-critical services itself comes from the file: the environment can adjust a
-service the file declares, not declare one.
+wiring of its own. An entry of a keyed section follows the same rule
+(``INVESTIGATION_SPECIALISTS_TRACE_SPECIALIST_MODEL``), and which entries
+exist usually comes from the file: the environment adjusts one the file
+declares rather than declaring one.
+
+``scope.services`` is the exception, because a deployment with no file at all
+has to be able to say what it watches: ``SCOPE_SERVICES`` holds the whole set
+as comma-separated names and replaces the file's section outright. The
+per-entry variables then adjust whichever set resulted.
 """
 
 import os
@@ -17,20 +22,20 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Any, get_type_hints
+from typing import Any, get_args, get_type_hints
 
 import yaml
 
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import (
     CircuitBreakers,
-    CriticalService,
     Grouping,
     Ingestion,
     Investigation,
     Ledger,
     ReNotify,
     Scope,
+    ServiceScope,
     SpecialistModel,
 )
 
@@ -48,7 +53,6 @@ class ResolvedConfig:
     ledger: Ledger
     investigation: Investigation
     circuit_breakers: CircuitBreakers
-    critical_services: Mapping[str, CriticalService]
 
 
 def load_config(
@@ -68,6 +72,7 @@ def load_config(
             does not exist, or leaves the mandatory ``scope`` unresolved.
     """
     document = _read(path)
+    _reject_unknown_sections(document)
     environment = os.environ if env is None else env
     return ResolvedConfig(
         scope=_scope(_section_data(document, "scope"), environment),
@@ -79,7 +84,6 @@ def load_config(
         circuit_breakers=_section(
             CircuitBreakers, ("circuit_breakers",), document, environment
         ),
-        critical_services=_critical_services(document, environment),
     )
 
 
@@ -96,6 +100,40 @@ def _read(path: Path) -> Mapping[str, Any]:
     if not isinstance(document, dict):
         raise ConfigError(f"{path} must contain a mapping of config sections")
     return document
+
+
+SECTIONS = (
+    "scope",
+    "grouping",
+    "ingestion",
+    "re_notify",
+    "ledger",
+    "investigation",
+    "circuit_breakers",
+)
+"""Every section this file may hold, which is every section resolved below.
+
+Named here rather than derived from ``ResolvedConfig`` so that a section
+removed from the schema is refused by name rather than quietly ignored, and so
+that a connection setting written into the behavior file is met with the same
+answer.
+"""
+
+
+def _reject_unknown_sections(document: Mapping[str, Any]) -> None:
+    """Fail on a section the schema has never heard of, rather than dropping it.
+
+    A key that resolves nothing is almost always a key an operator believes is
+    resolving something: a section that was renamed, a setting that moved to
+    the environment, or a typo. Silence there is how a deployment runs for a
+    week on a default it thought it had overridden.
+    """
+    unknown = sorted(set(document) - set(SECTIONS))
+    if unknown:
+        raise ConfigError(
+            f"Unknown config section(s): {', '.join(unknown)}. "
+            f"Known sections: {', '.join(SECTIONS)}"
+        )
 
 
 def _section_data(document: Mapping[str, Any], name: str) -> Mapping[str, Any]:
@@ -118,15 +156,77 @@ def _section[SectionT](
     return cls(**_supplied(cls, path, _section_data(document, path[-1]), env))
 
 
+_SERVICES = "services"
+
+
+def _env_name(path: tuple[str, ...]) -> str:
+    """Map a config path to its environment variable name, mechanically."""
+    return "_".join(re.sub(r"[^0-9a-zA-Z]+", "_", part).upper() for part in path)
+
+
+SERVICES_VARIABLE = _env_name(("scope", _SERVICES))
+"""The one variable that declares a whole section rather than adjusting a key."""
+
+
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
-    """Resolve the one value that has no default and no fallback."""
-    supplied = _supplied(Scope, ("scope",), data, env)
-    if "owner" not in supplied:
+    """Resolve the one section that has no default and no fallback.
+
+    "At least one" is enforced here rather than in ``Scope`` itself so that a
+    deployment configured with neither meets a ``ConfigError`` -- the failure
+    the application already refuses to start on, carrying the message that says
+    what to set.
+    """
+    supplied = _supplied(Scope, ("scope",), data, env, except_for=(_SERVICES,))
+    services = _services(data.get(_SERVICES), env)
+    if "owner" not in supplied and not services:
         raise ConfigError(
-            "scope.owner is required and has no default: set it in "
-            "config.yaml or as the SCOPE_OWNER environment variable"
+            "scope requires an owner, services, or both, and has no default: "
+            "set scope.owner (SCOPE_OWNER) or scope.services (SCOPE_SERVICES) "
+            "in config.yaml or the environment"
         )
-    return Scope(**supplied)
+    return Scope(**supplied, services=services)
+
+
+def _services(entries: Any, env: Mapping[str, str]) -> Mapping[str, ServiceScope]:
+    """Read the services in scope, which the environment may declare outright.
+
+    ``SCOPE_SERVICES`` **replaces** the file's section rather than merging with
+    it, so the resolved set is exactly the names it lists and a deployment with
+    no file can still scope by service. A per-entry variable then adjusts
+    whichever set resulted, which is what restores a criticality the replaced
+    section had recorded.
+
+    An empty mapping resolves to none in scope rather than to a filter matching
+    nothing, so that writing the key and listing nothing under it can never
+    reduce a run to watching nothing while still exiting cleanly.
+    """
+    declared = env.get(SERVICES_VARIABLE)
+    if declared is not None:
+        return {name: _service(name, {}, env) for name in _named_in(declared)}
+    if entries is None:
+        return {}
+    if not isinstance(entries, dict):
+        raise ConfigError(
+            "Config section 'scope.services' must be a mapping of service names"
+        )
+    return {name: _service(name, entry, env) for name, entry in entries.items()}
+
+
+def _named_in(declared: str) -> list[str]:
+    """The service names one variable holds, separated by commas.
+
+    Empty names are dropped rather than resolved as a service nothing is tagged
+    with: a trailing comma is a typo, never a request to watch nothing.
+    """
+    return [name.strip() for name in declared.split(",") if name.strip()]
+
+
+def _service(name: str, entry: Any, env: Mapping[str, str]) -> ServiceScope:
+    """Read one service's entry, which is only worth writing to raise urgency."""
+    path = ("scope", _SERVICES, name)
+    return ServiceScope(
+        **_supplied(ServiceScope, path, _entry(".".join(path), entry), env)
+    )
 
 
 _SPECIALISTS = "specialists"
@@ -172,23 +272,6 @@ def _specialist(name: str, entry: Any, env: Mapping[str, str]) -> SpecialistMode
             f"names no model overrides nothing"
         )
     return SpecialistModel(**supplied)
-
-
-def _critical_services(
-    document: Mapping[str, Any], env: Mapping[str, str]
-) -> Mapping[str, CriticalService]:
-    """Read the declared critical services. An absent section declares none."""
-    return {
-        service: CriticalService(
-            **_supplied(
-                CriticalService,
-                ("critical_services", service),
-                _entry(f"critical_services.{service}", entry),
-                env,
-            )
-        )
-        for service, entry in _section_data(document, "critical_services").items()
-    }
 
 
 def _entry(location: str, entry: Any) -> Mapping[str, Any]:
@@ -244,19 +327,52 @@ def _reject_unknown(
         )
 
 
-def _env_name(path: tuple[str, ...]) -> str:
-    """Map a config path to its environment variable name, mechanically."""
-    return "_".join(re.sub(r"[^0-9a-zA-Z]+", "_", part).upper() for part in path)
-
-
-def _coerce(raw: str, target: type[Any], path: tuple[str, ...]) -> Any:
+def _coerce(raw: str, target: Any, path: tuple[str, ...]) -> Any:
     """Read an environment variable as the type its config key is declared with."""
-    if target is str:
+    declared = _settable(target)
+    if declared is str:
         return raw
+    if declared is bool:
+        return _as_yes_or_no(raw, path)
     try:
-        return target(raw)
+        return declared(raw)
     except (TypeError, ValueError) as error:
         raise ConfigError(
-            f"{_env_name(path)}={raw!r} is not a valid {target.__name__} "
+            f"{_env_name(path)}={raw!r} is not a valid {declared.__name__} "
             f"for config key '{'.'.join(path)}'"
         ) from error
+
+
+_YES = frozenset({"1", "true", "yes", "on"})
+_NO = frozenset({"0", "false", "no", "off"})
+
+
+def _as_yes_or_no(raw: str, path: tuple[str, ...]) -> bool:
+    """Read a flag as the answer it is, rather than as a non-empty string.
+
+    ``bool("false")`` is ``True``, which is how a deployment comes to run with
+    the opposite of what it wrote. A word outside either set is refused rather
+    than guessed at.
+    """
+    named = raw.strip().lower()
+    if named in _YES:
+        return True
+    if named in _NO:
+        return False
+    raise ConfigError(
+        f"{_env_name(path)}={raw!r} is neither a yes nor a no for config key "
+        f"'{'.'.join(path)}'. A yes is one of: {', '.join(sorted(_YES))}"
+    )
+
+
+def _settable(target: Any) -> type[Any]:
+    """The type a supplied value is read as, looking past an optional key.
+
+    A key that may be left unset is declared ``T | None``, but a variable that
+    was set is never the ``None`` half: what an operator wrote is read as ``T``,
+    and leaving it unset is expressed by not setting it at all.
+    """
+    declared = [one for one in get_args(target) if one is not type(None)]
+    if len(declared) == 1:
+        return declared[0]  # type: ignore[no-any-return]
+    return target  # type: ignore[no-any-return]

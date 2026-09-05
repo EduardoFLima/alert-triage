@@ -40,6 +40,13 @@ def test_it_is_forbidden_from_stating_a_confidence_the_diagnosis_did_not() -> No
     assert "do not raise" in lowered or "do not change" in lowered
 
 
+def test_it_is_asked_to_say_when_the_service_was_declared_critical() -> None:
+    """A reader deciding whether to get out of bed is owed the deployment's own word."""
+    lowered = REPORT_INSTRUCTION.lower()
+
+    assert "critical" in lowered
+
+
 def test_it_recommends_no_action() -> None:
     assert "do not recommend" in REPORT_INSTRUCTION.lower()
 

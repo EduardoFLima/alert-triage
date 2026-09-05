@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime
 
+from alert_triage.configuration.settings import Scope
 from alert_triage.investigation.contract import InvestigationTarget
 from alert_triage.shared.window import Window
 from alert_triage.triage.domain.alert import Alert
@@ -62,19 +63,29 @@ class Incident:
         """
         return Window(start=self.alerts[0].fired_at, end=self.alerts[-1].fired_at)
 
-    @property
-    def investigation_target(self) -> InvestigationTarget:
+    def investigation_target(self, scope: Scope) -> InvestigationTarget:
         """This incident stated as something an investigation can be asked about.
 
         The translation lives here because this is where an incident is in
-        hand. What crosses is a service, a window, and a volume — an
-        investigation has no use for the aggregate behind them, and knowing
-        about it would tie every specialist to this project's model.
+        hand. What crosses is a service, a window, a volume, and whether the
+        deployment declared that service critical — an investigation has no use
+        for the aggregate behind them, and knowing about it would tie every
+        specialist to this project's model.
+
+        Args:
+            scope: What the run watches, which is what says whether this
+                incident's service was declared critical. Read here rather than
+                by the investigation, so that no specialist consults
+                configuration to learn how urgent its subject is.
+
+        Returns:
+            The target to investigate.
         """
         return InvestigationTarget(
             service=self.service,
             window=self.window,
             alert_count=len(self.alerts),
+            critical=scope.is_critical(self.service),
         )
 
     def absorb(self, alerts: Iterable[Alert]) -> "Incident":

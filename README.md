@@ -53,14 +53,19 @@ correctly, and the architecture boundary holds.
 
 **Configure**
 
-`scope.owner` is the only mandatory behavior setting, and at least one
-notification channel must be configured or the run refuses to start:
+`scope` is the only mandatory behavior setting — an owner, a set of services,
+or both — and at least one notification channel must be configured or the run
+refuses to start:
 
 ```bash
 export SCOPE_OWNER=sre                                     # whose alerts are triaged
+export SCOPE_SERVICES=checkout,payments                    # and/or which services'
 export ALERT_TRIAGE_TEAMS_WEBHOOK_URL=https://prod-1...    # where reports go
 export DD_API_KEY=...                                      # and DD_APP_KEY
 ```
+
+Setting both narrows to the named services *of* that owner. Either one alone is
+enough.
 
 That is enough for a first run. Everything else has a documented default.
 
@@ -104,8 +109,12 @@ python -m alert_triage   # the same job, without the console script
 
 A run reads everything it needs from its environment:
 
-- `SCOPE_OWNER` — whose alerts are in scope. Mandatory, and the one setting
-  that may instead live in `config.yaml`.
+- `SCOPE_OWNER` and `SCOPE_SERVICES` — whose alerts are in scope, and which
+  services'. At least one is mandatory, and either may instead live in
+  `config.yaml`. `SCOPE_SERVICES` is a comma-separated set of service names,
+  and naming any narrows the run to those services;
+  `SCOPE_SERVICES_<NAME>_CRITICAL` declares one of them critical, which raises
+  the urgency an incident on it is investigated and reported with.
 - `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
   authenticates with. `DD_SITE` if the account is not on `datadoghq.com`, and
   `DD_WEB_SUBDOMAIN` if its web app is not served from `app`.
@@ -147,7 +156,7 @@ needs is handed to it from outside — the image carries no credentials and no
 | `--rm` | Deletes the container once the run exits. A run is one pass, not a service. | Every run leaves a stopped container behind. Nothing is lost: the history is on the volume, not in the container. |
 | `--env-file .env` | Connection settings — the Datadog and model credentials, and where reports go. Docker sets them as real process variables before the run starts. | Pass them one at a time instead: `-e SCOPE_OWNER=sre -e DD_API_KEY=... -e DD_APP_KEY=... -e GOOGLE_API_KEY=... -e ALERT_TRIAGE_TEAMS_WEBHOOK_URL=...`. With neither, the run refuses to start rather than fetch alerts it could tell nobody about. |
 | `-v alert-triage-ledger:/var/lib/alert-triage` | The incident history, kept where the container cannot take it away. Docker creates the named volume the first time it is used. | The run keeps no history, and still exits `0`. This is the one that bites — see below. |
-| `-v ./config.yaml:/app/config.yaml:ro` | Behaviour — what is watched and how it is triaged. `/app` is the image's working directory, which is where the run looks for the file. `:ro` mounts it read-only, because config is input and nothing in the run should be able to write it back. | Every key falls back to its documented default, which is fine as long as `scope.owner` reaches the run some other way. |
+| `-v ./config.yaml:/app/config.yaml:ro` | Behaviour — what is watched and how it is triaged. `/app` is the image's working directory, which is where the run looks for the file. `:ro` mounts it read-only, because config is input and nothing in the run should be able to write it back. | Every key falls back to its documented default, which is fine as long as `scope` reaches the run some other way — `SCOPE_OWNER`, `SCOPE_SERVICES`, or both. |
 | `-v …/application_default_credentials.json` and `-e GOOGLE_APPLICATION_CREDENTIALS` | **Only with `GOOGLE_GENAI_USE_ENTERPRISE=true`**, which reaches the model through the enterprise platform instead of an API key, using what `gcloud auth application-default login` wrote. Set `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` with it — a container has no `gcloud` to discover them from. `:ro` because these are your own credentials: right for your machine, not for a scheduled deployment. | Set `GOOGLE_API_KEY` in `.env` instead — the simpler path, and what the image assumes. Without the enterprise flag the key is required and this mount is ignored. |
 
 **The volume is not optional in practice.** A container's filesystem does not

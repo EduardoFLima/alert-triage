@@ -15,7 +15,6 @@ from alert_triage.configuration.adapters.env_file import resolve_environment
 from alert_triage.configuration.adapters.yaml import load_config
 from alert_triage.configuration.settings import (
     CircuitBreakers,
-    CriticalService,
     Grouping,
     Ingestion,
     Investigation,
@@ -91,7 +90,6 @@ def test_the_example_config_is_a_config_the_loader_accepts(
     config = load_config(config_example, env={})
 
     assert config.scope.owner
-    assert config.critical_services == {}
 
 
 def test_the_example_config_states_the_defaults_it_documents(
@@ -115,16 +113,6 @@ def test_the_example_config_shows_every_key_of_every_section(
 
     assert f"{section}:" in example
     for field in fields(cls):  # type: ignore[arg-type]
-        assert f"{field.name}:" in example
-
-
-def test_the_example_config_shows_every_threshold_of_a_critical_service(
-    config_example: Path,
-) -> None:
-    example = config_example.read_text()
-
-    assert "critical_services:" in example
-    for field in fields(CriticalService):
         assert f"{field.name}:" in example
 
 

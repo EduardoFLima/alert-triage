@@ -17,18 +17,53 @@ from typing import ClassVar
 
 
 @dataclass(frozen=True)
+class ServiceScope:
+    """One service the job watches, and how urgently it is treated.
+
+    Being listed is what puts a service in scope; the flag below says nothing
+    about membership and everything about the tone of what is owed. An entry
+    is only worth writing to raise that.
+
+    Attributes:
+        critical: Whether an incident on this service is investigated and
+            reported with more urgency than one on any other in scope.
+    """
+
+    critical: bool = False
+
+
+@dataclass(frozen=True)
 class Scope:
     """What the job watches. Mandatory: there is no "watch everything" default.
 
-    The owner is a plain identifier in this project's vocabulary. Spending it
-    as a query term an observability platform understands is the alert source
+    Two independent filters, each optional on its own and at least one of them
+    resolved -- enforced where configuration is read, which is where a
+    deployment can still be told what to set. Where both resolved they narrow
+    together: the named services *of* that owner.
+
+    Both are plain identifiers in this project's vocabulary. Spending them as
+    query terms an observability platform understands is the alert source
     adapter's job, so this stays free of any one platform's naming.
 
     Attributes:
-        owner: The single owner (v1: a team) whose alerts are in scope.
+        owner: The single owner (v1: a team) whose alerts are in scope, or
+            ``None`` where the run is bounded by its services alone.
+        services: The services whose alerts are in scope, keyed by service
+            name. Empty means the owner alone bounds the run.
     """
 
-    owner: str
+    owner: str | None = None
+    services: Mapping[str, ServiceScope] = field(default_factory=dict)
+
+    def is_critical(self, service: str) -> bool:
+        """Whether this service was declared critical.
+
+        A service nobody named is not critical, which is the answer an
+        owner-bounded run gets for every service it triages: criticality is
+        something declared, never something a service falls into.
+        """
+        declared = self.services.get(service)
+        return declared is not None and declared.critical
 
 
 @dataclass(frozen=True)
@@ -190,22 +225,3 @@ class CircuitBreakers:
     max_investigation_duration_seconds: int = 300
     max_mcp_retries: int = 3
     mcp_call_timeout_seconds: int = 30
-
-
-@dataclass(frozen=True)
-class CriticalService:
-    """Escalation overrides for a service an operator declared critical.
-
-    Being listed is what makes a service critical; every threshold within the
-    entry is optional and falls back to the default beside it.
-
-    Attributes:
-        tier: Criticality tier this service is escalated under.
-        latency_threshold_ms: Latency above which escalation bypasses batching.
-    """
-
-    DEFAULT_TIER: ClassVar[str] = "critical"
-    DEFAULT_LATENCY_THRESHOLD_MS: ClassVar[int] = 2000
-
-    tier: str = DEFAULT_TIER
-    latency_threshold_ms: int = DEFAULT_LATENCY_THRESHOLD_MS

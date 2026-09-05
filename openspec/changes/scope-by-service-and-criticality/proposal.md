@@ -14,8 +14,11 @@ investigation and its report treat it with more urgency.
 
 - **BREAKING** Remove the `critical_services` config section, its
   `CriticalService` settings type, and its `Config.critical_services` port
-  property. No backward compatibility and no validation of the removed
-  section — a PoC, and the key is inert today.
+  property. No backward compatibility and no per-key migration shim.
+- **BREAKING** A config section the schema does not resolve is refused by
+  name rather than silently ignored, which is what makes the removed section
+  discoverable. It also refuses a connection setting written into the
+  behavior file, which until now resolved nothing and said nothing.
 - **BREAKING** `scope.owner` stops being mandatory on its own. `scope` gains
   an optional `services` mapping, keyed by service name, each entry carrying
   an optional `critical` flag. **At least one of `scope.owner` and
