@@ -23,8 +23,12 @@ Every key here can also be set as an environment variable by mapping its
 `section.key` path to `SECTION_KEY`. When both are set, the environment wins.
 
 ```yaml
-scope:
-  owner: sre              # mandatory: whose alerts are triaged. No default.
+scope:                    # mandatory: at least one of owner and services
+  owner: sre              # whose alerts are triaged
+  services:               # and/or which services'. Naming any NARROWS the run
+    checkout:
+      critical: true      # investigated and reported with more urgency
+    payments: {}
 grouping:
   window_seconds: 1800    # alerts of one service this close are one incident
 ingestion:
@@ -38,10 +42,39 @@ investigation:
   max_attempts: 3           # investigations one incident may be given in total
 ```
 
-Set `scope.owner` to the team that owns the alerts you want triaged; the
-Datadog adapter spends it as a `team:` term in its event query. Keep
-`ingestion.lookback_seconds` comfortably wider than the interval the job runs
-on, so a delayed run does not step over alerts — re-delivered alerts are
+`scope` is what the run watches, and it has no default and no "watch
+everything" fallback: **at least one of `scope.owner` and `scope.services` must
+resolve**, or the run refuses to start. The Datadog adapter spends the owner as
+a `team:` term in its event query and the services as a `service:` term, so
+neither key names anything platform-specific.
+
+Where both resolve they narrow together — the named services *of* that owner —
+so **naming any service narrows triage to the named services** rather than
+adding them beside everything else the owner owns. An empty `scope.services` is
+read as unset rather than as a filter matching nothing, so writing the key and
+listing nothing under it can never quietly reduce a run to watching nothing.
+
+An entry under `scope.services` carries an optional `critical` flag, defaulting
+to false. It says nothing about what is watched — a critical service is fetched
+on exactly the same terms as any other in scope — and everything about urgency:
+its incidents reach the investigating crew and the report's writer saying so,
+and are reasoned about and worded accordingly.
+
+The whole set of services can equally come from the environment.
+`SCOPE_SERVICES` holds them as comma-separated names and **replaces**
+`scope.services` rather than merging with it, so a deployment with no
+`config.yaml` at all can still scope by service — and a service the file
+declared critical is neither in scope nor critical when the variable does not
+name it. `SCOPE_SERVICES_<NAME>_CRITICAL` then adjusts one entry of whichever
+set resulted, in either direction.
+
+```bash
+export SCOPE_SERVICES=checkout,payments
+export SCOPE_SERVICES_CHECKOUT_CRITICAL=true
+```
+
+Keep `ingestion.lookback_seconds` comfortably wider than the interval the job
+runs on, so a delayed run does not step over alerts — re-delivered alerts are
 recognised and absorbed rather than reported twice.
 
 An investigation runs a crew of specialists, one per observability signal, and
@@ -60,8 +93,10 @@ resurrect duplicate reports — retention is counted from the moment an incident
 
 ## Connection: the environment
 
-Writing any of the settings below into `config.yaml` has no effect — the key is
-inert, and resolution proceeds as if it were absent.
+Writing any of the settings below into `config.yaml` is refused rather than
+ignored: the loader knows which sections it resolves and names any other, so a
+credential written into the behavior file is a startup failure rather than a
+run that silently never authenticated.
 
 ### Where the environment comes from: `.env`
 
@@ -215,9 +250,9 @@ What each level shows, and what the log looks like, is in
 ### Notification channels
 
 Which channels are active follows from which of them you configured. Configure
-at least one, or the run refuses to start, the same way it refuses a missing
-`scope.owner` — a run that can investigate but can tell nobody what it found
-has no reason to start.
+at least one, or the run refuses to start, the same way it refuses an
+unresolvable `scope` — a run that can investigate but can tell nobody what it
+found has no reason to start.
 
 **Email.** The host activates the channel; the sender and recipients are then
 required, and a half-configured channel is an error rather than a silent skip.

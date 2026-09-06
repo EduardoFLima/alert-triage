@@ -5,12 +5,10 @@ came from — which is what lets a test hand one a plain object and lets a
 deployment choose its own source.
 """
 
-from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
 from alert_triage.configuration.settings import (
     CircuitBreakers,
-    CriticalService,
     Grouping,
     Ingestion,
     Investigation,
@@ -60,7 +58,3 @@ class Config(Protocol):
     @property
     def circuit_breakers(self) -> CircuitBreakers:
         """Bounds an investigation runs under."""
-
-    @property
-    def critical_services(self) -> Mapping[str, CriticalService]:
-        """Services declared critical, keyed by service tag. Empty means none."""

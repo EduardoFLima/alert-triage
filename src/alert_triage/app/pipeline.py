@@ -18,6 +18,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from alert_triage.configuration.port import Config
+from alert_triage.configuration.settings import Scope
 from alert_triage.investigation.contract import Diagnosis
 from alert_triage.investigation.ports.investigator import (
     Investigator,
@@ -233,7 +234,7 @@ def _handle(
     )
 
     diagnosis, investigation_failure = _investigated(
-        decision, investigator=investigator
+        decision, investigator=investigator, scope=config.scope
     )
 
     incident = (
@@ -267,7 +268,7 @@ def _handle(
 
 
 def _investigated(
-    decision: TriageDecision, *, investigator: Investigator
+    decision: TriageDecision, *, investigator: Investigator, scope: Scope
 ) -> tuple[Diagnosis | None, RunFailure | None]:
     """Investigate the incident if it is owed one, and say what came back.
 
@@ -277,13 +278,14 @@ def _investigated(
     incident = decision.incident
     if not decision.should_investigate:
         return None, None
-    target = incident.investigation_target
+    target = incident.investigation_target(scope)
     _log.info(
         journal.banner(
             "INVESTIGATING",
             incident.service,
             window=_between(target.window.start, target.window.end),
             alerts=target.alert_count,
+            criticality="critical" if target.critical else None,
         )
     )
     try:

@@ -117,7 +117,7 @@ In notification:
 
 Configuration is a generic subdomain rather than a context with a contract, so
 its **Config** port is reachable from every context directly: optional YAML,
-providing the critical-services registry, circuit-breaker thresholds, and room
+providing what a run watches, circuit-breaker thresholds, and room
 to grow other settings later. Absence of the file means sensible defaults apply
 everywhere.
 
@@ -366,12 +366,18 @@ The two compose rather than compete no matter how they are set, because
 retention is measured from the moment an incident closes and closing already
 requires the cooldown to have elapsed.
 
-### Escalation
+### Criticality
 
-A severity/threshold rule (e.g. latency above a defined threshold), with
-per-service overrides from the critical-services config, bypasses batching
-entirely and notifies immediately — a "needs a human now" path that doesn't
-wait on investigation or digest cadence.
+A service in `scope.services` may be declared `critical`. That is a statement
+about urgency and nothing else: a critical service is fetched, grouped, and
+batched on exactly the same terms as any other in scope. What it changes is
+that its incidents reach the crew and the report saying so, and are reasoned
+about and worded with the urgency the deployment asked for.
+
+Deliberately not a severity or threshold rule, and deliberately nothing that
+bypasses batching. A rule engine that decides which alerts skip the queue is
+speculation this project has not earned, and a flag an operator sets is a
+statement it can already justify.
 
 ### Circuit breakers
 
@@ -390,8 +396,8 @@ the same optional YAML, with defaults:
 
 A tripped breaker does not silently truncate: it produces a report marked
 "investigation incomplete" with whatever partial evidence was gathered, and
-routes through the escalation path — an incomplete automated triage is
-itself a signal a human should look sooner.
+stops there — an incomplete automated triage is itself a signal a human
+should look sooner, and the report saying so is what carries it.
 
 Three of these defaults were set against a crew that had one specialist, one
 tool, and no manager. What they now bound has moved:
@@ -434,20 +440,32 @@ A single YAML file (e.g. `config.yaml`) is the one place configuration is
 described. The file's existence is still optional — but the `scope` value
 it (or an environment variable) provides is not:
 
-- `scope.owner` — **mandatory value, from either source.** For v1, a single
-  team: the job watches only alerts belonging to that owner. It can
-  be set in `config.yaml`, or via an environment variable (see below), or
-  both — if both are set, the environment variable wins. It must resolve
-  from one of the two. No default, no "watch
-  everything" fallback: if neither `config.yaml` nor the environment
-  provides it, the application refuses to start. The name is deliberately
-  platform-neutral: turning the owner into a `team:` term in a Datadog query
-  is the alert source adapter's job, so a second platform reads the same key
-  without it lying about where the value came from. Widening scope beyond a
-  single team (multiple teams, tag-based scoping, etc.) is a future
-  extension, not v1.
-- `critical_services` — optional, service → criticality tier → custom
-  thresholds. Defaults apply if absent.
+- `scope` — **mandatory, and satisfied by either of two keys.** Each is
+  optional on its own, each can be set in `config.yaml` or via an environment
+  variable (see below) or both — the environment wins where both are set —
+  and **at least one must resolve**. No default, no "watch everything"
+  fallback: a deployment resolving neither refuses to start.
+  - `scope.owner` — for v1, a single team: the job watches alerts belonging
+    to that owner.
+  - `scope.services` — a mapping keyed by service name: the job watches
+    alerts belonging to those services. Naming any service *narrows* the run
+    to the named services rather than adding them beside everything the owner
+    owns, so where both keys resolve an alert must satisfy both — the named
+    services *of* that owner. `SCOPE_SERVICES` declares the whole set from the
+    environment as comma-separated names, replacing the file's section rather
+    than merging with it, so a deployment with no file at all can still scope
+    by service.
+
+  Each entry under `scope.services` carries an optional `critical` flag,
+  defaulting to false, which says how urgently an incident on that service is
+  investigated and reported and never what is watched.
+
+  Both names are deliberately platform-neutral: turning the owner into a
+  `team:` term and the services into a `service:` term in a Datadog query is
+  the alert source adapter's job, so a second platform reads the same keys
+  without them lying about where the values came from. Widening scope beyond a
+  team and a set of service names (multiple teams, tag expressions, wildcards)
+  is a future extension, not v1.
 - `circuit_breakers` — optional, the thresholds listed above. Defaults
   apply if absent.
 - `ingestion` — optional. How far back a run looks for alerts
@@ -512,8 +530,8 @@ equivalent, but some settings live in the environment exclusively and have no
 ### Behavior belongs in the file; connections belong in the environment
 
 `config.yaml` answers "how should the system triage": what it watches, how it
-groups, how far back it looks, when it escalates. It does not answer "where is
-the platform and how do I authenticate". Sites, regions, endpoints, hostnames,
+groups, how far back it looks, which of its services are critical. It does not
+answer "where is the platform and how do I authenticate". Sites, regions, endpoints, hostnames,
 and credentials are deployment facts — they change when the same behavior is
 pointed at a different account — and they are read from the environment only,
 under the platform's own conventional variable names rather than the
@@ -554,10 +572,12 @@ under the platform's own conventional variable names rather than the
   credential it has a default, because a path is not a secret and a manual run
   should need no configuration beyond `scope`.
 
-Written into `config.yaml`, such a key is inert: it is not used to reach the
-platform, and resolution proceeds as if it were absent. This keeps a config
-file portable across deployments and means there is never a key shaped like a
-credential for someone to fill in and commit. The same test decides where a
+Written into `config.yaml`, such a key is refused rather than ignored: the
+loader knows the sections it resolves and names any other, so a credential
+written into the behavior file stops the run instead of leaving it to fail on
+the first fetch. This keeps a config file portable across deployments and means
+there is never a key shaped like a credential for someone to fill in and
+commit. The same test decides where a
 new setting goes — the notifier's SMTP host and Teams webhook land on the
 environment side by it.
 
@@ -664,9 +684,11 @@ Two failure modes worth designing against from the start:
   when the incident closes — so that going quiet is always a decision
   someone made recently.
 - **A worsening incident must break through.** Acknowledgement suppresses the
-  routine repeat, not the escalation path (slice 11). If severity crosses a
-  threshold or the blast radius grows, that is new information and the ack
-  should not hold it back.
+  routine repeat, and a repeat is not always routine. If the blast radius
+  grows, that is new information and the ack should not hold it back —
+  which is a question about what makes two reports the same report, not one
+  criticality answers: a critical service's incidents are worded more
+  urgently, and are acknowledged and repeated like any other.
 
 ## Capability slices (dependency order)
 
@@ -806,10 +828,20 @@ testable, building only on the slices before it.
     is exercised by one declaration reaching two fake servers. It also rewords
     what `AGENTS.md`, [`docs/adapters.md`](adapters.md) and the `investigation`
     spec say about a specialist living under the platform it queries.
-11. **Escalation path** — severity/threshold rule + critical-services
-    overrides, bypassing batching. Testable as rule-engine unit tests.
+11. **Scope by service and criticality** — `scope` becomes the conjunction
+    of an optional owner and an optional set of named services, at least one
+    of which must resolve; the service term joins `team:` in the composed
+    query. Each named service may be declared `critical`, which crosses the
+    investigation contract on `InvestigationTarget` and reaches the crew's
+    reasoning and the report's wording from the one description both are
+    given. Criticality decides nothing about what is watched. Replaces the
+    escalation path this slice used to be — a severity/threshold rule that
+    bypassed batching — and removes `critical_services`, the config section
+    that carried it and never had a consumer. Testable by the loader's own
+    tests, the composed query, and one field crossing the contract; the
+    query's shape against a real account is a live test.
 12. **Circuit breakers** — per-agent, per-hop, and per-investigation bounds;
-    trip → partial report + auto-escalate. The per-agent bound sits in
+    a trip produces a partial report marked incomplete, and nothing more. The per-agent bound sits in
     `before_tool_callback`, and the two MCP-level bounds are re-expressed
     through ADK's connection parameters. Testable by forcing a trip
     condition.
@@ -886,8 +918,7 @@ testable, building only on the slices before it.
     because every slice before it changes what the picture has to say. Slice 9
     moves report formatting into an agent, which dissolves triage's deep read
     of investigation's vocabulary and so redraws one of the two cross-context
-    edges. Slice 11 adds a path that bypasses batching entirely, which the
-    current picture has nowhere to put. Slice 14 introduces a deployment story
+    edges. Slice 14 introduces a deployment story
     a reader will want to see — an image, a mounted ledger, and what a run needs
     given to it from outside — and there is no version of that in it today.
     Redrawing before those land is redrawing twice, and a diagram is the one

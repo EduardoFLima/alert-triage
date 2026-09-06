@@ -30,6 +30,31 @@ def test_a_target_tells_a_specialist_how_much_fired() -> None:
     assert "2" in _target(alert_count=2).describe()
 
 
+def test_a_target_is_not_critical_unless_it_was_told_so() -> None:
+    """A caller that knows nothing of criticality still builds a valid target."""
+    assert not _target().critical
+
+
+def test_a_critical_services_target_says_so_where_the_agents_read_it() -> None:
+    target = InvestigationTarget(
+        service="checkout",
+        window=Window(start=NOON, end=NOON + timedelta(minutes=7)),
+        alert_count=2,
+        critical=True,
+    )
+
+    assert target.critical
+    assert "critical" in target.describe().lower()
+
+
+def test_a_target_that_is_not_critical_is_stated_plainly() -> None:
+    """Silence is not the answer: a reader must be told which of the two it is."""
+    described = _target().describe()
+
+    assert "critical" in described.lower()
+    assert "not" in described.lower()
+
+
 def test_a_single_alert_still_gives_the_platform_a_period_it_can_query() -> None:
     """An incident of one alert spans an instant, and no query accepts one."""
     target = InvestigationTarget(

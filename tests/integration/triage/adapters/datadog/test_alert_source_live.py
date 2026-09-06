@@ -38,8 +38,10 @@ quiet minute.
 """
 
 
-def _source() -> AlertSource:
-    return build_alert_source(resolve_connection(), Ingestion(), owner=OWNER)
+def _source(owner: str | None = OWNER, services: tuple[str, ...] = ()) -> AlertSource:
+    return build_alert_source(
+        resolve_connection(), Ingestion(), owner=owner, services=services
+    )
 
 
 def test_a_real_fetch_succeeds_and_yields_alerts() -> None:
@@ -83,3 +85,38 @@ def test_a_translated_alerts_link_opens_rather_than_404s(
 
     for alert in alerts[:LINKS_CHECKED]:
         assert answers(alert.link), f"the platform serves nothing at {alert.link}"
+
+
+def test_a_service_scoped_fetch_is_a_query_the_platform_answers() -> None:
+    """The composed `service:` term, which no fake can accept or reject for us.
+
+    The names are taken from what actually fired rather than written down here,
+    so this asks the account about services it really carries. Two of them when
+    the week offered two, which is what puts the grouped form of the term in
+    front of the platform.
+    """
+    week = datetime.now(UTC) - timedelta(days=7)
+    alerts = _source().fetch_since(week)
+
+    if not alerts:
+        pytest.skip(f"no alerts fired for owner {OWNER!r} in the last week")
+    named = tuple(sorted({alert.service for alert in alerts})[:2])
+
+    scoped = _source(owner=None, services=named).fetch_since(week)
+
+    assert scoped, f"the platform answered nothing for services {named}"
+    assert {alert.service for alert in scoped} <= set(named)
+
+
+def test_both_filters_narrow_a_real_fetch_together() -> None:
+    """Naming services within an owner asks for those services *of* that owner."""
+    week = datetime.now(UTC) - timedelta(days=7)
+    alerts = _source().fetch_since(week)
+
+    if not alerts:
+        pytest.skip(f"no alerts fired for owner {OWNER!r} in the last week")
+    named = tuple(sorted({alert.service for alert in alerts})[:1])
+
+    both = _source(services=named).fetch_since(week)
+
+    assert {alert.service for alert in both} == set(named)

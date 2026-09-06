@@ -58,11 +58,15 @@ operator tunes per team.
 """
 
 
+_CRITICAL = "critical — treat this incident with more urgency"
+_ORDINARY = "not declared critical"
+
+
 @dataclass(frozen=True)
 class InvestigationTarget:
     """One investigation's subject, stated without reference to an incident.
 
-    A four-field record rather than the caller's aggregate: someone writing a
+    A flat record rather than the caller's aggregate: someone writing a
     specialist for another platform reads this and needs nothing else, and this
     context never learns what an incident is. Translating one into a target is
     the caller's work, done where an incident is already in hand.
@@ -74,11 +78,17 @@ class InvestigationTarget:
             gathered around the problem.
         alert_count: How many alerts are on record for it. Volume is context a
             specialist weighs; which alerts they were is not its business.
+        critical: Whether the deployment declared this service critical, so
+            that the crew reasons about the incident with the urgency it asked
+            for. Carried here rather than looked up: an investigation reads no
+            configuration of its own. Defaults to false, so a caller that knows
+            nothing of criticality still builds a valid target.
     """
 
     service: str
     window: Window
     alert_count: int
+    critical: bool = False
 
     def __post_init__(self) -> None:
         """Widen a window too narrow for the platform to answer a question about."""
@@ -93,9 +103,17 @@ class InvestigationTarget:
         )
 
     def describe(self) -> str:
-        """State the target to a specialist, in terms any of them can use."""
+        """State the target to a specialist, in terms any of them can use.
+
+        The one description, handed both to the agents deciding what to consult
+        and to the one wording the report, so that criticality reaches the
+        reasoning and the wording from a single place. Stated either way rather
+        than mentioned only when true: a reader who is told nothing cannot tell
+        an ordinary service from one nobody classified.
+        """
         return (
             f"Service: {self.service}\n"
+            f"Service criticality: {_CRITICAL if self.critical else _ORDINARY}\n"
             f"Window start: {self.window.start.isoformat()}\n"
             f"Window end: {self.window.end.isoformat()}\n"
             f"Alerts in this incident: {self.alert_count}"

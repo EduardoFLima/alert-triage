@@ -28,6 +28,7 @@ from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.ports.alert_source import AlertSourceError
 
 SERVICE_TAG_PREFIX = "service:"
+OWNER_TAG_PREFIX = "team:"
 
 # Datadog files a monitor's firing events under this source; without it the
 # search also returns deploys, comments, and everything else on the event feed.
@@ -62,26 +63,41 @@ class DatadogAlertSource:
     lets the tests drive translation and pagination with no network.
     """
 
-    def __init__(self, events: EventSearch, owner: str, web_host: str) -> None:
-        """Bind the adapter to an endpoint, an owner, and a web host.
+    def __init__(
+        self,
+        events: EventSearch,
+        owner: str | None = None,
+        web_host: str = "",
+        services: Sequence[str] = (),
+    ) -> None:
+        """Bind the adapter to an endpoint, a scope, and a web host.
 
         Args:
             events: The Datadog events endpoint to query.
-            owner: Owner whose alerts are in scope, in the project's own terms.
+            owner: Owner whose alerts are in scope, in the project's own terms,
+                or ``None`` where the services alone bound the fetch.
             web_host: Where this account's web app is served, used to build a
                 link a human can open. The whole host rather than the region:
                 an organisation may be issued a sub-domain of its own, and
                 composing ``app`` in here would send its readers nowhere.
+            services: Services whose alerts are in scope, in the project's own
+                terms. Empty where the owner alone bounds the fetch. Which of
+                them a deployment declared critical is deliberately not here:
+                a critical service is fetched on the same terms as any other.
         """
         self._events = events
         self._owner = owner
         self._web_host = web_host
+        self._services = tuple(services)
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
         _log.info(
             journal.banner(
-                "FETCHING ALERTS", owner=self._owner, since=since.isoformat()
+                "FETCHING ALERTS",
+                owner=self._owner,
+                services=", ".join(self._services) or None,
+                since=since.isoformat(),
             )
         )
 
@@ -124,8 +140,7 @@ class DatadogAlertSource:
             return self._events.search_events(body=self._request(since, cursor))
         except (OpenApiException, TransportError) as error:
             raise AlertSourceError(
-                f"Could not fetch alerts for owner {self._owner!r} from Datadog: "
-                f"{error}"
+                f"Could not fetch alerts for {self._scope} from Datadog: {error}"
             ) from error
 
     def _request(self, since: datetime, cursor: str | None) -> EventsListRequest:
@@ -135,12 +150,39 @@ class DatadogAlertSource:
             page.cursor = cursor
         return EventsListRequest(
             filter=EventsQueryFilter(
-                query=f"{MONITOR_ALERT_QUERY} team:{self._owner}",
+                query=self._query,
                 _from=since.isoformat(),
                 to="now",
             ),
             page=page,
         )
+
+    @property
+    def _query(self) -> str:
+        """What the platform is asked for: monitor alerts, narrowed by the scope.
+
+        Each filter is spent as a term only where it resolved, and terms in a
+        Datadog query are conjunctive — so naming services within an owner asks
+        for those services *of* that owner, which is what a narrowing scope
+        means. At least one always resolved, so this never asks for everything.
+        """
+        terms = [MONITOR_ALERT_QUERY]
+        if self._owner is not None:
+            terms.append(f"{OWNER_TAG_PREFIX}{self._owner}")
+        if self._services:
+            terms.append(f"{SERVICE_TAG_PREFIX}{_any_of(self._services)}")
+        return " ".join(terms)
+
+    @property
+    def _scope(self) -> str:
+        """What this fetch was for, as a failure has to be able to name it."""
+        named = [
+            f"owner {self._owner!r}" if self._owner is not None else "",
+            f"services {', '.join(repr(one) for one in self._services)}"
+            if self._services
+            else "",
+        ]
+        return " and ".join(one for one in named if one)
 
     def _to_alert(self, event: EventResponse) -> Alert | None:
         """Translate one event, or ``None`` when it carries no service tag.
@@ -213,7 +255,10 @@ def build_configuration(
 
 
 def build_alert_source(
-    connection: DatadogConnection, ingestion: Ingestion, owner: str
+    connection: DatadogConnection,
+    ingestion: Ingestion,
+    owner: str | None,
+    services: Sequence[str] = (),
 ) -> DatadogAlertSource:
     """Assemble the adapter and the client it queries through.
 
@@ -223,15 +268,32 @@ def build_alert_source(
     Args:
         connection: Where Datadog is and how to authenticate.
         ingestion: The bounds a fetch runs under.
-        owner: Owner whose alerts are in scope.
+        owner: Owner whose alerts are in scope, or ``None`` where the services
+            alone bound the fetch.
+        services: Services whose alerts are in scope. Empty where the owner
+            alone bounds the fetch.
 
     Returns:
         An ``AlertSource`` backed by Datadog.
     """
     client = ApiClient(build_configuration(connection, ingestion))
     return DatadogAlertSource(
-        events=EventsApi(client), owner=owner, web_host=connection.web_host
+        events=EventsApi(client),
+        owner=owner,
+        web_host=connection.web_host,
+        services=services,
     )
+
+
+def _any_of(names: Sequence[str]) -> str:
+    """One term matching any of these names, in the grammar Datadog reads.
+
+    A single name is spent bare: a group of one narrows nothing and reads as
+    noise to whoever opens the same query in the platform's own UI.
+    """
+    if len(names) == 1:
+        return names[0]
+    return f"({' OR '.join(names)})"
 
 
 def _next_cursor(page: EventsListResponse) -> str | None:
