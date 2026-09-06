@@ -107,6 +107,6 @@ below that adds behavior starts with the failing test named in it.
 
 - [x] 7.1 `uv run ruff check src tests`, `uv run ruff format --check src tests`,
   `uv run mypy`, `uv run pytest` — all four green
-- [ ] 7.2 Run the live tests against a real account per
+- [x] 7.2 Run the live tests against a real account per
   `docs/live-testing.md`, for the composed query the fake cannot establish —
   and say plainly in the report if they were not run
