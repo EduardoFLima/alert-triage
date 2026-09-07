@@ -189,8 +189,9 @@ it reaches each specialist as a tool it may call. Calling one, reading what
 came back, and choosing the next from it is the whole point; handing control
 off to a specialist instead would cost the Diagnostician the thread it is
 reasoning on. The bound on a manager that keeps asking is therefore
-`max_tool_calls_per_agent` applied to it, not `max_agent_hops` — see [Circuit
-breakers](#circuit-breakers).
+`max_agent_hops` — one hop is one consultation — and not
+`max_tool_calls_per_agent`, which bounds what a specialist may ask the platform
+once it has been reached. See [Circuit breakers](#circuit-breakers).
 
 A specialist that was never called is not a specialist that found nothing.
 This is the same distinction [Evidence and the platform
@@ -296,7 +297,8 @@ Two things the port gave for free now have to be built deliberately:
   normaliser, not one per tool.
 
 `before_tool_callback` is the matching seat on the way in, and it is where
-the per-agent tool-call bound belongs — see [Circuit
+every bound is enforced: it declines a call rather than counting one, on the
+specialist's side and on the manager's alike — see [Circuit
 breakers](#circuit-breakers).
 
 #### What portability now means
@@ -381,58 +383,92 @@ statement it can already justify.
 
 ### Circuit breakers
 
-Multi-agent investigation can loop or run away in three distinct ways:
-within one agent's tool-calling loop, across agents handing off to each
-other, or just running long. Each is bounded independently, configurable in
-the same optional YAML, with defaults:
+Multi-agent investigation can loop or run away in three distinct ways: within
+one specialist's tool-calling loop, across the manager's consultations, or just
+by running long. Each is bounded independently, configurable in the same
+optional YAML, with defaults:
 
-| Breaker | Default |
-|---|---|
-| `max_tool_calls_per_agent` | 8 |
-| `max_agent_hops` | 2 |
-| `max_investigation_duration_seconds` | 300 |
-| `max_mcp_retries` | 3 |
-| `mcp_call_timeout_seconds` | 30 |
+| Breaker | Bounds | Default |
+|---|---|---|
+| `max_tool_calls_per_agent` | Tool calls one specialist may make in one investigation | 8 |
+| `max_agent_hops` | Specialist consultations one investigation may make | 8 |
+| `max_investigation_duration_seconds` | Wall-clock time one investigation may take | 300 |
+| `mcp_call_timeout_seconds` | One call to an observability platform | 30 |
 
 A tripped breaker does not silently truncate: it produces a report marked
-"investigation incomplete" with whatever partial evidence was gathered, and
-stops there — an incomplete automated triage is itself a signal a human
-should look sooner, and the report saying so is what carries it.
+"investigation incomplete" with whatever partial evidence was gathered, naming
+the bound that was reached, and stops there — an incomplete automated triage is
+itself a signal a human should look sooner, and the report saying so is what
+carries it. A trip that gathered nothing at all is treated as an investigation
+that did not complete: nothing is reported, and the incident is investigated
+again while attempts remain, because running out of budget having learned
+nothing is not worth a message while there is still an attempt left.
 
-Three of these defaults were set against a crew that had one specialist, one
-tool, and no manager. What they now bound has moved:
+Every bound is enforced by declining the call rather than by counting after it,
+which is what `before_tool_callback` is the seat for: a callback can answer a
+call instead of making it, whereas a coordinator tallying afterwards has already
+paid for the reasoning it wanted to prevent. What a decline hands back is
+written in the register `RETRIEVAL_FAILED` uses, so that a bound can never read
+as a platform that came back clean.
 
-- `max_tool_calls_per_agent` stops being a safety net and becomes a live
-  constraint. A specialist with one tool could hardly loop; one with six
-  and runtime discovery will, and on Grafana it must spend calls on
-  datasource discovery before it can ask anything at all. The bound now
-  belongs in `before_tool_callback`, which is a better seat than the old
-  design had for it — the callback can refuse a call rather than the
-  coordinator counting after the fact.
+**The two per-agent keys answer different questions, so they are different
+keys.** How many searches one specialist may run and how many specialists one
+incident may cost will be tuned against different evidence, and one key serving
+both would force one answer on two questions.
 
-  It is also what bounds the Diagnostician, since a specialist reaches it as
-  a tool: the same key answers "how many searches may one specialist run" and
-  "how many specialists may one incident cost", which are different questions
-  and may want different values. Whether one key can serve both is a decision
-  the harness's numbers should settle rather than one to guess at now.
-- `max_agent_hops` was written for a crew that handed off. Specialists called
-  as tools do not hand off, so the depth it bounds is the manager's own, and a
-  default of 2 admits a specialist and nothing beneath it — the right shape
-  while no specialist calls another. It becomes load-bearing again the day
-  multi-hop dependency traversal lands, which is a roadmap item.
-- `max_mcp_retries` and `mcp_call_timeout_seconds` were ours to enforce
-  while we owned the MCP client. With `McpToolset`, ADK owns it, and the
-  restructure decided both:
-  - `mcp_call_timeout_seconds` is **re-expressed** through the toolset's
-    connection parameters, whose `timeout` and `sse_read_timeout` are what
-    now bound a call. Both are set explicitly beside the connection, so
-    ADK's own defaults — five seconds to connect and five minutes to read —
-    cannot apply by accident to a bound stated as thirty seconds. Reading
-    them from config is slice 12's wiring.
-  - `max_mcp_retries` is **superseded**. ADK's toolset already rebuilds a
-    dead session and retries once, and there is no seam to make that count
-    configurable short of reimplementing the toolset. Slice 12 removes the
-    key rather than leaving an operator setting that does nothing.
+- `max_tool_calls_per_agent` is a live constraint rather than a safety net. A
+  specialist with one tool could hardly loop; one with six and runtime discovery
+  will, and on Grafana it must spend calls on datasource discovery before it can
+  ask anything at all. The count is per specialist and cumulative across every
+  consultation of it within one investigation: the agent is built once and
+  reused, so resetting it per consultation would hand a specialist asked five
+  times five full budgets.
+- `max_agent_hops` is the manager's consultation budget. A hop is the manager
+  reaching a specialist and that specialist reporting back, so counting hops is
+  counting consultations. Its default has to exceed the declared crew — a budget
+  admitting each specialist exactly once forbids the follow-up question rather
+  than bounding it, and the follow-up is the manager's best move. An operator
+  narrowing it below the crew is honoured; the default is not one.
+
+  It deliberately does **not** mean a depth limit on agents calling agents. No
+  declaration can express an agent beneath a specialist, so a bound on that
+  depth would be a setting an operator could not reach and a rule nothing could
+  violate. Multi-hop dependency traversal can name its own key, or re-scope this
+  one, the day it lands.
+
+**The duration bound trips in two stages**, because a reasoning that is merely
+slow and one that has stopped responding need different answers. Once the bound
+elapses, both `before_tool_callback` seats decline, so the reasoning stops
+gathering and concludes on what it holds — the common case, and it keeps its
+hypothesis. A run that has not returned regardless is stopped by a timeout
+around it, which is the only thing that can end a model hanging between calls.
+`Consulted` and `Retrieved` are owned by the investigator and handed into the
+run, so cancelling it destroys neither and a stopped investigation is a partial
+account rather than nothing. The deadline is measured on a monotonic clock, so
+an adjustment to the machine's clock can neither trip a bound early nor defer
+one indefinitely.
+
+**The two MCP keys were ours to enforce while we owned the client.** With
+`McpToolset`, ADK owns it, and the restructure decided both:
+
+- `mcp_call_timeout_seconds` is **re-expressed** through the toolset's
+  connection parameters, whose `timeout` and `sse_read_timeout` it now sets —
+  both from the one key, because connecting and reading are two halves of one
+  bound an operator states once, and so ADK's own defaults (five seconds to
+  connect, five minutes to read) cannot apply by accident.
+- `max_mcp_retries` is **removed**. ADK's toolset rebuilds a dead session and
+  retries below the seat this project has, with no way to make that count
+  configurable short of reimplementing the toolset. A key that resolves nothing
+  is worse than an absent one, so a deployment still setting it is refused at
+  startup by name.
+
+  What that retry costs is bounded by time instead of by count. It sits *below*
+  `before_tool_callback`, so it never re-enters the callback and
+  `max_tool_calls_per_agent` does not count it: a retried call is two attempts
+  of `mcp_call_timeout_seconds`, and the worst case for one tool call is twice
+  the stated bound. `max_investigation_duration_seconds` is what bounds the
+  accumulation of those, which is worth stating because an operator reading
+  "thirty seconds" should know a single call can take sixty.
 
 ## Config file
 
@@ -466,8 +502,11 @@ it (or an environment variable) provides is not:
   without them lying about where the values came from. Widening scope beyond a
   team and a set of service names (multiple teams, tag expressions, wildcards)
   is a future extension, not v1.
-- `circuit_breakers` — optional, the thresholds listed above. Defaults
-  apply if absent.
+- `circuit_breakers` — optional, the four thresholds listed above. Defaults
+  apply if absent, so an unconfigured deployment is bounded rather than
+  unbounded. Every key it resolves is read by what it bounds; `max_mcp_retries`
+  was removed for failing that test, and a file still declaring it is refused at
+  startup by name.
 - `ingestion` — optional. How far back a run looks for alerts
   (`lookback_seconds`, default one hour) and the bounds a fetch runs under
   (`request_timeout_seconds`, `max_retries`). These are ingestion's own

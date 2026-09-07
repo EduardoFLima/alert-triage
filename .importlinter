@@ -132,6 +132,21 @@ forbidden_modules =
     alert_triage.configuration.adapters
 
 
+# Within a context's adapters, the machinery depends on the declarations and
+# never the reverse. A declaration reaching into `adk/` for a constant, a type,
+# or anything else is what makes it framework-specific, in a tree whose point is
+# that a declaration outlives the framework currently running it — so a number a
+# declaration needs is handed to it rather than fetched.
+
+[importlinter:contract:crew-does-not-know-the-framework]
+name = A declaration does not import the framework that runs it
+type = forbidden
+source_modules =
+    alert_triage.investigation.adapters.crew
+forbidden_modules =
+    alert_triage.investigation.adapters.adk
+
+
 # The layers contracts cannot see vendor SDKs; this one keeps them out of the
 # core. A new runtime dependency belongs in `forbidden_modules` below.
 

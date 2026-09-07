@@ -5,7 +5,7 @@ import pytest
 
 from alert_triage.configuration.adapters.yaml import load_config
 from alert_triage.configuration.port import Config, ConfigError
-from alert_triage.configuration.settings import ServiceScope
+from alert_triage.configuration.settings import CircuitBreakers, ServiceScope
 from alert_triage.triage.adapters.datadog.connection import resolve_connection
 from alert_triage.triage.adapters.sqlite import (
     DEFAULT_LEDGER_PATH,
@@ -354,7 +354,7 @@ def test_changing_an_investigation_breaker_leaves_ingestion_unchanged(
         + """
 circuit_breakers:
   mcp_call_timeout_seconds: 90
-  max_mcp_retries: 9
+  max_tool_calls_per_agent: 9
 """,
     )
 
@@ -382,7 +382,7 @@ ingestion:
     assert config.ingestion.request_timeout_seconds == 90
     assert config.ingestion.max_retries == 5
     assert config.circuit_breakers.mcp_call_timeout_seconds == 30
-    assert config.circuit_breakers.max_mcp_retries == 3
+    assert config.circuit_breakers.max_tool_calls_per_agent == 8
 
 
 CONNECTION_KEYS_IN_FILE = """
@@ -415,6 +415,39 @@ def test_an_unknown_config_key_is_reported_rather_than_ignored(
         load_config(path, env={})
 
 
+def test_a_config_still_declaring_max_mcp_retries_is_refused(
+    tmp_path: Path,
+) -> None:
+    """The key was removed; naming it is how a deployment learns nothing read it.
+
+    How many times a platform call is retried is owned by the agent framework's
+    own client, with no seam an operator's value could reach. Refusing by name
+    is the loudest answer available and the one the unknown-key path exists for.
+    """
+    path = _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_mcp_retries: 5\n")
+
+    with pytest.raises(ConfigError, match="max_mcp_retries"):
+        load_config(path, env={})
+
+
+def test_the_retired_retry_key_has_no_environment_override_either(
+    tmp_path: Path,
+) -> None:
+    """A variable nothing derives resolves nothing, rather than resolving quietly."""
+    path = _write(tmp_path, SCOPED)
+
+    config = load_config(
+        path,
+        env={
+            "CIRCUIT_BREAKERS_MAX_MCP_RETRIES": "9",
+            "MAX_MCP_RETRIES": "9",
+        },
+    )
+
+    assert not hasattr(config.circuit_breakers, "max_mcp_retries")
+    assert config.circuit_breakers == CircuitBreakers()
+
+
 def test_a_config_still_declaring_critical_services_is_refused(
     tmp_path: Path,
 ) -> None:
@@ -437,7 +470,7 @@ def test_an_unknown_config_section_is_reported_rather_than_ignored(
 def test_an_empty_config_file_is_treated_as_no_settings(tmp_path: Path) -> None:
     config = load_config(_write(tmp_path, ""), env={"SCOPE_OWNER": "sre"})
 
-    assert config.circuit_breakers.max_agent_hops == 2
+    assert config.circuit_breakers.max_agent_hops == 8
 
 
 def test_unparseable_yaml_is_reported_as_a_config_error(tmp_path: Path) -> None:

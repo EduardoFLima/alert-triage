@@ -14,13 +14,22 @@ read as a quiet service. And every specialist's report crosses ``Consulted``
 before the manager reads it, so what reaches a report is what was checked rather
 than what the manager remembered.
 
-The outcomes are unchanged from the walk, plus one. Some retrievals failed and
+The outcomes are unchanged from the walk, plus two. Some retrievals failed and
 findings were produced: findings, marked incomplete. Every retrieval failed: a
 failure, so the caller retries rather than reporting a service as clean. No
-retrieval attempted: an ordinary result. And now — no specialist consulted at
-all: also an ordinary result, with no signal claimed and no hypothesis, because
-a manager that chose not to ask is not a platform that could not be reached, and
-failing would cost a team its alerts over a model's judgement.
+retrieval attempted: an ordinary result. No specialist consulted at all: also an
+ordinary result, with no signal claimed and no hypothesis, because a manager
+that chose not to ask is not a platform that could not be reached, and failing
+would cost a team its alerts over a model's judgement.
+
+And now a bound was reached. With findings in hand that is an account cut short:
+they are returned marked incomplete, the report is delivered, and no attempt is
+spent — what was gathered is no less true for the budget running out, and an
+incomplete triage is itself a reason a human should look sooner. With nothing in
+hand it is a failure, so the incident is investigated again while attempts
+remain: running out of budget having learned nothing is not worth a message. It
+stays distinct from the manager that chose to consult nobody, because being
+stopped from asking and deciding not to ask are different facts.
 
 How the manager and the wording are actually driven is injected rather than
 hard-wired, so everything either side of the model calls is exercised by unit
@@ -30,14 +39,16 @@ tests with no model and no network.
 import asyncio
 import json
 import logging
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Coroutine, Iterable, Sequence
 from typing import Any
 
+from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
     build_manager,
     build_reasoner,
 )
+from alert_triage.investigation.adapters.adk.bounds import Bounds
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Links, Retrieved
 from alert_triage.investigation.adapters.crew.reasoners.report import REPORT_WRITER
@@ -79,6 +90,7 @@ class AdkInvestigator:
         run_diagnostician: RunDiagnostician,
         run_report: RunReport,
         links: Links | None = None,
+        breakers: CircuitBreakers | None = None,
     ) -> None:
         """Build an investigator over one crew, one manager, and one writer.
 
@@ -88,11 +100,16 @@ class AdkInvestigator:
             run_report: How the account is worded once there is one to word.
             links: How this deployment's platform addresses what it returns.
                 Absent, evidence is gathered and reported without addresses.
+            breakers: The bounds every investigation this investigator runs is
+                held to. Absent, the documented defaults, because an
+                unconfigured deployment is bounded by them rather than
+                unbounded.
         """
         self._crew = tuple(crew)
         self._run_diagnostician = run_diagnostician
         self._run_report = run_report
         self._links = links
+        self._breakers = breakers or CircuitBreakers()
 
     def investigate(self, target: InvestigationTarget) -> Diagnosis:
         """Investigate one target and report what was found and concluded.
@@ -112,15 +129,22 @@ class AdkInvestigator:
 
         Raises:
             InvestigatorError: The investigation could not be completed — the
-                manager errored, or nothing could be retrieved at all.
+                manager errored, nothing could be retrieved at all, or a bound
+                stopped it before it had found anything.
         """
+        bounds = Bounds(self._breakers)
         retrieved = Retrieved(link=self._links)
-        consulted = Consulted(offered=self._crew, retrieved=retrieved)
+        consulted = Consulted(offered=self._crew, retrieved=retrieved, bounds=bounds)
         concluded = self._concluded(target, consulted, retrieved)
         if retrieved.failures and not retrieved.retrievals:
             raise InvestigatorError(
                 f"No evidence could be gathered for {target.service}: "
                 f"{'; '.join(retrieved.failures)}"
+            )
+        if bounds.reached and not consulted.findings:
+            raise InvestigatorError(
+                f"The investigation of {target.service} was stopped before it "
+                f"found anything: {'; '.join(bounds.reached)}"
             )
         findings = Findings(
             findings=consulted.findings,
@@ -331,9 +355,46 @@ def run_with_adk(deployment: Deployment) -> RunDiagnostician:
                 crew=", ".join(specialist.name for specialist in crew),
             )
         )
-        return asyncio.run(run_agent(agent, prompt))
+        return asyncio.run(run_bounded(run_agent(agent, prompt), consulted.bounds))
 
     return _run
+
+
+async def run_bounded(
+    run: Coroutine[Any, Any, dict[str, Any]], bounds: Bounds
+) -> dict[str, Any]:
+    """Run the manager, and stop it if it does not stop itself.
+
+    The backstop under the deadline the callbacks enforce. Stage one needs the
+    reasoning to still be calling tools in order to decline one; a model that
+    hangs between calls reaches no callback at all, and only a bound around the
+    run itself can end that.
+
+    What was gathered survives being stopped, because ``Retrieved`` and
+    ``Consulted`` are owned by the investigator and handed in rather than
+    created here: cancelling the run destroys neither, which is what makes a
+    stopped investigation a partial account rather than nothing.
+
+    Args:
+        run: The manager's run, not yet awaited.
+        bounds: What this investigation may still do, which says how long it has
+            left and records that the bound was reached.
+
+    Returns:
+        What the manager concluded, or nothing where it was stopped before it
+        could conclude. Nothing is not an error: the findings gathered on the
+        way are still the investigation's, and are reported without a
+        hypothesis over them.
+    """
+    try:
+        async with asyncio.timeout(bounds.remaining):
+            return await run
+    except TimeoutError:
+        bounds.reach(
+            "the investigation was stopped: it did not conclude within its "
+            f"{bounds.duration} seconds"
+        )
+        return {}
 
 
 def report_with_adk(deployment: Deployment) -> RunReport:

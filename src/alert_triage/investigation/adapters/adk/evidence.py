@@ -20,6 +20,7 @@ import logging
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
+from alert_triage.investigation.adapters.adk.bounds import CALL_DECLINED, Bounds
 from alert_triage.investigation.adapters.adk.normalisation import (
     Linker,
     items_from,
@@ -121,7 +122,12 @@ class Retrieved:
 
     @property
     def failures(self) -> tuple[str, ...]:
-        """Why each retrieval that failed did, in the order they failed."""
+        """Why this investigation saw less than it asked for, in order.
+
+        A retrieval that failed and a call a bound declined are both here: they
+        are different reasons and the same fact, which is that the account was
+        drawn on less than the specialist wanted.
+        """
         return tuple(self._failures)
 
     def retain_evidence(
@@ -152,6 +158,27 @@ class Retrieved:
         for item in items:
             self._evidence[item.id] = item
         return self._offered(call, items, result)
+
+    def refuse_call(self, reason: str) -> dict[str, Any]:
+        """Record a retrieval that never happened, and answer it unmistakably.
+
+        Kept beside the retrievals that failed, because both answer the one
+        question a reader is asking: why is this account drawn on less than it
+        asked for. A call a bound declined and a call the platform refused are
+        different reasons and the same incompleteness.
+
+        Args:
+            reason: Which bound stopped it, for the reader of the report.
+
+        Returns:
+            The refusal the model is given in place of making the call.
+        """
+        self._failures.append(reason)
+        return {
+            "call_declined": True,
+            "detail": reason,
+            "read_this_as": CALL_DECLINED,
+        }
 
     def refuse_evidence(self, reason: str) -> dict[str, Any]:
         """Record a failed retrieval and answer it in terms nothing can misread.
@@ -263,25 +290,42 @@ def keep_evidence_callback(
     return _kept
 
 
-def log_tool_call(caller: str) -> BeforeTool:
-    """The callback that watches a tool call on its way out, and permits it.
+def log_tool_call(
+    caller: str, retrieved: Retrieved | None = None, bounds: Bounds | None = None
+) -> BeforeTool:
+    """The callback that decides whether one more call may be made, and writes it down.
 
-    It writes down what the specialist is about to ask the platform for, which
-    is the half of a retrieval the result alone does not say: an answer with
-    nothing in it reads very differently once the question is beside it.
+    Two jobs on one seat, because they are the same moment. It writes down what
+    the specialist is about to ask the platform for, which is the half of a
+    retrieval the result alone does not say: an answer with nothing in it reads
+    very differently once the question is beside it. And it declines the call
+    once this specialist has spent what it is allowed, or once the investigation
+    has run out of time.
 
-    It enforces nothing today. The seat is also where the per-agent tool-call
-    bound belongs, and a seat with a test already on it is what makes that a
-    body to write rather than a boundary to find.
+    It declines rather than counts. A callback can answer the call instead of
+    making it, whereas a coordinator tallying afterwards has already paid for
+    the search it wanted to prevent.
 
     Args:
         caller: The specialist making the call.
+        retrieved: This investigation's evidence, which a declined call is
+            recorded against so the report says the account is incomplete.
+        bounds: What this investigation may still do. Absent, the documented
+            defaults, because an unconfigured deployment is bounded by them
+            rather than unbounded.
 
     Returns:
         The ``before_tool_callback`` to register on a specialist.
     """
+    kept = retrieved if retrieved is not None else Retrieved()
+    within = bounds or Bounds()
 
-    def _logged(*, tool: Any, args: dict[str, Any], tool_context: Any) -> None:
+    def _logged(
+        *, tool: Any, args: dict[str, Any], tool_context: Any
+    ) -> dict[str, Any] | None:
+        declined = within.decline_call(caller)
+        if declined is not None:
+            return kept.refuse_call(declined)
         _tool_log.info(
             journal.event(
                 f"{caller} → {named_tool(tool)}",

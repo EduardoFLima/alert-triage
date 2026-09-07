@@ -21,13 +21,28 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.adk.consultation import MAX_CONSULTATIONS
 from alert_triage.investigation.contract import Confidence
 from alert_triage.investigation.domain.reasoner import Reasoner
 
 _LEVELS = ", ".join(level.value for level in Confidence)
 
-DIAGNOSTICIAN_INSTRUCTION = f"""
+
+def diagnostician_instruction(hops: int) -> str:
+    """What the Diagnostician is asked to do, given the budget it actually has.
+
+    A function of the budget rather than a constant beside it, because the
+    number the reasoning is told and the number that is enforced must be one
+    value. A manager planning against eight questions while six are enforced
+    would spend its last two on a plan it cannot finish, and neither half of
+    that disagreement is visible from the other.
+
+    Args:
+        hops: How many specialist consultations this investigation may make.
+
+    Returns:
+        The instruction, stating that budget.
+    """
+    return f"""
 You are the diagnostician for a service that has started alerting. You do the
 first-pass triage a knowledgeable engineer would do if they had the time, and
 you hand a human a starting point rather than a verdict.
@@ -59,7 +74,7 @@ How to work:
 - You may consult a specialist more than once. If what one reported raises a
   narrower question for that same specialist, ask it — say what you now want to
   know rather than repeating the original request.
-- You have {MAX_CONSULTATIONS} consultations in total for this incident. Spend
+- You have {hops} consultations in total for this incident. Spend
   them on questions worth asking, and stop as soon as you can account for what
   is happening.
 - If a consultation comes back refused, it did not happen. That specialist was
@@ -105,9 +120,23 @@ class Diagnosed(BaseModel):
     )
 
 
-DIAGNOSTICIAN = Reasoner(
-    name="diagnostician",
-    instruction=DIAGNOSTICIAN_INSTRUCTION,
-    output_schema=Diagnosed,
-)
-"""The Diagnostician as the investigation sees it: one declaration, nothing else."""
+def diagnostician(hops: int) -> Reasoner:
+    """The Diagnostician as the investigation sees it, told what it may spend.
+
+    A function where its siblings are module constants, because this is the one
+    declaration that needs a configured number. Being told the budget is also
+    what keeps this declaration from reaching into the machinery for it: a
+    declaration that imports the framework running it is a declaration that
+    cannot outlive the framework.
+
+    Args:
+        hops: How many specialist consultations this investigation may make.
+
+    Returns:
+        The declaration, stating that budget and nothing else about the run.
+    """
+    return Reasoner(
+        name="diagnostician",
+        instruction=diagnostician_instruction(hops),
+        output_schema=Diagnosed,
+    )

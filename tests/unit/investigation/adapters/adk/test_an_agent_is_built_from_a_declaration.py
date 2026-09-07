@@ -11,9 +11,8 @@ import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from pydantic import BaseModel
 
+from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.adk.agent import (
-    CONNECT_TIMEOUT_SECONDS,
-    READ_TIMEOUT_SECONDS,
     Deployment,
     PlatformAccess,
     build_agent,
@@ -57,6 +56,7 @@ def _deployment(
     endpoint: str = "https://mcp.datadoghq.com/v1/mcp",
     headers: dict[str, str] | None = None,
     default: str = "a-default-model",
+    breakers: CircuitBreakers | None = None,
 ) -> Deployment:
     """A deployment holding the one provider these declarations name."""
     return Deployment(
@@ -67,6 +67,7 @@ def _deployment(
             )
         },
         model_for=lambda named: named or default,
+        breakers=breakers or CircuitBreakers(),
     )
 
 
@@ -264,8 +265,30 @@ def test_the_connection_bounds_are_set_rather_than_left_to_the_framework() -> No
         Toolset(provider="datadog", name="core", tools=("search_logs",)), _deployment()
     )
 
-    assert connection.timeout == CONNECT_TIMEOUT_SECONDS
-    assert connection.sse_read_timeout == READ_TIMEOUT_SECONDS
+    assert connection.timeout == CircuitBreakers.DEFAULT_MCP_CALL_TIMEOUT_SECONDS
+    assert (
+        connection.sse_read_timeout == CircuitBreakers.DEFAULT_MCP_CALL_TIMEOUT_SECONDS
+    )
+
+
+def test_the_configured_call_timeout_is_the_one_a_platform_call_is_held_to() -> None:
+    """Both halves of one bound an operator states once: connecting and reading."""
+    connection = connection_for(
+        Toolset(provider="datadog", name="core", tools=("search_logs",)),
+        _deployment(breakers=CircuitBreakers(mcp_call_timeout_seconds=90)),
+    )
+
+    assert connection.timeout == 90
+    assert connection.sse_read_timeout == 90
+
+
+def test_changing_the_call_timeout_leaves_the_other_breakers_alone() -> None:
+    """They bound different things and will be tuned against different evidence."""
+    breakers = CircuitBreakers(mcp_call_timeout_seconds=90)
+
+    assert breakers.max_tool_calls_per_agent == 8
+    assert breakers.max_agent_hops == 8
+    assert breakers.max_investigation_duration_seconds == 300
 
 
 def test_every_specialist_carries_the_evidence_callbacks() -> None:

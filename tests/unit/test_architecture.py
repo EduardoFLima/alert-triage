@@ -18,6 +18,7 @@ ENFORCED_CONTRACTS = frozenset(
         "The supporting contexts are independent of each other",
         "The shared kernel depends on no context",
         "The run takes adapters, it does not name them",
+        "A declaration does not import the framework that runs it",
         "Domain and ports are free of vendor libraries",
     }
 )

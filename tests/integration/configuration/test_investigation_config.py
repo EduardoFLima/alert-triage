@@ -75,13 +75,13 @@ def test_a_credential_under_investigation_is_refused_by_name(tmp_path: Path) -> 
 def test_the_attempt_bound_is_resolved_apart_from_the_circuit_breakers(
     tmp_path: Path,
 ) -> None:
-    """One bounds a call inside an investigation; the other bounds investigations."""
-    path = _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_mcp_retries: 9\n")
+    """One bounds what happens inside an investigation; the other bounds them."""
+    path = _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_agent_hops: 9\n")
 
     config = load_config(path, env={})
 
     assert config.investigation.max_attempts == 3
-    assert config.circuit_breakers.max_mcp_retries == 9
+    assert config.circuit_breakers.max_agent_hops == 9
 
 
 def test_changing_the_attempt_bound_leaves_the_breakers_alone(tmp_path: Path) -> None:
@@ -89,7 +89,7 @@ def test_changing_the_attempt_bound_leaves_the_breakers_alone(tmp_path: Path) ->
 
     config = load_config(path, env={})
 
-    assert config.circuit_breakers.max_mcp_retries == 3
+    assert config.circuit_breakers.max_agent_hops == 8
 
 
 def test_a_specialist_may_be_given_a_model_of_its_own(tmp_path: Path) -> None:

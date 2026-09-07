@@ -43,10 +43,30 @@ def test_circuit_breaker_defaults_match_the_documented_thresholds() -> None:
     breakers = CircuitBreakers()
 
     assert breakers.max_tool_calls_per_agent == 8
-    assert breakers.max_agent_hops == 2
+    assert breakers.max_agent_hops == 8
     assert breakers.max_investigation_duration_seconds == 300
-    assert breakers.max_mcp_retries == 3
     assert breakers.mcp_call_timeout_seconds == 30
+
+
+def test_every_breaker_default_is_stated_beside_its_field() -> None:
+    """The convention every other section follows, so a number has one home.
+
+    A default stated as a literal on the field is a number nothing else can
+    name: the instruction that must state the same budget, and the test that
+    must assert it, would each have to repeat it.
+    """
+    breakers = CircuitBreakers()
+
+    assert breakers.max_tool_calls_per_agent == (
+        CircuitBreakers.DEFAULT_MAX_TOOL_CALLS_PER_AGENT
+    )
+    assert breakers.max_agent_hops == CircuitBreakers.DEFAULT_MAX_AGENT_HOPS
+    assert breakers.max_investigation_duration_seconds == (
+        CircuitBreakers.DEFAULT_MAX_INVESTIGATION_DURATION_SECONDS
+    )
+    assert breakers.mcp_call_timeout_seconds == (
+        CircuitBreakers.DEFAULT_MCP_CALL_TIMEOUT_SECONDS
+    )
 
 
 def test_grouping_window_is_offered_to_the_domain_as_a_duration() -> None:
@@ -71,7 +91,7 @@ def test_ingestion_bounds_are_independent_of_the_investigation_breakers() -> Non
     config: Config = InMemoryConfig(
         scope=Scope(owner="sre"),
         circuit_breakers=CircuitBreakers(
-            mcp_call_timeout_seconds=90, max_mcp_retries=9
+            mcp_call_timeout_seconds=90, max_tool_calls_per_agent=9
         ),
     )
 
@@ -86,7 +106,7 @@ def test_changing_an_ingestion_bound_leaves_the_breakers_alone() -> None:
     )
 
     assert config.circuit_breakers.mcp_call_timeout_seconds == 30
-    assert config.circuit_breakers.max_mcp_retries == 3
+    assert config.circuit_breakers.max_tool_calls_per_agent == 8
 
 
 def test_the_re_notify_cooldown_defaults_to_the_documented_two_days() -> None:

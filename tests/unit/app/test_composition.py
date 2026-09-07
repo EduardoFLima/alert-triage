@@ -9,8 +9,10 @@ import pytest
 
 from alert_triage.app import composition
 from alert_triage.configuration.port import ConfigError
-from alert_triage.configuration.settings import Investigation
+from alert_triage.configuration.settings import CircuitBreakers, Investigation
+from alert_triage.investigation.adapters.adk.agent import connection_for
 from alert_triage.investigation.adapters.adk.credentials import ApiKey
+from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.contract import (
     Confidence,
     Diagnosis,
@@ -21,6 +23,7 @@ from alert_triage.investigation.contract import (
     Signal,
 )
 from alert_triage.investigation.domain.account import compose
+from alert_triage.investigation.domain.specialist import Toolset
 from alert_triage.investigation.ports.investigator import Investigator
 from alert_triage.notification.contract import TriageReport
 from alert_triage.triage.adapters.datadog.connection import DatadogConnection
@@ -327,6 +330,48 @@ def test_the_model_is_built_from_the_credential_the_environment_resolved(
         "model": "gemini-from-the-config-file",
         "access": ApiKey("model-key"),
     }
+
+
+def test_the_investigator_is_held_to_the_breakers_this_deployment_configured(
+    monkeypatch: pytest.MonkeyPatch, connection: DatadogConnection
+) -> None:
+    """The composition root is the only place a configured bound is named."""
+    built: dict[str, Any] = {}
+    monkeypatch.setattr(
+        composition, "AdkInvestigator", lambda **kwargs: built.update(kwargs)
+    )
+
+    composition.build_investigator(
+        {"GOOGLE_API_KEY": "model-key"},
+        connection,
+        Investigation(),
+        CircuitBreakers(max_agent_hops=3, mcp_call_timeout_seconds=90),
+    )
+
+    assert built["breakers"].max_agent_hops == 3
+
+
+def test_the_platform_call_timeout_reaches_the_connection_it_bounds(
+    monkeypatch: pytest.MonkeyPatch, connection: DatadogConnection
+) -> None:
+    """The deployment the agents are built from is the one holding the bound."""
+    deployments: list[Any] = []
+
+    def _capture(deployment: Any) -> Any:
+        deployments.append(deployment)
+        return lambda *args: {}
+
+    monkeypatch.setattr(composition, "run_with_adk", _capture)
+
+    composition.build_investigator(
+        {"GOOGLE_API_KEY": "model-key"},
+        connection,
+        Investigation(),
+        CircuitBreakers(mcp_call_timeout_seconds=90),
+    )
+
+    toolset = Toolset(provider=DATADOG, name="core", tools=("search_datadog_logs",))
+    assert connection_for(toolset, deployments[0]).timeout == 90
 
 
 def test_the_investigator_addresses_evidence_on_the_site_it_gathers_it_from(

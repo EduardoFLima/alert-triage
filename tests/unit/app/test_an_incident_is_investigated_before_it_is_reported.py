@@ -315,6 +315,40 @@ def test_a_retry_that_succeeds_reports_and_clears_the_attempts(
     assert outcome.successful
 
 
+def test_an_investigation_a_breaker_stopped_spends_no_attempt(
+    config: SuppliedConfig,
+) -> None:
+    """It completed and it is reported; a bound is not a failure to investigate."""
+    already = replace(
+        _on_record(_alert("a"), last_reported_at=None), investigation_attempts=2
+    )
+    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
+    ledger = FakeLedger([already])
+    notifier = FakeNotifier()
+    investigator = FakeInvestigator([_diagnosed(_cut_short("OOMKilled recurs"))])
+
+    _run(source, ledger, notifier, config, investigator=investigator)
+
+    assert ledger.incidents[0].investigation_attempts == 0
+    assert notifier.delivered
+
+
+def test_an_incident_keeps_its_alerts_and_its_identity_through_a_trip(
+    config: SuppliedConfig,
+) -> None:
+    """A bound stops the reasoning, not the record of what fired."""
+    already = _on_record(_alert("a"), last_reported_at=None)
+    source = FakeAlertSource([_alert("b", timedelta(minutes=5))])
+    ledger = FakeLedger([already])
+    investigator = FakeInvestigator([_diagnosed(_cut_short("OOMKilled recurs"))])
+
+    _run(source, ledger, FakeNotifier(), config, investigator=investigator)
+
+    kept = ledger.incidents[0]
+    assert (kept.id, kept.service) == (already.id, already.service)
+    assert len(kept.alerts) == len(already.alerts) + 1
+
+
 def test_a_successful_investigation_whose_delivery_fails_keeps_its_attempts(
     config: SuppliedConfig,
 ) -> None:
@@ -407,6 +441,18 @@ def test_one_groups_investigation_failure_leaves_the_others_their_reports(
     assert len(notifier.delivered) == 2
     assert outcome.delivered == 2
     assert not outcome.successful
+
+
+def _cut_short(observation: str) -> Findings:
+    """What an investigation a breaker stopped comes back holding."""
+    found = _findings(observation)
+    return replace(
+        found,
+        retrieval_failures=(
+            "the apm_specialist was not consulted: this investigation has spent "
+            "its 2 consultations",
+        ),
+    )
 
 
 def _diagnosed(findings: Findings) -> Diagnosis:
