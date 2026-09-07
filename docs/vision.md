@@ -612,84 +612,6 @@ arrives; it is a later decision, not the next step.
 - **Tests** are expected throughout, practiced as TDD rather than added
   after the fact.
 
-## Explicitly deferred (roadmap, not v1 scope)
-
-Individual capabilities left out of v1. The two larger items that follow the
-MVP as a whole — measuring investigation quality, and remembering what past
-investigations concluded — are under [Next steps](#next-steps-roadmap-after-the-mvp)
-after the slice order.
-
-- FinOps agent (cost-impact or cost-anomaly investigation). Datadog's
-  `cost_recommendations` makes this a specialist declaration rather than an
-  integration, which lowers its cost considerably.
-- Multi-hop dependency traversal (recursively investigating upstream/
-  downstream services, not just single-hop evidence)
-- GitHub deploy-history correlation. Less urgent than it was: Datadog's
-  change-story tools already answer "did this start after a deploy" without
-  leaving the platform, so this is now about correlating with commits and
-  authors rather than about detecting the deploy at all.
-- A second observability platform (Grafana is the obvious candidate). What
-  it takes is set out under [What portability now
-  means](#what-portability-now-means): specialists of its own, not an
-  adapter implementing ours.
-
-### Acknowledgement — the missing input
-
-v1 models one half of the conversation. The ledger records what was reported
-and when, so triage can ask "have we said this recently?" — but never "did
-anyone act on it?". Those are different questions, and answering only the
-first means a team that already picked up an incident is told about it again
-every cooldown until the alerts stop.
-
-Today's states are effectively *reported* and *quiet*. Three are needed:
-
-- **reported, unseen** — the current re-notify behavior is right here.
-- **acknowledged** — a human has it. Reporting pauses; tracking does not. The
-  incident stays open, keeps absorbing alerts, and keeps its record, because
-  an acknowledged incident is still an incident.
-- **resolved** — the problem is over. Distinct from the *inferred* closure
-  this slice implements, which reads silence as resolution. Silence is
-  evidence, not proof: a monitor that recovers says so explicitly, and a
-  report worth sending is one that can say "this is fixed" rather than
-  leaving a human to notice nothing arrived.
-
-The incident identity added in slice 3 is what makes this tractable — an
-acknowledgement needs something stable to attach to, and a generated id that
-survives new alerts joining is exactly that. Storage is a column beside
-`last_reported_at`, not a redesign.
-
-The hard part is where the signal comes from, and it is an architectural
-question rather than a feature:
-
-- **From the observability platform.** Datadog monitors already carry ack and
-  mute state, and a team that acts usually acts there first. This needs no new
-  inbound channel — it is another read through a boundary that already
-  exists — and it respects where people already work. Probably the first
-  thing to try, and cheaper than it looked: `search_datadog_monitors`
-  returns monitors by status, and Grafana OnCall's `update_alert_group`
-  acknowledges and resolves outright. Reaching either is adding a tool name
-  to a declaration, not building an integration.
-- **From the notification channel.** A reaction or reply on the Teams message,
-  a reply to the email. Closest to where the report is actually read, but the
-  `Notifier` port is one-way by design, and acknowledgement is inbound.
-  Polling for reactions keeps the scheduled-job shape; a webhook does not —
-  it turns a job that runs and exits into a service that must be reachable,
-  which is a deployment change (slice 14), not just a port.
-
-Two failure modes worth designing against from the start:
-
-- **An acknowledgement that never expires is a mute button.** "I'm on it" said
-  on Monday should not silence Thursday's report about the same service. An
-  ack wants a bounded life — a snooze with a duration, or one that lapses
-  when the incident closes — so that going quiet is always a decision
-  someone made recently.
-- **A worsening incident must break through.** Acknowledgement suppresses the
-  routine repeat, and a repeat is not always routine. If the blast radius
-  grows, that is new information and the ack should not hold it back —
-  which is a question about what makes two reports the same report, not one
-  criticality answers: a critical service's incidents are worded more
-  urgently, and are acknowledged and repeated like any other.
-
 ## Capability slices (dependency order)
 
 Each slice is a vertical cut: independently buildable and independently
@@ -933,96 +855,110 @@ testable, building only on the slices before it.
     reaching the right mental model unaided, which is a judgement rather than a
     test, so it does not gate a green build.
 
-## Next steps (roadmap, after the MVP)
+## Roadmap (after v1)
 
-The slices above are what it takes to have the thing working: alerts in,
-investigated, a report out. What follows is what it takes to have it working
-*well*. Neither entry can be built usefully before there is a running system to
-measure and a history to remember, which is why both sit after the slice order
-rather than inside it. They are ordered with respect to each other — memory
-depends on the harness, for the reason given below.
+The slices above get the thing working: alerts in, investigated, a report out.
+What follows gets it working *well*. Acknowledgement comes first — it is the
+gap a team feels immediately. The other two need a running system to measure
+and a history to remember, and memory depends on the harness.
+
+### Acknowledgement — the missing input
+
+The ledger records what was reported, so triage can ask "have we said this
+recently?" — never "did anyone act on it?". A team already working an
+incident is told about it again every cooldown until the alerts stop.
+
+Today's states are effectively *reported* and *quiet*. Three are needed:
+
+- **reported, unseen** — today's re-notify behavior.
+- **acknowledged** — a human has it. Reporting pauses, tracking does not: the
+  incident stays open, keeps absorbing alerts, keeps its record.
+- **resolved** — the problem is over, stated rather than inferred. v1 reads
+  silence as resolution; a monitor that recovers says so explicitly, and a
+  report that can say "this is fixed" beats leaving a human to notice nothing
+  arrived.
+
+Storage is a column beside `last_reported_at`, hung off the incident identity
+from slice 3. The hard part is where the signal comes from:
+
+- **From the observability platform** — probably first. Datadog monitors
+  already carry ack and mute state, and that is where teams act:
+  `search_datadog_monitors` returns monitors by status, Grafana OnCall's
+  `update_alert_group` acknowledges and resolves. A tool name on a
+  declaration, not an integration.
+- **From the notification channel** — a reaction or reply on the report.
+  Closest to where it is read, but `Notifier` is one-way by design. Polling
+  keeps the scheduled-job shape; a webhook turns the job into a service that
+  must be reachable, which is a deployment change (slice 14).
+
+Two failure modes to design against:
+
+- **An ack that never expires is a mute button.** It wants a bounded life — a
+  duration, or lapsing when the incident closes.
+- **A worsening incident must break through.** A growing blast radius is new
+  information, and the ack should not hold it back.
 
 ### Evaluation harness
 
 Recorded incidents replayed against a whole investigation, so quality is
 measurable rather than felt. A case is captured once from the live platform —
 every tool declaration, call, and result — and replayed from disk thereafter,
-so the platform's answer is fixed and a change in the score is a change in the
-instruction, the routing, or the model rather than in Datadog.
+so a change in the score is a change in the instruction, the routing, or the
+model rather than in Datadog.
 
-The judgements most worth grading are which specialists an incident needed and
-what the Diagnostician concluded from them, so the crew has to exist first.
-Grading a lone specialist would mean inventing a standard for a whole
-investigation and then revising it the moment the manager arrived. It settles
-the questions slice 6 left open — which model to default to, and how many
-examples a finding should carry — and gives slice 12 evidence where it
-currently has guesses.
-
-Out of the MVP rather than in it, because an MVP is judged by whether a human
-opening the report finds it useful, and that judgement is available by reading
-one. Measuring it is what you need in order to *improve* it deliberately, and
-that is a problem worth having only once something is running to improve.
-Testable as a scoring run over recorded cases.
+What is worth grading is which specialists an incident needed and what the
+Diagnostician concluded from them, so the crew has to exist first. It settles
+what slice 6 left open — which model to default to, how many examples a
+finding carries — and gives slice 12 evidence where it has guesses. Testable
+as a scoring run over recorded cases.
 
 ### Memory — what past investigations learned
 
-The ledger remembers what was *reported*. Nothing remembers what was
-*learned*. So a problem that recurs every week is investigated from scratch
-every week, at full model cost, and may reach a different conclusion than last
-time for no reason other than sampling. The knowledgeable human this project
-stands in for does not work that way: the third time they see a symptom they
-recognise it, and most of their speed comes from that rather than from
-searching faster.
+The ledger remembers what was *reported*; nothing remembers what was
+*learned*. A problem that recurs weekly is investigated from scratch every
+week, at full model cost, and may reach a different conclusion each time for no
+reason but sampling.
 
-Memory is that record — what an investigation concluded, against what
-signature, and what happened afterwards — kept so that a later investigation
-can find it.
+A `Memory` port belongs to `investigation`: what is remembered is findings and
+hypotheses, investigation's own vocabulary. Written at the end of an
+investigation and read by the Diagnostician as one more tool it may call — so
+the manager decides per incident whether prior knowledge is worth the lookup.
 
-It belongs to `investigation`, not to triage. What is remembered is findings
-and hypotheses, which are investigation's own vocabulary; holding them in
-triage would mean triage learning that vocabulary, and the contract exists
-precisely so it does not have to. So: a `Memory` port declared in
-investigation, written at the end of an investigation and read by the
-Diagnostician as one more tool it may call — the same shape a specialist
-already has, which means the manager decides per incident whether prior
-knowledge is worth consulting rather than paying for a lookup every time.
+The payoff is routing before confidence. A Diagnostician that knows this
+signature has recurred three times can skip the specialists that found nothing
+on any of them, and cost is dominated by which specialists run.
 
-The payoff is routing before it is confidence. A Diagnostician that knows this
-signature has recurred three times, and what each turned out to be, can skip
-the specialists that found nothing on any of them — and the cost of an
-investigation is dominated by which specialists run. Better-grounded
-hypotheses are the second benefit, not the first.
+Four things to design against:
 
-Four things to design against from the start:
-
-- **A memory is a hypothesis, not a fact.** This system deliberately produces
-  a hypothesis with a confidence level rather than a verdict. Storing one and
-  then leaning on it is how an unexamined guess becomes permanent truth. A
-  memory has to carry the confidence it was formed with and whether a human
-  ever confirmed it — which is the same missing input as
-  [Acknowledgement](#acknowledgement--the-missing-input), and the reason these
-  two are related rather than independent.
-- **Anchoring is the failure mode, not a wrong memory.** A Diagnostician told
-  "last time it was the database" may stop looking. Memory should bias which
-  signals get consulted and never substitute for consulting them: a recalled
-  cause enters as a lead that a specialist must corroborate against today's
-  evidence, carrying its own citation. A finding that cites only a memory is
-  not a finding, by the same rule that already discards one citing nothing.
+- **A memory is a hypothesis, not a fact.** It carries the confidence it was
+  formed with and whether a human ever confirmed it — the same missing input
+  as [Acknowledgement](#acknowledgement--the-missing-input).
+- **Anchoring is the failure mode, not a wrong memory.** A recalled cause
+  enters as a lead a specialist must corroborate against today's evidence,
+  carrying its own citation. A finding citing only a memory is not a finding.
 - **Recall is a matching problem, and the grouping key does not solve it.**
-  Service plus time window says two alerts are the same incident. It says
-  nothing about two incidents a month apart being the same *problem*. That
-  needs a notion of similarity over the alert signature and the findings.
-  Start with the cheapest thing that could work — service, monitor identity,
-  and signal — and let the harness say whether it has to be cleverer.
-- **A fixed problem makes its memory wrong.** A memory's value decays, and a
-  deploy is the event most likely to invalidate one outright. The
-  change-story tools the APM specialist already reaches are what would notice,
-  so invalidation is a rule over evidence the system already gathers rather
-  than a new integration.
+  Same incident is not the same *problem*. Start with service, monitor
+  identity, and signal, and let the harness say whether it must be cleverer.
+- **A fixed problem makes its memory wrong.** A deploy is the likeliest
+  invalidator, and the change-story tools the APM specialist already reaches
+  are what would notice.
 
-Ordered after the harness deliberately. "Does memory make investigations
-faster and more accurate" is exactly the question a scoring run over recorded
-cases answers, and without it memory is a plausible-sounding change nobody can
-tell is working — including in the direction where anchoring quietly makes it
-worse. Building the harness first is what makes memory an experiment rather
-than a belief.
+Ordered after the harness: "does memory make investigations faster and more
+accurate" is exactly what a scoring run over recorded cases answers, including
+in the direction where anchoring quietly makes it worse.
+
+### Ideas for improvement
+
+Smaller than the three above, and independent of them.
+
+- FinOps agent (cost-impact or cost-anomaly investigation). Datadog's
+  `cost_recommendations` makes this a specialist declaration rather than an
+  integration.
+- Multi-hop dependency traversal — recursively investigating upstream and
+  downstream services, not just single-hop evidence.
+- GitHub deploy-history correlation. Datadog's change-story tools already
+  answer "did this start after a deploy", so this is about correlating with
+  commits and authors rather than detecting the deploy at all.
+- A second observability platform (Grafana the obvious candidate): specialists
+  of its own, not an adapter implementing ours — see [What portability now
+  means](#what-portability-now-means).
