@@ -3,8 +3,8 @@
 ``docker run`` without ``-v`` keeps no history and says nothing about it. The
 compose file is the answer to that — the mount written down once, so a second
 run reaches the first run's ledger without anyone re-typing it. A compose file
-that did not actually achieve this would be worse than none, because the README
-would be sending people to it.
+that did not actually achieve this would be worse than none, because
+``docs/containerized.md`` would be sending people to it.
 """
 
 import subprocess

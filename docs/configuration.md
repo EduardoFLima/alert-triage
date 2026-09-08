@@ -7,6 +7,11 @@ default, and whether it is mandatory: [`config.example.yaml`](../config.example.
 and [`.env.example`](../.env.example). Copy them rather than starting from a
 blank file — a test fails if either drifts from the schema it describes.
 
+```bash
+cp config.example.yaml config.yaml   # behavior; safe to commit
+cp .env.example .env                 # connection; gitignored, never committed
+```
+
 *Behavior* — what the system watches and how it triages — lives in an optional
 `config.yaml`. *Connection* — where a platform is, how to authenticate, and
 where reports are sent — is read from the environment only.
@@ -200,7 +205,7 @@ is the same one a checkout uses, so mounting a checkout's `data/` at
 `/var/lib/alert-triage/` continues that checkout's history rather than opening
 a second ledger beside it. Mount something durable there; a run without it
 exits `0` having kept nothing, which is the failure this default exists to
-make avoidable. See [the README](../README.md#in-a-container).
+make avoidable. See [`containerized.md`](containerized.md).
 
 Incidents that have gone quiet past both the grouping window and the cooldown
 are closed and kept for the retention period. To read that history — what was

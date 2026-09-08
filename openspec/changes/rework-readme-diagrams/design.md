@@ -19,7 +19,9 @@ image. The requirement being changed is in
 - Redrawing a context's internal layering. The inward rule is one sentence of
   prose and is enforced by `tests/unit/test_architecture.py`; drawing it four
   more times is what made the current picture busy.
-- Any new document. Both diagrams stay in `README.md`.
+- Moving either diagram out of `README.md`. Both stay on the front page; the
+  only new document is `docs/containerized.md`, which carries prose rather than
+  a picture.
 - Applying the new list convention outside `README.md`. `docs/` is a sweep of
   its own, and folding it in here would bury the diagram rework it is named
   for.
@@ -48,9 +50,16 @@ to check it against when the pipeline changes.
 **The context picture is flat: one node per context, edges labelled with what
 crosses them.** No nested subgraphs, no enclosing box for configuration, no
 rung per layer. `triage` reaches `investigation` and `notification` through
-their contracts, `app` composes, `configuration` and `shared` sit beneath
-without being drawn around anything. The enclosing box was doing the work of a
+their contracts, and `app` composes. The enclosing box was doing the work of a
 sentence, and cost the diagram its shape to do it.
+
+`configuration` and `shared` are then left out of the picture altogether rather
+than drawn beneath it, which is a decision taken while drawing. Both are
+depended on by every context, so an honest drawing is six dotted edges — six
+lines to carry one sentence, which is the enclosing box's mistake in a
+different notation. They keep their sentence in the prose and their entry in
+the source tree directly below, where the description each needs is a phrase
+rather than a shape.
 
 **Both are generated through the mermaid MCP tool**, per `AGENTS.md`, rather
 than hand-written — the same convention the existing diagram was produced

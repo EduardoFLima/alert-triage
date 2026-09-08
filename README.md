@@ -10,18 +10,41 @@ It does the legwork and presents a hypothesis with its confidence. It does not
 auto-remediate and does not decide for you: the question left to a human is
 "act on this?" rather than "where do I even start?"
 
+One alert's way through a run:
+
+```mermaid
+flowchart LR
+    alerts["recent alerts<br/>from the platform"] --> grouped["one service,<br/>one window,<br/>one incident"]
+    grouped --> due{"is a report due?<br/>the ledger knows<br/>what it already said"}
+    due -- "not yet" --> recorded["recorded,<br/>and the run exits"]
+    due -- "yes" --> investigated["investigated<br/>specialists gather evidence,<br/>a diagnostician forms<br/>a hypothesis"]
+    investigated --> delivered["report delivered<br/>email · Teams"]
+    delivered --> recorded
+
+    classDef inClass fill:#f4f4f5,stroke:#71717a,color:#27272a
+    classDef decideClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef workClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+    classDef outClass fill:#f6fbf7,stroke:#3f9142,color:#123a17
+
+    class alerts,grouped inClass
+    class due decideClass
+    class investigated workClass
+    class delivered,recorded outClass
+```
+
 The full product vision and capability roadmap live in
 [`docs/vision.md`](docs/vision.md); the settings reference is in
 [`docs/configuration.md`](docs/configuration.md).
 
-> **Status:** end to end, and it concludes. A run fetches alerts, groups them,
-> keeps a ledger so a team is told once per incident, investigates, and delivers
-> a report carrying a hypothesis, how much confidence it has in it, and the
-> evidence beneath. A diagnostician decides which signals each incident needs
-> rather than paying for all of them. What is not yet measured is how good any
-> of that is — the evaluation harness is the next capability slice.
+> **Status:** end to end, and it concludes. A report carries a hypothesis, how
+> much confidence it has in it, and the evidence beneath; a diagnostician
+> decides which signals each incident needs rather than paying for all of them.
+> What is not yet measured is how good any of that is — the evaluation harness
+> is the next capability slice.
 
-## Setup
+## Getting started
+
+### Setup
 
 **Prerequisites**
 
@@ -72,29 +95,19 @@ That is enough for a first run. Everything else has a documented default.
 Prefer not to install anything? [Running it in a container](#in-a-container)
 needs only a container runtime — no checkout, no uv, no Python.
 
-Rather than exporting by hand, copy the two annotated examples and edit them —
-every key and every variable is listed there with its default:
+Every setting is one of two kinds, and the kind decides where it goes:
 
-```bash
-cp config.example.yaml config.yaml   # behavior; safe to commit
-cp .env.example .env                 # connection; gitignored, never committed
-```
+- **Behavior** — what is watched and how it is triaged — in an optional
+  `config.yaml`.
+- **Connection** — credentials, where the ledger lives, where reports are sent
+  — in the environment, or in a `.env` file beside the run.
 
-A `.env` file beside the run is read at startup and only *supplements* the
-environment: anything the process already exported wins, so a container or a
-scheduler is never overridden by a file lying next to it.
-
-Which kind a setting is decides where it goes: *behavior* — what the system
-watches and how it triages — lives in an optional `config.yaml`, while
-*connection* — credentials, the ledger's location, where reports are sent — is
-read from the environment only, so a config file stays portable and never grows
-a key shaped like a credential.
-
-The full reference — every key, every variable, the defaults, and how delivery
-behaves when one channel fails — is in
+Each kind ships an annotated example, `config.example.yaml` and `.env.example`,
+to copy rather than start blank. Every key, every variable, the defaults, and
+how delivery behaves when one channel fails are in
 [`docs/configuration.md`](docs/configuration.md).
 
-## Running it
+### Running it
 
 A run is one pass — fetch the recent alerts, group them, decide what each
 group belongs to, report what is due, record what it handled — and then the
@@ -107,107 +120,17 @@ alert-triage             # wherever the package is installed
 python -m alert_triage   # the same job, without the console script
 ```
 
-A run reads everything it needs from its environment:
+A run reads what it needs from its environment:
 
-- `SCOPE_OWNER` and `SCOPE_SERVICES` — whose alerts are in scope, and which
-  services'. At least one is mandatory, and either may instead live in
-  `config.yaml`. `SCOPE_SERVICES` is a comma-separated set of service names,
-  and naming any narrows the run to those services;
-  `SCOPE_SERVICES_<NAME>_CRITICAL` declares one of them critical, which raises
-  the urgency an incident on it is investigated and reported with.
-- `DD_API_KEY` and `DD_APP_KEY` — the Datadog credentials the fetch
-  authenticates with. `DD_SITE` if the account is not on `datadoghq.com`, and
-  `DD_WEB_SUBDOMAIN` if its web app is not served from `app`.
-- `GOOGLE_API_KEY` — what the model an investigation reasons on costs to
-  reach. A deployment on the enterprise platform sets
-  `GOOGLE_GENAI_USE_ENTERPRISE=true` instead and needs no key.
-- At least one notification channel, or the run refuses to start rather than
-  fetching alerts it could tell nobody about.
-- `ALERT_TRIAGE_LEDGER_PATH` — where the incidents on record are kept.
-  Defaults to `data/alert_triage.db` under the working directory, which is why a
-  deployment should set it explicitly.
-- `LOG_LEVEL` — how much the run says out loud. Optional, and `INFO` by
-  default.
-
-### In a container
-
-The same run, on any machine with a container runtime and no checkout. The
-image performs one complete run when started with no arguments, so whatever
-starts it needs to know nothing but its name.
-
-```bash
-docker build -t alert-triage .
-
-docker run --rm \
-  --env-file .env \
-  -v alert-triage-ledger:/var/lib/alert-triage \
-  -v ./config.yaml:/app/config.yaml:ro \
-  -v ~/.config/gcloud/application_default_credentials.json:/var/secrets/google/application_default_credentials.json:ro \
-  -e GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/google/application_default_credentials.json \
-  alert-triage
-```
-
-Nothing follows the image name, because the image *is* the run. Everything it
-needs is handed to it from outside — the image carries no credentials and no
-`config.yaml`, so one image serves every deployment.
-
-| Part | What it does | Leaving it out |
-| --- | --- | --- |
-| `--rm` | Deletes the container once the run exits. A run is one pass, not a service. | Every run leaves a stopped container behind. Nothing is lost: the history is on the volume, not in the container. |
-| `--env-file .env` | Connection settings — the Datadog and model credentials, and where reports go. Docker sets them as real process variables before the run starts. | Pass them one at a time instead: `-e SCOPE_OWNER=sre -e DD_API_KEY=... -e DD_APP_KEY=... -e GOOGLE_API_KEY=... -e ALERT_TRIAGE_TEAMS_WEBHOOK_URL=...`. With neither, the run refuses to start rather than fetch alerts it could tell nobody about. |
-| `-v alert-triage-ledger:/var/lib/alert-triage` | The incident history, kept where the container cannot take it away. Docker creates the named volume the first time it is used. | The run keeps no history, and still exits `0`. This is the one that bites — see below. |
-| `-v ./config.yaml:/app/config.yaml:ro` | Behaviour — what is watched and how it is triaged. `/app` is the image's working directory, which is where the run looks for the file. `:ro` mounts it read-only, because config is input and nothing in the run should be able to write it back. | Every key falls back to its documented default, which is fine as long as `scope` reaches the run some other way — `SCOPE_OWNER`, `SCOPE_SERVICES`, or both. |
-| `-v …/application_default_credentials.json` and `-e GOOGLE_APPLICATION_CREDENTIALS` | **Only with `GOOGLE_GENAI_USE_ENTERPRISE=true`**, which reaches the model through the enterprise platform instead of an API key, using what `gcloud auth application-default login` wrote. Set `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` with it — a container has no `gcloud` to discover them from. `:ro` because these are your own credentials: right for your machine, not for a scheduled deployment. | Set `GOOGLE_API_KEY` in `.env` instead — the simpler path, and what the image assumes. Without the enterprise flag the key is required and this mount is ignored. |
-
-**The volume is not optional in practice.** A container's filesystem does not
-survive it, so a run without that mount keeps no incident history: dedup,
-continuation, and the two-day re-notify cooldown all stop working, and every
-run opens every incident afresh and reports it again — while still exiting `0`.
-Nothing warns you. The image keeps the ledger at `/var/lib/alert-triage/`;
-mount something durable there.
-
-A named volume is the easy answer, because it is initialised with the image's
-own ownership and so asks nothing of the host. Swap it for a bind mount —
-`-v ./data:/var/lib/alert-triage` — to carry on from the history a local run
-already built: the image keeps the ledger under the same filename a checkout
-uses, so the two share one file rather than opening one each. The cost is
-ownership. The run is an unprivileged user (UID 10001), and on Linux the host
-directory must be owned by it, which `sudo chown -R 10001:10001 data` settles.
-Docker Desktop on macOS and Windows ignores ownership, so a bind mount that
-works there can still fail on a Linux host.
-
-**For a repeat local run, use `compose.yaml`.** It writes the mount and the
-`.env` down once, so the second run reaches the first run's ledger without
-anyone retyping them:
-
-```bash
-docker compose run --rm triage
-```
-
-It mounts no `config.yaml`, because it cannot do so safely: `env_file` takes
-`required: false` and a bind mount has no equivalent, so naming a file that a
-fresh clone does not have makes Docker create a *directory* in its place and
-mount that over the path the run reads. Put the mount in a
-`compose.override.yaml` instead, which compose merges when it is there and
-ignores when it is not:
-
-```yaml
-services:
-  triage:
-    volumes:
-      - ./config.yaml:/app/config.yaml:ro
-      - ~/.config/gcloud/application_default_credentials.json:/var/secrets/google/application_default_credentials.json:ro
-    environment:
-      GOOGLE_APPLICATION_CREDENTIALS: /var/secrets/google/application_default_credentials.json
-```
-
-The leading `./` is not optional. A source with no `/` in it is read as the
-name of a volume rather than as a path, and compose refuses the project with
-`service "triage" refers to undefined volume config.yaml`. A `~` is expanded.
-
-That file is gitignored, like `config.yaml` and `.env`, because which settings
-a machine runs with is that machine's business. For a one-off, pass the mount
-on the command line instead: `docker compose run --rm -v ./config.yaml:/app/config.yaml:ro triage`.
+- **Scope** (`SCOPE_OWNER`, `SCOPE_SERVICES`) — whose alerts, and which
+  services'. At least one is mandatory.
+- **Datadog credentials** (`DD_API_KEY`, `DD_APP_KEY`) — what the fetch
+  authenticates with.
+- **A model credential** (`GOOGLE_API_KEY`) — what an investigation reasons on.
+- **At least one notification channel** — or the run refuses to start, rather
+  than fetching alerts it could tell nobody about.
+- **The ledger's location** (`ALERT_TRIAGE_LEDGER_PATH`) and **how much it says
+  out loud** (`LOG_LEVEL`) — both optional, both with defaults.
 
 The account of a run goes to stderr, written for a human reading a terminal:
 each phase of a run is boxed, and every consultation, tool call and thing an
@@ -225,6 +148,33 @@ What a run did goes in its exit status, which is what a scheduler acts on:
   the service it was handling; the groups that succeeded still got their
   reports.
 
+#### In a container
+
+The same run, on any machine with a container runtime and no checkout. The image
+performs one complete run when started with no arguments, so whatever starts it
+needs to know nothing but its name.
+
+```bash
+docker build -t alert-triage .
+
+docker run --rm \
+  --env-file .env \
+  -v alert-triage-ledger:/var/lib/alert-triage \
+  alert-triage
+```
+
+Nothing follows the image name, because the image *is* the run: everything it
+needs is handed to it from outside, so one image serves every deployment.
+
+**Mount something durable at `/var/lib/alert-triage`.** Without it the run keeps
+no incident history — dedup, continuation and the re-notify cooldown all stop
+working, and every run opens every incident afresh and reports it again — while
+still exiting `0`. Nothing warns you.
+
+The rest — every flag, the `config.yaml` and enterprise-credential mounts,
+bind-mount ownership, and `compose.yaml` for repeat runs — is in
+[`docs/containerized.md`](docs/containerized.md).
+
 ## Development
 
 The four commands below are exactly what CI runs — nothing more, nothing
@@ -237,12 +187,8 @@ uv run mypy                      # strict type checking
 uv run pytest                    # full suite, with coverage
 ```
 
-CI builds the image as its own step ahead of the tests, so that a Dockerfile
-which stops building fails as a build rather than as a puzzling test error.
-You do not need a fifth command to match it: the tests that exercise the image
-build one on demand when nothing has named one already, and skip — saying so
-under `-rs` — where no container runtime is available, which is why a checkout
-without Docker still runs green.
+CI also builds the image, as its own step ahead of the tests. No fifth command
+is needed locally.
 
 Useful selections while working:
 
@@ -256,9 +202,6 @@ uv run ruff check --fix src tests   # apply the fixable lint
 uv run ruff format src tests        # apply formatting
 uv run lint-imports                 # the architecture contracts, on their own
 ```
-
-Scope markers come from the directory a test lives in, never from a decorator,
-so `-m unit` and `-m integration` need nothing kept in sync by hand.
 
 Narrow further by path or by name — a file, a single test, or every test whose
 name matches:
@@ -280,13 +223,42 @@ Engineering practices — TDD, clean code, the import rule — are in
 
 ## Architecture
 
-Four bounded contexts, each a hexagon of its own. **Triage** is the core: it
-owns the incident, decides what is owed about it, and is the customer of the
-other two. **Investigation** and **notification** are supporting contexts, each
-reached only through the contract it publishes — a target goes into one and a
-diagnosis comes out; a report goes into the other and is delivered.
-**Configuration** is not a peer of the three: it is what they all run on, which
-is why the diagram draws it around them rather than beside them.
+Four bounded contexts, each a hexagon of its own:
+
+- **triage** — the core. It owns the incident, groups the alerts, and decides
+  what is owed about it. The customer of the other two.
+- **investigation** — supporting. A target goes in; a hypothesis and the
+  evidence beneath it come out.
+- **notification** — supporting. A report goes in, and is delivered.
+- **configuration** — not a peer of the three but what they all run on. Every
+  context reads it directly.
+
+Alongside them, `shared/` holds the vocabulary more than one context speaks and
+depends on no context, which is what stops it becoming a dumping ground.
+
+```mermaid
+flowchart TB
+    app["<b>app</b><br/>composition root — the only<br/>place adapters are named"]
+    app --> triage
+
+    triage["<b>triage</b> · the core<br/>alerts, grouping, the incident,<br/>and what is owed about it"]
+    investigation["<b>investigation</b> · supporting<br/>a crew of specialists, a<br/>hypothesis and its evidence"]
+    notification["<b>notification</b> · supporting<br/>a report, delivered<br/>email · Teams"]
+
+    triage -- "asks" --> investigation
+    triage -- "publishes" --> notification
+
+    classDef appClass fill:#f4f4f5,stroke:#71717a,color:#27272a
+    classDef coreClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef supportingClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+
+    class app appClass
+    class triage coreClass
+    class investigation,notification supportingClass
+```
+
+Each supporting context is reached only through the contract it publishes, and
+everything behind that contract is private.
 
 Inside each context the domain does not know which agent framework or which
 notification channel it is talking to — those are adapters behind ports. That
@@ -297,53 +269,6 @@ The observability platform is the exception: there is no port over it, because
 MCP is already one — a specialist reaches the platform's MCP tools from inside
 the investigator adapter, and the reasoning is in
 [`docs/vision.md`](docs/vision.md#evidence-and-the-platform-boundary).
-
-```mermaid
-flowchart LR
-    subgraph Configured["everything here is configured by <b>configuration</b> — YAML file, then the environment over it"]
-        direction LR
-        App["app<br/>composition root<br/>the only place<br/>adapters are named"]
-
-        subgraph Triage["triage — the core context"]
-            direction TB
-            TriageAdapters["adapters<br/>Datadog REST · SQLite"]
-            TriagePorts["ports<br/>AlertSource · Ledger"]
-            TriageDomain["domain<br/>Alert · Grouping · Incident<br/>Policy · Report"]
-            TriageAdapters --> TriagePorts --> TriageDomain
-        end
-
-        subgraph Investigation["investigation — supporting"]
-            direction TB
-            InvContract["contract<br/>InvestigationTarget · Findings"]
-            InvDomain["domain<br/>Specialist · citation discipline"]
-            InvPorts["ports<br/>Investigator"]
-            InvAdapters["adapters<br/>crew (declarations)<br/>adk (framework)<br/>datadog (a provider)"]
-            InvAdapters --> InvPorts --> InvDomain --> InvContract
-        end
-
-        subgraph Notification["notification — supporting"]
-            direction TB
-            NotContract["contract<br/>TriageReport"]
-            NotPorts["ports<br/>Notifier"]
-            NotAdapters["adapters<br/>Email · Teams · fan-out"]
-            NotAdapters --> NotPorts --> NotContract
-        end
-
-        App --> Triage
-        TriageDomain -- "asks" --> InvContract
-        TriageDomain -- "publishes" --> NotContract
-    end
-
-    classDef coreClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
-    classDef supportingClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
-    classDef configuredClass fill:#f6fbf7,stroke:#3f9142,color:#123a17
-    classDef appClass fill:#f4f4f5,stroke:#71717a,color:#27272a
-
-    class Triage coreClass
-    class Investigation,Notification supportingClass
-    class Configured configuredClass
-    class App appClass
-```
 
 Dependencies point inward only — `adapters` → `ports` → `domain` — inside every
 context, and a context never reaches past another's contract. Both rules are
@@ -380,16 +305,19 @@ found by the module's own path.
 
 ## Extending it
 
-Two kinds of extension, and they have different shapes. **Most of it is a port
-to implement** — a notification channel under `notification/adapters/`, the
-triage ledger or an alert source under `triage/adapters/`. **Observability
-tooling is a specialist to declare** — one value under
-`investigation/adapters/crew/specialists/`, naming the tools it may reach and
-the provider serving each group of them, plus the instruction that uses them. A
-single specialist is a complete contribution. A provider nothing has reached
-yet is a directory under `investigation/adapters/` beside `datadog/`, holding
-how its MCP server is reached and how its items are addressed. Both guides are
-in [`docs/adapters.md`](docs/adapters.md).
+Two kinds of extension, and they have different shapes:
+
+- **A port to implement.** Most of it — a notification channel under
+  `notification/adapters/`, the triage ledger or an alert source under
+  `triage/adapters/`.
+- **A specialist to declare.** Observability tooling: one value under
+  `investigation/adapters/crew/specialists/`, naming the tools it may reach and
+  the provider serving each group of them, plus the instruction that uses them.
+  A single specialist is a complete contribution. A provider nothing has
+  reached yet is a directory under `investigation/adapters/` beside `datadog/`,
+  holding how its MCP server is reached and how its items are addressed.
+
+Both guides are in [`docs/adapters.md`](docs/adapters.md).
 
 ## License
 
