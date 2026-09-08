@@ -147,7 +147,7 @@
 - [x] 11.2 `uv run ruff format --check src tests`
 - [x] 11.3 `uv run mypy`
 - [x] 11.4 `uv run pytest`
-- [ ] 11.5 Live run against a real account, per
+- [x] 11.5 Live run against a real account, per
       [`docs/live-testing.md`](../../../docs/live-testing.md): this change edits
       the Diagnostician's instruction and the MCP connection parameters, neither
       of which a green local run establishes. Say plainly whether it was run
