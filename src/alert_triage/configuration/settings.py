@@ -248,7 +248,7 @@ class CircuitBreakers:
             the accumulation.
     """
 
-    DEFAULT_MAX_TOOL_CALLS_PER_AGENT: ClassVar[int] = 8
+    DEFAULT_MAX_TOOL_CALLS_PER_AGENT: ClassVar[int] = 12
     DEFAULT_MAX_AGENT_HOPS: ClassVar[int] = 8
     DEFAULT_MAX_INVESTIGATION_DURATION_SECONDS: ClassVar[int] = 300
     DEFAULT_MCP_CALL_TIMEOUT_SECONDS: ClassVar[int] = 30
