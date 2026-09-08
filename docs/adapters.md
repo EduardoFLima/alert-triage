@@ -145,5 +145,9 @@ running against a real incident and reading the report yourself.
 
 A note on cost: a specialist's spend rises with the number of tools it may
 reach, because runtime discovery means the model decides how many calls to
-make. Until the circuit breakers are wired to configuration, the re-notify
-cooldown is the only thing bounding how often an investigation happens at all.
+make. What bounds that is `circuit_breakers.max_tool_calls_per_agent`, spent per
+specialist per investigation; how many specialists one incident may cost is
+`max_agent_hops`, and how long the whole thing may take is
+`max_investigation_duration_seconds`. The re-notify cooldown bounds how often an
+investigation happens at all. All four are configurable — see [Circuit
+breakers](vision.md#circuit-breakers).

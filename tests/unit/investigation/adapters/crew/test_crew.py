@@ -5,7 +5,7 @@ import pytest
 from pydantic import BaseModel
 
 from alert_triage.configuration.port import ConfigError
-from alert_triage.configuration.settings import SpecialistModel
+from alert_triage.configuration.settings import CircuitBreakers, SpecialistModel
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
@@ -239,3 +239,13 @@ def test_each_finding_carries_the_evidence_its_own_specialist_retrieved() -> Non
 
     for specialist, finding in zip(CREW, findings.findings, strict=True):
         assert finding.examples[0].summary == f"{specialist.name} saw this"
+
+
+def test_the_default_consultation_budget_admits_the_whole_crew_and_more() -> None:
+    """A budget that admitted each specialist once would be a once-each rule.
+
+    The point of holding the thread is going back to a specialist with the
+    narrower question its first answer raised, so the default has to leave room
+    for that after every signal has been looked at once.
+    """
+    assert len(CREW) < CircuitBreakers.DEFAULT_MAX_AGENT_HOPS

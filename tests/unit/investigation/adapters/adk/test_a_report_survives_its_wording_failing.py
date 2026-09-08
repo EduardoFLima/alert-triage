@@ -13,8 +13,8 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.adk.consultation import (
-    MAX_CONSULTATIONS,
     Consulted,
     bound_consultations_callback,
 )
@@ -173,7 +173,7 @@ def test_an_investigation_that_spent_its_questions_still_concludes() -> None:
     ) -> dict[str, Any]:
         retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
         bound = bound_consultations_callback(consulted)
-        for _ in range(MAX_CONSULTATIONS + 2):
+        for _ in range(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS + 2):
             refused = bound(
                 tool=type("_T", (), {"name": "logs_specialist"})(),
                 args={},
@@ -199,18 +199,22 @@ def test_an_investigation_that_spent_its_questions_still_concludes() -> None:
     ).investigate(_target())
 
     assert diagnosis.hypothesis == "the pods are out of memory"
-    assert len(diagnosis.findings.findings) == MAX_CONSULTATIONS
+    assert len(diagnosis.findings.findings) == CircuitBreakers.DEFAULT_MAX_AGENT_HOPS
 
 
 def test_an_investigation_cut_short_is_reported_as_cut_short() -> None:
-    """Not as one that chose to stop: it wanted to ask more and could not."""
+    """Not as one that chose to stop: it wanted to ask more and could not.
+
+    It has findings in hand, which is what separates this from the trip that
+    learned nothing: that one is investigated again rather than reported.
+    """
 
     def _keeps_asking(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
         retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
         bound = bound_consultations_callback(consulted)
-        for _ in range(MAX_CONSULTATIONS + 1):
+        for _ in range(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS + 1):
             if (
                 bound(
                     tool=type("_T", (), {"name": "logs_specialist"})(),
@@ -219,7 +223,18 @@ def test_an_investigation_cut_short_is_reported_as_cut_short() -> None:
                 )
                 is None
             ):
-                consulted.record(LOGS, {"findings": []})
+                consulted.record(
+                    LOGS,
+                    {
+                        "findings": [
+                            {
+                                "observation": "OOMKilled recurs",
+                                "occurrences": 3,
+                                "cites": ["call-1/item-1"],
+                            }
+                        ]
+                    },
+                )
         return {"hypothesis": "", "confidence": "low"}
 
     diagnosis = AdkInvestigator(

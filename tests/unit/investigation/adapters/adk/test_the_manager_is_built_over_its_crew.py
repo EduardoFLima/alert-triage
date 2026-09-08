@@ -11,6 +11,7 @@ from google.adk.tools.agent_tool import AgentTool
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from pydantic import BaseModel
 
+from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
     PlatformAccess,
@@ -18,10 +19,11 @@ from alert_triage.investigation.adapters.adk.agent import (
     build_manager,
     build_reasoner,
 )
+from alert_triage.investigation.adapters.adk.bounds import Bounds
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
-    DIAGNOSTICIAN,
+    diagnostician,
 )
 from alert_triage.investigation.adapters.crew.reasoners.report import REPORT_WRITER
 from alert_triage.investigation.contract import Signal
@@ -61,12 +63,13 @@ def _deployment() -> Deployment:
     )
 
 
-def _manager() -> Any:
+def _manager(hops: int | None = None) -> Any:
     retrieved = Retrieved()
+    bounds = None if hops is None else Bounds(CircuitBreakers(max_agent_hops=hops))
     return build_manager(
         CREW,
         _deployment(),
-        Consulted(offered=CREW, retrieved=retrieved),
+        Consulted(offered=CREW, retrieved=retrieved, bounds=bounds),
         retrieved,
     )
 
@@ -112,8 +115,22 @@ def test_a_specialist_carries_no_reasoning_log() -> None:
 def test_the_manager_is_the_diagnostician_declaration() -> None:
     manager = _manager()
 
-    assert manager.name == DIAGNOSTICIAN.name
-    assert manager.instruction == DIAGNOSTICIAN.instruction
+    declared = diagnostician(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS)
+    assert manager.name == declared.name
+    assert manager.instruction == declared.instruction
+
+
+def test_the_manager_is_told_the_budget_that_is_enforced_on_it() -> None:
+    """One value feeds both, so what it plans against is what it is held to.
+
+    Told eight while six are enforced, a manager spends its last two questions
+    on a plan it cannot finish — and neither half of the disagreement is visible
+    from the other.
+    """
+    manager = _manager(hops=5)
+
+    assert manager.instruction == diagnostician(5).instruction
+    assert "5 consultations" in manager.instruction
 
 
 def test_a_reasoner_is_built_with_no_tools_at_all() -> None:

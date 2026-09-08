@@ -26,7 +26,7 @@ from alert_triage.configuration.adapters.yaml.loader import (
     load_config,
 )
 from alert_triage.configuration.port import ConfigError
-from alert_triage.configuration.settings import Investigation
+from alert_triage.configuration.settings import CircuitBreakers, Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment, PlatformAccess
 from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
 from alert_triage.investigation.adapters.adk.investigator import (
@@ -94,7 +94,9 @@ def execute(
         config.scope.owner,
         tuple(config.scope.services),
     )
-    investigator = build_investigator(env, datadog_connection, config.investigation)
+    investigator = build_investigator(
+        env, datadog_connection, config.investigation, config.circuit_breakers
+    )
 
     with closing(sqlite3.connect(resolve_ledger_path(env))) as database:
         return run(
@@ -164,6 +166,7 @@ def build_investigator(
     env: Mapping[str, str] | None,
     datadog_connection: DatadogConnection,
     investigation: Investigation,
+    breakers: CircuitBreakers | None = None,
 ) -> Investigator:
     """Assemble the agent crew over the platform it gathers evidence from.
 
@@ -189,6 +192,10 @@ def build_investigator(
             the process's.
         datadog_connection: Where Datadog is and how to authenticate.
         investigation: How an investigation reasons.
+        breakers: The bounds an investigation is held to. This is the only
+            place they are named: the deployment reads the platform call
+            timeout from them, and the investigator holds the rest. Absent, the
+            documented defaults.
 
     Returns:
         The investigator a run is handed.
@@ -218,12 +225,14 @@ def build_investigator(
             )
         },
         model_for=_model_for,
+        breakers=breakers or CircuitBreakers(),
     )
     return AdkInvestigator(
         crew=crew_for(investigation.specialists, providers=set(deployment.platforms)),
         links=DatadogLinks(datadog_connection.web_host),
         run_diagnostician=run_with_adk(deployment),
         run_report=report_with_adk(deployment),
+        breakers=deployment.breakers,
     )
 
 

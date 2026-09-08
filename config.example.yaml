@@ -89,13 +89,22 @@ ledger:
   retention_seconds: 2592000
 
 circuit_breakers:
-  # Optional. Tool calls one investigating agent may make.
-  max_tool_calls_per_agent: 8
-  # Optional. Handoffs between agents within one investigation.
-  max_agent_hops: 2
-  # Optional. Wall-clock bound on a single investigation, in seconds.
+  # Optional. Tool calls one specialist may make while investigating one
+  # incident, counted across every consultation of it.
+  max_tool_calls_per_agent: 12
+  # Optional. Specialist consultations one investigation may make. A hop is the
+  # reasoning reaching a specialist and that specialist reporting back, so this
+  # is what one incident may cost in questions. Not a depth limit on agents
+  # calling agents. Keep it above the number of specialists you have declared,
+  # so an incident needing every signal still has a follow-up question left.
+  max_agent_hops: 8
+  # Optional. Wall-clock bound on a single investigation, in seconds. Once it
+  # elapses the reasoning stops gathering and concludes on what it holds.
   max_investigation_duration_seconds: 300
-  # Optional. Retries of a failed MCP call during an investigation.
-  max_mcp_retries: 3
-  # Optional. Timeout of a single MCP call, in seconds.
+  # Optional. Timeout of a single MCP call, in seconds, applied both while the
+  # connection is established and while the response is read. A retried call is
+  # two attempts of it, so one call can take twice this; the duration bound
+  # above is what bounds the accumulation. How many times a call is retried is
+  # owned by the agent framework and is deliberately not a setting here --
+  # `max_mcp_retries` was removed, and a config still naming it is refused.
   mcp_call_timeout_seconds: 30

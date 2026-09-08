@@ -222,16 +222,38 @@ class Investigation:
 class CircuitBreakers:
     """Bounds on a multi-agent investigation, one per way it can run away.
 
+    Each key here is read by the thing it names. A breaker resolved and unread
+    is worse than an absent one: an operator setting it believes they have
+    changed behaviour, which is why ``max_mcp_retries`` was removed rather than
+    kept as a number nothing could reach — the agent framework owns the retry
+    below the seat this project has, and there is no seam to hand it one.
+
+    The two per-agent bounds answer different questions and are deliberately
+    separate keys: how many searches one specialist may run is not how many
+    specialists one incident may cost.
+
     Attributes:
-        max_tool_calls_per_agent: Tool calls one agent may make.
-        max_agent_hops: Handoffs between agents in one investigation.
+        max_tool_calls_per_agent: Tool calls one specialist may make while
+            investigating one incident, across every consultation of it.
+        max_agent_hops: Specialist consultations one investigation may make. A
+            hop is the reasoning reaching a specialist and that specialist
+            reporting back, so counting hops is counting consultations. It is
+            not a depth limit on agents calling agents: no declaration can
+            express an agent beneath a specialist.
         max_investigation_duration_seconds: Wall-clock bound per investigation.
-        max_mcp_retries: Retries of a failed MCP call.
-        mcp_call_timeout_seconds: Timeout of a single MCP call.
+        mcp_call_timeout_seconds: Bound on one call to an observability
+            platform, both while the connection is established and while the
+            response is read. A retried call is two attempts of it, so one tool
+            call can take twice this; the duration bound above is what bounds
+            the accumulation.
     """
 
-    max_tool_calls_per_agent: int = 8
-    max_agent_hops: int = 2
-    max_investigation_duration_seconds: int = 300
-    max_mcp_retries: int = 3
-    mcp_call_timeout_seconds: int = 30
+    DEFAULT_MAX_TOOL_CALLS_PER_AGENT: ClassVar[int] = 12
+    DEFAULT_MAX_AGENT_HOPS: ClassVar[int] = 8
+    DEFAULT_MAX_INVESTIGATION_DURATION_SECONDS: ClassVar[int] = 300
+    DEFAULT_MCP_CALL_TIMEOUT_SECONDS: ClassVar[int] = 30
+
+    max_tool_calls_per_agent: int = DEFAULT_MAX_TOOL_CALLS_PER_AGENT
+    max_agent_hops: int = DEFAULT_MAX_AGENT_HOPS
+    max_investigation_duration_seconds: int = DEFAULT_MAX_INVESTIGATION_DURATION_SECONDS
+    mcp_call_timeout_seconds: int = DEFAULT_MCP_CALL_TIMEOUT_SECONDS

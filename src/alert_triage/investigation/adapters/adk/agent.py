@@ -13,9 +13,11 @@ is the property that keeps a contributor's specialist portable.
 """
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from alert_triage.configuration.settings import CircuitBreakers
+from alert_triage.investigation.adapters.adk.bounds import Bounds
 from alert_triage.investigation.adapters.adk.consultation import (
     Consulted,
     bound_consultations_callback,
@@ -29,7 +31,7 @@ from alert_triage.investigation.adapters.adk.evidence import (
 )
 from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
 from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
-    DIAGNOSTICIAN,
+    diagnostician,
 )
 from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
@@ -42,17 +44,6 @@ if TYPE_CHECKING:
     from google.adk.tools.mcp_tool.mcp_session_manager import (
         StreamableHTTPConnectionParams,
     )
-
-CONNECT_TIMEOUT_SECONDS = 30.0
-READ_TIMEOUT_SECONDS = 30.0
-"""What the vision's ``mcp_call_timeout_seconds`` means now that ADK owns the client.
-
-Set explicitly, and beside each other, so ADK's own defaults — five seconds to
-connect and five minutes to read — cannot apply by accident to a bound this
-project states as thirty seconds. Reading them from configuration is slice
-12's work; stating them is this slice's.
-"""
-
 
 ModelFor = Callable[[str | None], "str | BaseLlm"]
 """How a deployment turns what a specialist asked for into a model it can run.
@@ -96,10 +87,15 @@ class Deployment:
         platforms: Each provider this deployment configured, by the name a
             declaration knows it as.
         model_for: The model a specialist reasons on, given what it asked for.
+        breakers: The bounds an investigation is held to. Carried here rather
+            than passed to each builder because they are a deployment fact
+            travelling with the other deployment facts, and three signatures
+            would otherwise grow to say so.
     """
 
     platforms: Mapping[str, PlatformAccess]
     model_for: ModelFor
+    breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
 
 
 def connection_for(
@@ -112,7 +108,15 @@ def connection_for(
         deployment: The providers this deployment holds.
 
     Returns:
-        The connection parameters, bounded explicitly rather than by default.
+        The connection parameters, bounded by what this deployment configured
+        rather than by the framework's own defaults — five seconds to connect
+        and five minutes to read, neither of which is anybody's intent here.
+
+        One key feeds both halves: connecting and reading are two parts of one
+        bound an operator states once. What it does not cover is the retry ADK
+        makes below this seat, so a call that is retried takes up to twice the
+        stated bound, and the investigation's duration is what bounds the
+        accumulation of those.
 
     Raises:
         KeyError: The toolset names a provider this deployment did not
@@ -135,8 +139,8 @@ def connection_for(
     return StreamableHTTPConnectionParams(
         url=f"{access.endpoint}?toolsets={toolset.name}",
         headers=dict(access.headers),
-        timeout=CONNECT_TIMEOUT_SECONDS,
-        sse_read_timeout=READ_TIMEOUT_SECONDS,
+        timeout=deployment.breakers.mcp_call_timeout_seconds,
+        sse_read_timeout=deployment.breakers.mcp_call_timeout_seconds,
     )
 
 
@@ -146,7 +150,10 @@ def _permitted_tools(specialist: Specialist) -> frozenset[str]:
 
 
 def build_agent(
-    specialist: Specialist, deployment: Deployment, retrieved: Retrieved
+    specialist: Specialist,
+    deployment: Deployment,
+    retrieved: Retrieved,
+    bounds: Bounds | None = None,
 ) -> "LlmAgent":
     """Build the agent one declaration describes, for one investigation.
 
@@ -156,6 +163,8 @@ def build_agent(
             reasons on when it names no model of its own.
         retrieved: This investigation's evidence, which the callbacks close
             over so that citations are scoped to this incident.
+        bounds: What this investigation may still do, which the seat before
+            each call reads. Absent, the documented defaults.
 
     Returns:
         The agent, reaching the tools its declaration named and no others.
@@ -175,7 +184,7 @@ def build_agent(
             )
             for toolset in specialist.toolsets
         ],
-        before_tool_callback=log_tool_call(specialist.name),
+        before_tool_callback=log_tool_call(specialist.name, retrieved, bounds),
         after_tool_callback=keep_evidence_callback(
             retrieved, _permitted_tools(specialist), specialist.name
         ),
@@ -229,6 +238,11 @@ def build_manager(
     is collected in ``after_tool_callback``, before anything the model does with
     it.
 
+    The budget it is told and the budget it is held to are one value, read from
+    the ``Consulted`` it was given: the instruction states ``bounds.hops`` and
+    the callback enforces it, so a configured budget cannot leave the reasoning
+    planning against a different one.
+
     Its three callbacks are the ones a manager needs and a specialist does not.
     One bounds how many questions this incident may cost. One keeps each
     specialist's report — checked — before the manager reads it. One writes
@@ -254,17 +268,20 @@ def build_manager(
     from google.adk.agents import LlmAgent
     from google.adk.tools.agent_tool import AgentTool
 
+    manager = diagnostician(consulted.bounds.hops)
     return LlmAgent(
-        name=DIAGNOSTICIAN.name,
-        model=deployment.model_for(DIAGNOSTICIAN.model),
-        instruction=DIAGNOSTICIAN.instruction,
-        output_schema=DIAGNOSTICIAN.output_schema,
+        name=manager.name,
+        model=deployment.model_for(manager.model),
+        instruction=manager.instruction,
+        output_schema=manager.output_schema,
         tools=[
-            AgentTool(agent=build_agent(specialist, deployment, retrieved))
+            AgentTool(
+                agent=build_agent(specialist, deployment, retrieved, consulted.bounds)
+            )
             for specialist in crew
         ],
         before_tool_callback=bound_consultations_callback(consulted),
         after_tool_callback=collect_findings_callback(consulted),
         on_tool_error_callback=failed_consultation_callback(consulted),
-        after_model_callback=log_reasoning(DIAGNOSTICIAN.name),
+        after_model_callback=log_reasoning(manager.name),
     )

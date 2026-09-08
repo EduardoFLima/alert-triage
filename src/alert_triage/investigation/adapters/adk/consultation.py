@@ -18,6 +18,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
+from alert_triage.investigation.adapters.adk.bounds import Bounds
 from alert_triage.investigation.adapters.adk.evidence import (
     AfterTool,
     BeforeTool,
@@ -31,21 +32,6 @@ from alert_triage.investigation.domain.specialist import Specialist
 from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
-
-MAX_CONSULTATIONS = 8
-"""How many questions one incident may cost.
-
-What the vision's ``max_tool_calls_per_agent`` means for a manager whose tools
-are its specialists. Stated here rather than configured, exactly as the MCP
-timeouts are: stating a bound is this slice's work and tuning it is slice 12's.
-
-It counts questions, not specialists, because bounding each specialist to one
-consultation would forbid the manager's best move rather than bound it — reading
-an answer and going back for the detail it now knows to ask for. Eight leaves
-the four declared specialists reachable with four questions to spare, and a
-budget that admitted each specialist exactly once would be a once-each rule
-wearing a number.
-"""
 
 CONSULTATION_REFUSED = (
     "This consultation did not happen. The investigation has spent the questions "
@@ -90,19 +76,40 @@ class Consulted:
     depends on the difference between that and what was actually asked.
     """
 
-    def __init__(self, *, offered: Sequence[Specialist], retrieved: Retrieved) -> None:
+    def __init__(
+        self,
+        *,
+        offered: Sequence[Specialist],
+        retrieved: Retrieved,
+        bounds: Bounds | None = None,
+    ) -> None:
         """Start with the crew offered and nothing yet asked.
 
         Args:
             offered: Every specialist the manager may reach.
             retrieved: This investigation's evidence, which every finding
                 collected here is checked against.
+            bounds: What this investigation may still do. Absent, the documented
+                defaults, because an unconfigured deployment is bounded by them
+                rather than unbounded.
         """
         self._offered = tuple(offered)
         self._retrieved = retrieved
+        self._bounds = bounds or Bounds()
         self._order: list[str] = []
         self._findings: list[Finding] = []
         self._refusals: list[str] = []
+
+    @property
+    def bounds(self) -> Bounds:
+        """What this investigation may still do.
+
+        Offered rather than kept private because the budget it holds has two
+        claimants that must never disagree: the manager's instruction states it,
+        and the callback below enforces it. One value read twice is what makes
+        the disagreement impossible rather than merely unlikely.
+        """
+        return self._bounds
 
     @property
     def offered(self) -> tuple[Specialist, ...]:
@@ -149,10 +156,18 @@ class Consulted:
         """
         return tuple(self._refusals)
 
-    @property
-    def exhausted(self) -> bool:
-        """Whether this investigation has spent the questions it is allowed."""
-        return len(self._order) >= MAX_CONSULTATIONS
+    def declined(self, name: str) -> dict[str, Any] | None:
+        """Whether this consultation may be made, answered if it may not.
+
+        Args:
+            name: The specialist the reasoning is asking for.
+
+        Returns:
+            ``None`` where the consultation may go ahead, or the refusal the
+            manager is given in place of running it.
+        """
+        reason = self._bounds.decline_consultation(name, len(self._order))
+        return None if reason is None else self._refuse(name, reason)
 
     def fail(self, name: str, error: Exception) -> dict[str, Any]:
         """Record a consultation that could not answer, and say so unmistakably.
@@ -173,21 +188,17 @@ class Consulted:
             "read_this_as": CONSULTATION_FAILED,
         }
 
-    def refuse(self, name: str) -> dict[str, Any]:
+    def _refuse(self, name: str, reason: str) -> dict[str, Any]:
         """Record a consultation that may not be made, and answer it unmistakably.
 
         Args:
             name: The specialist that was asked for and not run.
+            reason: Which bound stopped it, for the reader of the report.
 
         Returns:
             The refusal the manager is given in place of running it.
         """
-        reason = (
-            f"the {name} was not consulted: this investigation has spent its "
-            f"{MAX_CONSULTATIONS} questions"
-        )
         self._refusals.append(reason)
-        _log.warning(journal.event(f"{name} was not consulted", detail=reason))
         return {
             "consultation_refused": True,
             "detail": reason,
@@ -347,8 +358,9 @@ def bound_consultations_callback(consulted: Consulted) -> BeforeTool:
         specialist = consulted.named(name)
         if specialist is None:
             return None
-        if consulted.exhausted:
-            return consulted.refuse(name)
+        refused = consulted.declined(name)
+        if refused is not None:
+            return refused
         _log.info(
             journal.event(
                 f"consulting {name}",

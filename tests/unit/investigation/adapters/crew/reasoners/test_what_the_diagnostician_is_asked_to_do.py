@@ -1,9 +1,13 @@
+from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
-    DIAGNOSTICIAN,
-    DIAGNOSTICIAN_INSTRUCTION,
     Diagnosed,
+    diagnostician,
+    diagnostician_instruction,
 )
 from alert_triage.investigation.contract import Confidence
+
+DIAGNOSTICIAN = diagnostician(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS)
+DIAGNOSTICIAN_INSTRUCTION = DIAGNOSTICIAN.instruction
 
 
 def test_it_is_a_reasoner_that_takes_the_deployments_model() -> None:
@@ -35,9 +39,23 @@ def test_it_may_go_back_to_a_specialist_with_a_narrower_question() -> None:
 
 
 def test_it_is_told_the_questions_are_budgeted() -> None:
-    from alert_triage.investigation.adapters.adk.consultation import MAX_CONSULTATIONS
+    assert str(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS) in DIAGNOSTICIAN_INSTRUCTION
 
-    assert str(MAX_CONSULTATIONS) in DIAGNOSTICIAN_INSTRUCTION
+
+def test_it_states_the_budget_it_was_given_rather_than_one_of_its_own() -> None:
+    """What the manager is told and what is enforced must never disagree.
+
+    A configurable budget is what makes the disagreement possible for the first
+    time, so the instruction is a function of the number rather than a constant
+    that happens to match it today.
+    """
+    assert "3 consultations" in diagnostician_instruction(3)
+    assert "11 consultations" in diagnostician_instruction(11)
+    assert diagnostician_instruction(3) != diagnostician_instruction(11)
+
+
+def test_the_declaration_carries_the_instruction_for_its_budget() -> None:
+    assert diagnostician(3).instruction == diagnostician_instruction(3)
 
 
 def test_it_is_asked_to_reason_across_the_specialists_rather_than_restate_one() -> None:

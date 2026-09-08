@@ -13,7 +13,7 @@ The section SHALL resolve exactly these keys, each read by what it bounds:
 - `max_agent_hops` — how many specialist consultations one investigation may
   make, defaulting to eight.
 - `max_tool_calls_per_agent` — how many tool calls one specialist may make
-  within one investigation, defaulting to eight.
+  within one investigation, defaulting to twelve.
 - `max_investigation_duration_seconds` — how long one investigation may run,
   defaulting to three hundred.
 - `mcp_call_timeout_seconds` — how long one call to an observability platform
