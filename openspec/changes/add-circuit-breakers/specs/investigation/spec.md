@@ -71,7 +71,7 @@ The system SHALL bound how many tool calls one specialist may make while
 investigating one incident, counting every call it makes across every
 consultation of it within that investigation. The bound SHALL be the
 operator-configurable `max_tool_calls_per_agent`, with a documented default of
-eight, and SHALL apply whether or not the operator sets it.
+twelve, and SHALL apply whether or not the operator sets it.
 
 The bound SHALL be enforced by declining the call rather than by counting after
 it, so that a specialist that would loop is stopped before it spends the call

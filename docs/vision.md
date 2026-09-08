@@ -390,7 +390,7 @@ optional YAML, with defaults:
 
 | Breaker | Bounds | Default |
 |---|---|---|
-| `max_tool_calls_per_agent` | Tool calls one specialist may make in one investigation | 8 |
+| `max_tool_calls_per_agent` | Tool calls one specialist may make in one investigation | 12 |
 | `max_agent_hops` | Specialist consultations one investigation may make | 8 |
 | `max_investigation_duration_seconds` | Wall-clock time one investigation may take | 300 |
 | `mcp_call_timeout_seconds` | One call to an observability platform | 30 |

@@ -42,7 +42,7 @@ def test_an_in_memory_implementation_satisfies_the_port() -> None:
 def test_circuit_breaker_defaults_match_the_documented_thresholds() -> None:
     breakers = CircuitBreakers()
 
-    assert breakers.max_tool_calls_per_agent == 8
+    assert breakers.max_tool_calls_per_agent == 12
     assert breakers.max_agent_hops == 8
     assert breakers.max_investigation_duration_seconds == 300
     assert breakers.mcp_call_timeout_seconds == 30
@@ -106,7 +106,7 @@ def test_changing_an_ingestion_bound_leaves_the_breakers_alone() -> None:
     )
 
     assert config.circuit_breakers.mcp_call_timeout_seconds == 30
-    assert config.circuit_breakers.max_tool_calls_per_agent == 8
+    assert config.circuit_breakers.max_tool_calls_per_agent == 12
 
 
 def test_the_re_notify_cooldown_defaults_to_the_documented_two_days() -> None:

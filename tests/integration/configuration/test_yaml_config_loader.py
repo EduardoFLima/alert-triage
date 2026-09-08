@@ -39,7 +39,7 @@ def test_loaded_config_satisfies_the_port(tmp_path: Path) -> None:
 def test_circuit_breakers_fall_back_to_documented_defaults(tmp_path: Path) -> None:
     config = load_config(_write(tmp_path, SCOPED), env={})
 
-    assert config.circuit_breakers.max_tool_calls_per_agent == 8
+    assert config.circuit_breakers.max_tool_calls_per_agent == 12
     assert config.circuit_breakers.mcp_call_timeout_seconds == 30
 
 
@@ -56,7 +56,7 @@ circuit_breakers:
     config = load_config(path, env={})
 
     assert config.circuit_breakers.max_agent_hops == 5
-    assert config.circuit_breakers.max_tool_calls_per_agent == 8
+    assert config.circuit_breakers.max_tool_calls_per_agent == 12
 
 
 def test_the_services_the_file_names_are_the_services_in_scope(
@@ -382,7 +382,7 @@ ingestion:
     assert config.ingestion.request_timeout_seconds == 90
     assert config.ingestion.max_retries == 5
     assert config.circuit_breakers.mcp_call_timeout_seconds == 30
-    assert config.circuit_breakers.max_tool_calls_per_agent == 8
+    assert config.circuit_breakers.max_tool_calls_per_agent == 12
 
 
 CONNECTION_KEYS_IN_FILE = """

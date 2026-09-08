@@ -91,7 +91,7 @@ ledger:
 circuit_breakers:
   # Optional. Tool calls one specialist may make while investigating one
   # incident, counted across every consultation of it.
-  max_tool_calls_per_agent: 8
+  max_tool_calls_per_agent: 12
   # Optional. Specialist consultations one investigation may make. A hop is the
   # reasoning reaching a specialist and that specialist reporting back, so this
   # is what one incident may cost in questions. Not a depth limit on agents

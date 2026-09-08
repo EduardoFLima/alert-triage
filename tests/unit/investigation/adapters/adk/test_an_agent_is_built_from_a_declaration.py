@@ -286,7 +286,7 @@ def test_changing_the_call_timeout_leaves_the_other_breakers_alone() -> None:
     """They bound different things and will be tuned against different evidence."""
     breakers = CircuitBreakers(mcp_call_timeout_seconds=90)
 
-    assert breakers.max_tool_calls_per_agent == 8
+    assert breakers.max_tool_calls_per_agent == 12
     assert breakers.max_agent_hops == 8
     assert breakers.max_investigation_duration_seconds == 300
 
