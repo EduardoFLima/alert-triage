@@ -114,8 +114,15 @@ been shown to fail has not been shown to enforce anything.
 
 ## Writing documentation
 
-- **Use the mermaid MCP tool for diagrams** added to the README. No
-  hand-rolled ASCII, no checked-in images.
+- **Diagrams are mermaid or editable SVG; never hand-rolled ASCII, never a
+  flat image.** Reach for the mermaid MCP tool first — a fenced `mermaid`
+  block is diffable and needs no tool to edit. Where a drawing wants more
+  control than mermaid gives, export it from [draw.io](https://app.diagrams.net)
+  as an SVG with *Include a copy of my diagram* ticked, and commit that to
+  `docs/diagrams/`. The point of the tick is that the `.svg` reopens in draw.io
+  as the diagram that drew it, so the picture and its source are one file and
+  cannot drift; a plain PNG or SVG exported without it is the thing this rule
+  forbids, because the source then lives on somebody's laptop.
 - **What a passage enumerates, write as a list.** Where documentation names
   several of a thing — two kinds of extension, four bounded contexts, the
   settings a run needs — set them out as a list rather than as an extended

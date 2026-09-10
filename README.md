@@ -236,26 +236,7 @@ Four bounded contexts, each a hexagon of its own:
 Alongside them, `shared/` holds the vocabulary more than one context speaks and
 depends on no context, which is what stops it becoming a dumping ground.
 
-```mermaid
-flowchart TB
-    app["<b>app</b><br/>composition root — the only<br/>place adapters are named"]
-    app --> triage
-
-    triage["<b>triage</b> · the core<br/>alerts, grouping, the incident,<br/>and what is owed about it"]
-    investigation["<b>investigation</b> · supporting<br/>a crew of specialists, a<br/>hypothesis and its evidence"]
-    notification["<b>notification</b> · supporting<br/>a report, delivered<br/>email · Teams"]
-
-    triage -- "asks" --> investigation
-    triage -- "publishes" --> notification
-
-    classDef appClass fill:#f4f4f5,stroke:#71717a,color:#27272a
-    classDef coreClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
-    classDef supportingClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
-
-    class app appClass
-    class triage coreClass
-    class investigation,notification supportingClass
-```
+![The four bounded contexts, and what crosses between them](docs/diagrams/overview.svg)
 
 Each supporting context is reached only through the contract it publishes, and
 everything behind that contract is private.
@@ -269,6 +250,9 @@ The observability platform is the exception: there is no port over it, because
 MCP is already one — a specialist reaches the platform's MCP tools from inside
 the investigator adapter, and the reasoning is in
 [`docs/vision.md`](docs/vision.md#evidence-and-the-platform-boundary).
+
+Each context drawn with the adapters that answer its ports is in
+[`docs/architecture.md`](docs/architecture.md).
 
 Dependencies point inward only — `adapters` → `ports` → `domain` — inside every
 context, and a context never reaches past another's contract. Both rules are
