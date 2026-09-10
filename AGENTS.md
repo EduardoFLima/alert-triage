@@ -114,8 +114,13 @@ been shown to fail has not been shown to enforce anything.
 
 ## Writing documentation
 
-- **Use the mermaid MCP tool for diagrams** added to the README. No
-  hand-rolled ASCII, no checked-in images.
+- **Use the mermaid MCP tool for diagrams** added to the README, and never a
+  checked-in image. The exception is a drawing whose *shape* carries meaning
+  mermaid cannot express — the hexagons under `## Architecture` are hand-drawn
+  ASCII because a hexagonal architecture drawn as rectangles is a diagram
+  arguing against its own caption. Reach for it only for that reason: ASCII is
+  hand-aligned, so every later edit is a column-counting exercise mermaid would
+  have done for you.
 - **What a passage enumerates, write as a list.** Where documentation names
   several of a thing — two kinds of extension, four bounded contexts, the
   settings a run needs — set them out as a list rather than as an extended
