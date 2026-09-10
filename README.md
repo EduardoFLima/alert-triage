@@ -10,28 +10,27 @@ It does the legwork and presents a hypothesis with its confidence. It does not
 auto-remediate and does not decide for you: the question left to a human is
 "act on this?" rather than "where do I even start?"
 
-What a run does:
+One alert's way through a run:
 
 ```mermaid
 flowchart LR
-    fetch["fetch"] --> group["group"]
-    group --> due{"report due?"}
-    due -- "no" --> record["record"]
-    due -- "yes" --> investigate["investigate"]
-    investigate --> report["report"]
-    report --> record
+    alerts["recent alerts<br/>from the platform"] --> grouped["one service,<br/>one window,<br/>one incident"]
+    grouped --> due{"is a report due?<br/>the ledger knows<br/>what it already said"}
+    due -- "not yet" --> recorded["recorded,<br/>and the run exits"]
+    due -- "yes" --> investigated["investigated<br/>specialists gather evidence,<br/>a diagnostician forms<br/>a hypothesis"]
+    investigated --> delivered["report delivered<br/>email · Teams"]
+    delivered --> recorded
 
-    classDef step fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
-    classDef gate fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
-    classDef done fill:#f6fbf7,stroke:#3f9142,color:#123a17
+    classDef inClass fill:#f4f4f5,stroke:#71717a,color:#27272a
+    classDef decideClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef workClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+    classDef outClass fill:#f6fbf7,stroke:#3f9142,color:#123a17
 
-    class fetch,group,investigate step
-    class due gate
-    class report,record done
+    class alerts,grouped inClass
+    class due decideClass
+    class investigated workClass
+    class delivered,recorded outClass
 ```
-
-Alerts in, one report per incident out — and the ledger is what decides a
-still-firing incident has been reported recently enough to skip.
 
 The full product vision and capability roadmap live in
 [`docs/vision.md`](docs/vision.md); the settings reference is in
@@ -237,32 +236,25 @@ Four bounded contexts, each a hexagon of its own:
 Alongside them, `shared/` holds the vocabulary more than one context speaks and
 depends on no context, which is what stops it becoming a dumping ground.
 
-```text
-              app · composition root
-         the only place adapters are named
-                         │
-                         ▼
-                ____________________
-               /                    \
-              /                      \
-             |      t r i a g e       |
-             |        the core        |
-             |   alerts · incident,   |
-             |      what is owed      |
-              \                      /
-               \____________________/
-                   │            │
-              asks │            │ publishes
-          ┌────────┘            └───────┐
-          ▼                             ▼
-   ________________              ________________
-  /                \            /                \
- /                  \          /                  \
-|   investigation    |        |    notification    |
-|    specialists,    |        |     a report,      |
-|    a hypothesis    |        |     delivered      |
- \                  /          \                  /
-  \________________/            \________________/
+```mermaid
+flowchart TB
+    app["<b>app</b><br/>composition root — the only<br/>place adapters are named"]
+    app --> triage
+
+    triage["<b>triage</b> · the core<br/>alerts, grouping, the incident,<br/>and what is owed about it"]
+    investigation["<b>investigation</b> · supporting<br/>a crew of specialists, a<br/>hypothesis and its evidence"]
+    notification["<b>notification</b> · supporting<br/>a report, delivered<br/>email · Teams"]
+
+    triage -- "asks" --> investigation
+    triage -- "publishes" --> notification
+
+    classDef appClass fill:#f4f4f5,stroke:#71717a,color:#27272a
+    classDef coreClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef supportingClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+
+    class app appClass
+    class triage coreClass
+    class investigation,notification supportingClass
 ```
 
 Each supporting context is reached only through the contract it publishes, and
