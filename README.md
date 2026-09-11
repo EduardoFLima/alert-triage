@@ -10,27 +10,29 @@ It does the legwork and presents a hypothesis with its confidence. It does not
 auto-remediate and does not decide for you: the question left to a human is
 "act on this?" rather than "where do I even start?"
 
-One alert's way through a run:
+What a run does:
 
 ```mermaid
 flowchart LR
-    alerts["recent alerts<br/>from the platform"] --> grouped["one service,<br/>one window,<br/>one incident"]
-    grouped --> due{"is a report due?<br/>the ledger knows<br/>what it already said"}
-    due -- "not yet" --> recorded["recorded,<br/>and the run exits"]
-    due -- "yes" --> investigated["investigated<br/>specialists gather evidence,<br/>a diagnostician forms<br/>a hypothesis"]
-    investigated --> delivered["report delivered<br/>email · Teams"]
-    delivered --> recorded
+    fetch["Fetch Alerts"] --> group["Group Alerts<br/>Into Incidents"]
+    group --> due{"Report due?"}
+    due -- "no" --> record["Record Incident"]
+    due -- "yes" --> investigate["Investigate"]
+    investigate --> report["Report"]
+    report --> record
 
-    classDef inClass fill:#f4f4f5,stroke:#71717a,color:#27272a
-    classDef decideClass fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
-    classDef workClass fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
-    classDef outClass fill:#f6fbf7,stroke:#3f9142,color:#123a17
+    classDef step fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+    classDef gate fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef done fill:#f6fbf7,stroke:#3f9142,color:#123a17
 
-    class alerts,grouped inClass
-    class due decideClass
-    class investigated workClass
-    class delivered,recorded outClass
+    class fetch,group,investigate step
+    class due gate
+    class report,record done
 ```
+
+Alerts in, one report per incident out. Grouping is by service and time
+window; the ledger is what decides a still-firing incident was reported
+recently enough to skip.
 
 The full product vision and capability roadmap live in
 [`docs/vision.md`](docs/vision.md); the settings reference is in
