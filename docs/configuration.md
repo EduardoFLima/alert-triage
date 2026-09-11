@@ -45,6 +45,11 @@ ledger:
 investigation:
   model: gemini-2.5-flash   # what every specialist reasons on by default
   max_attempts: 3           # investigations one incident may be given in total
+circuit_breakers:
+  max_tool_calls_per_agent: 12  # searches one specialist may run per incident
+  max_agent_hops: 8             # specialists one investigation may consult
+  max_investigation_duration_seconds: 300   # wall clock for one investigation
+  mcp_call_timeout_seconds: 30  # one call to the platform, connect and read
 ```
 
 `scope` is what the run watches, and it has no default and no "watch
@@ -88,6 +93,33 @@ stronger model than its siblings is named under `investigation.specialists`;
 [`config.example.yaml`](../config.example.yaml) lists the names that may be
 used, and a name nobody declared is refused while the run is still being
 assembled rather than at the first investigation.
+
+`circuit_breakers` bounds a multi-agent investigation, one key per way it can
+run away. Each is optional and each is read by the thing it names:
+
+- `max_tool_calls_per_agent` — searches one specialist may run while
+  investigating one incident, counted across every consultation of it.
+- `max_agent_hops` — specialist consultations one investigation may make,
+  which is what an incident may cost in questions. Not a depth limit on agents
+  calling agents. Keep it above the number of specialists you have declared, so
+  an incident needing every signal still has a follow-up question left.
+- `max_investigation_duration_seconds` — wall clock for one investigation.
+  Once it elapses the reasoning stops gathering and concludes on what it holds.
+- `mcp_call_timeout_seconds` — one call to the observability platform, applied
+  both while the connection is established and while the response is read. A
+  retried call is two attempts of it, so one call can take twice this; the
+  duration bound above is what stops that accumulating.
+
+A tripped breaker never truncates silently: the investigation is reported as
+incomplete, carrying whatever it gathered. Why each bound exists, and why the
+first two are separate keys rather than one, is in
+[Circuit breakers](vision.md#circuit-breakers).
+
+There is no `max_mcp_retries`. How often a failed call is retried belongs to
+the agent framework, below the seat this project has, so the key was removed
+rather than kept as a number nothing reads. Written into `config.yaml` it is
+refused by name; set as `CIRCUIT_BREAKERS_MAX_MCP_RETRIES` it is ignored, since
+the environment is only ever read for keys that exist.
 
 `re_notify.cooldown_seconds` and `ledger.retention_seconds` are tuned
 separately and neither is derived from the other: the first is how often a
