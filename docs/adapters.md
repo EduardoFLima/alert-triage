@@ -149,5 +149,6 @@ make. What bounds that is `circuit_breakers.max_tool_calls_per_agent`, spent per
 specialist per investigation; how many specialists one incident may cost is
 `max_agent_hops`, and how long the whole thing may take is
 `max_investigation_duration_seconds`. The re-notify cooldown bounds how often an
-investigation happens at all. All four are configurable — see [Circuit
-breakers](vision.md#circuit-breakers).
+investigation happens at all. All four are configurable: the keys and their
+defaults are in [`configuration.md`](configuration.md), and why each bound
+exists is under [Circuit breakers](vision.md#circuit-breakers).

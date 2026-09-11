@@ -111,8 +111,34 @@ been shown to fail has not been shown to enforce anything.
 - **Use context7 for library and framework documentation.** ADK, MCP, and the
   observability SDKs move faster than any training data. Look up the current
   API rather than recalling one.
-- **Use the mermaid MCP tool for diagrams** added to the README. No
-  hand-rolled ASCII, no checked-in images.
+
+## Writing documentation
+
+- **Diagrams are mermaid or editable SVG; never hand-rolled ASCII, never a
+  flat image.** Reach for the mermaid MCP tool first — a fenced `mermaid`
+  block is diffable and needs no tool to edit. Where a drawing wants more
+  control than mermaid gives, export it from [draw.io](https://app.diagrams.net)
+  as an SVG with *Include a copy of my diagram* ticked, and commit that to
+  `docs/diagrams/`. The point of the tick is that the `.svg` reopens in draw.io
+  as the diagram that drew it, so the picture and its source are one file and
+  cannot drift; a plain PNG or SVG exported without it is the thing this rule
+  forbids, because the source then lives on somebody's laptop.
+- **What a passage enumerates, write as a list.** Where documentation names
+  several of a thing — two kinds of extension, four bounded contexts, the
+  settings a run needs — set them out as a list rather than as an extended
+  paragraph, so the count is carried by the shape of the page instead of by
+  bold text mid-sentence. This is about what a passage *enumerates*, meaning a
+  set the reader is meant to hold; prose that mentions several things in
+  passing stays prose, and a page of one-line bullets reads worse than the
+  paragraph it replaced.
+- **Do not restate what a document you link already says.** This file must
+  never duplicate the README, and the rule runs the other way too: a README
+  section that links [`docs/configuration.md`](docs/configuration.md) does not
+  also teach each setting. It applies to explanation rather than to facts — a
+  section still names what it needs and gives the commands to run, and what
+  belongs in the linked document is the reasoning about why. The failure this
+  guards against is a front page that points everywhere and says nothing, so
+  cut the explaining, not the naming.
 
 ## Before you call a change done
 

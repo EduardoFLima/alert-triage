@@ -98,11 +98,11 @@ def test_the_ledger_takes_the_name_a_run_from_a_checkout_would_give_it(
 ) -> None:
     """Only the directory differs from the default, never the filename.
 
-    The README tells an operator to mount a checkout's own ``data/`` here to
-    carry on from the history a local run built. That only works while both
-    resolve to one file: a container writing some other name would sit beside
-    the checkout's ledger reporting everything afresh, with two plausible
-    databases in one directory and nothing saying which is live.
+    ``docs/containerized.md`` tells an operator to mount a checkout's own
+    ``data/`` here to carry on from the history a local run built. That only
+    works while both resolve to one file: a container writing some other name
+    would sit beside the checkout's ledger reporting everything afresh, with
+    two plausible databases in one directory and nothing saying which is live.
 
     Taken from the source rather than written out, so the two cannot drift.
     """

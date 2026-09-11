@@ -2,10 +2,10 @@
 
 ``config.yaml`` is resolved relative to the working directory, and the image's
 working directory is ``/app``. ``/app/config.yaml`` is therefore the target the
-README's ``docker run`` and its ``compose.override.yaml`` both name, and the
-only reason either works. Nothing states that correspondence: it is a default
-in one module and a ``WORKDIR`` in the Dockerfile, and moving either would
-break both instructions while every other test stayed green.
+``docker run`` and ``compose.override.yaml`` in ``docs/containerized.md`` both
+name, and the only reason either works. Nothing states that correspondence: it
+is a default in one module and a ``WORKDIR`` in the Dockerfile, and moving
+either would break both instructions while every other test stayed green.
 
 Asked of the image rather than of a mount, because a mount cannot answer it
 here. Docker Desktop does not share ``/private/var/folders``, where pytest puts
