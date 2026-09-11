@@ -165,13 +165,33 @@ failure in any of them SHALL fail the overall check.
 
 The README SHALL give a contributor an unfamiliar-machine path to a working
 environment and a way to confirm the setup succeeded, and SHALL carry the
-architecture diagram and the extension guide for adding new adapters.
+extension guide for adding new adapters.
+
+The README SHALL carry two diagrams, because a reader arrives with one of two
+different questions and a single picture answers them badly. One SHALL show
+what a run does to an alert on its way to a delivered report, and SHALL appear
+before the reader is asked to install or configure anything. The other SHALL
+show the bounded contexts and how they depend on one another, and SHALL appear
+with the architecture prose it illustrates. Each SHALL be readable at a glance:
+neither is the place for a context's internal layering, which the prose and the
+source tree beside it already give.
 
 The README SHALL document two ways to reach a run — from a checkout, and from
 the container image — each with what it needs in its environment and each with
-a way to confirm it worked. The container path SHALL state what a packaged run
-must be given from outside it, including the mount that gives the run a durable
-history and what is lost without one.
+a way to confirm it worked.
+
+For the container path the README SHALL carry the command that performs a run
+and SHALL state, on the page itself, the mount that gives the run a durable
+history and what is lost without one — because a run missing it keeps nothing
+and still succeeds, so a reader who never follows the link must still be
+warned. What a packaged run must otherwise be given from outside it — the
+individual flags, the filesystem ownership a bind mount requires, and any
+convenience for repeating a run — MAY live in a document the README links,
+on the same terms as the extension guide below.
+
+Each setting SHALL be explained in one place. The README SHALL state what a run
+needs and point to the settings reference, and SHALL NOT restate how an
+individual setting behaves in more than one of its sections.
 
 The extension guide SHALL distinguish the two kinds of extension the project
 accepts, because they have different shapes. Adding a notification channel is
@@ -212,10 +232,18 @@ page.
 
 #### Scenario: A repeated local run keeps its history
 
-- **WHEN** an operator follows the README's documented local invocation of the
-  image a second time
+- **WHEN** an operator follows the documented local invocation of the image a
+  second time, whether the README carries it or the document the README links
 - **THEN** the second run reads the history the first one recorded, without the
   operator restating where it is kept
+
+#### Scenario: A reader who never follows the container link
+
+- **WHEN** an operator runs the image from the README alone, without opening
+  the document it links for the detail
+- **THEN** they have been told that the run needs a durable mount and that
+  without one it keeps no history while still exiting successfully, because
+  that failure is silent and a link is not a warning
 
 #### Scenario: Adding a notification channel
 
@@ -250,6 +278,27 @@ page.
 
 - **WHEN** the project's dependencies are installed from the committed lockfile
 - **THEN** the resolved versions are identical across machines and in CI
+
+
+#### Scenario: A reader wants to know what the thing does
+
+- **WHEN** someone opens the README having never seen the project
+- **THEN** a diagram in its introduction shows what one alert passes through on
+  its way to a delivered report, before any instruction to install or configure
+  anything
+
+#### Scenario: A reader wants to know how the code is arranged
+
+- **WHEN** a contributor reads the architecture section
+- **THEN** a diagram shows the bounded contexts and the direction of the
+  dependencies between them, without redrawing the layers inside any of them
+
+#### Scenario: Looking up how a setting behaves
+
+- **WHEN** a reader wants to know what a given setting does or what it defaults
+  to
+- **THEN** the README names what a run needs and sends them to one reference,
+  rather than describing that setting a second time in another section
 
 ### Requirement: Test suite separates fast and integration-scope tests
 

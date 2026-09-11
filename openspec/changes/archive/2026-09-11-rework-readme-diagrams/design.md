@@ -156,6 +156,27 @@ and gives the commands to run; what moves to the linked document is the
 reasoning about why. `Development` keeps all four commands and every pytest
 selection, and loses only the two paragraphs explaining them.
 
+## What changed during implementation
+
+The architecture pictures did not ship as designed above. After a mermaid
+version and a hand-drawn ASCII one, the maintainer drew them in draw.io, and
+three decisions above were superseded:
+
+- **Not both mermaid.** The run flow in the introduction is mermaid. The
+  architecture is five editable SVGs in `docs/diagrams/` — an overview in the
+  README and one deep dive per context — each carrying its own source, so the
+  convention in `AGENTS.md` and `docs/vision.md` was amended to allow them.
+- **Configuration is drawn.** The overview shows it as a peer every context
+  reads, with explicit arrows. That turned out legible, which the reasoning
+  above did not expect of a picture rather than a sentence.
+- **A second new document.** The four deep dives live in
+  `docs/architecture.md`, a level below the README, rather than on the front
+  page.
+
+The spec delta holds as written: the README still carries two diagrams
+answering two questions, and neither redraws a context's internal layering —
+the deep dives that do are in the linked document.
+
 ## Risks / Trade-offs
 
 - **A diagram that renders in a previewer but not on GitHub.** → Stay within
