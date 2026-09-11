@@ -642,12 +642,15 @@ arrives; it is a later decision, not the next step.
   (hexagonal) architecture — the same architecture described above, kept
   intact as the codebase grows. Also: use context7 to look up current
   library/framework docs rather than relying on training data (ADK, MCP,
-  and friends move fast); use a mermaid MCP tool for any diagrams added to
-  the README, rather than hand-rolled ASCII or static images.
-- **README** carries setup instructions, the architecture diagram (kept in
-  sync via mermaid), and a guide for adding a new observability or
-  notification adapter — since sharing this publicly for others to extend
-  is an explicit goal.
+  and friends move fast); keep every diagram in a form the repository itself
+  can edit — a mermaid block, or an SVG exported from draw.io with its own
+  source embedded — and never hand-rolled ASCII, nor a flat image whose
+  source lives on somebody's laptop.
+- **README** carries setup instructions, the architecture diagram, and a
+  guide for adding a new observability or notification adapter — since
+  sharing this publicly for others to extend is an explicit goal. The
+  per-context drawings sit one level below it, in
+  [`architecture.md`](architecture.md).
 - **Tests** are expected throughout, practiced as TDD rather than added
   after the fact.
 
@@ -889,10 +892,11 @@ testable, building only on the slices before it.
     contexts are and how they depend on each other is a different question from
     what happens to one alert on its way to a report, and today's diagram
     answers the first while most readers arrive wanting the second. Worth
-    settling then, not now. Regenerated through the mermaid MCP tool per the
-    conventions above; the acceptance is a reader who has not seen the codebase
-    reaching the right mental model unaided, which is a judgement rather than a
-    test, so it does not gate a green build.
+    settling then, not now. Drawn per the diagram convention above — the flow
+    as mermaid, the architecture as editable SVG, since a hexagon is a shape
+    mermaid cannot draw; the acceptance is a reader who has not seen the
+    codebase reaching the right mental model unaided, which is a judgement
+    rather than a test, so it does not gate a green build.
 
 ## Roadmap (after v1)
 
