@@ -230,13 +230,12 @@ Four bounded contexts, each a hexagon of its own:
 - **investigation** — supporting. A target goes in; a hypothesis and the
   evidence beneath it come out.
 - **notification** — supporting. A report goes in, and is delivered.
-- **configuration** — not a peer of the three but what they all run on. Every
-  context reads it directly.
+- **configuration** — not a peer of the three but what they all run on.
 
 Alongside them, `shared/` holds the vocabulary more than one context speaks and
 depends on no context, which is what stops it becoming a dumping ground.
 
-![The four bounded contexts, and what crosses between them](docs/diagrams/overview.svg)
+![The four bounded contexts, and what crosses between them](docs/diagrams/overview.drawio.svg)
 
 Each supporting context is reached only through the contract it publishes, and
 everything behind that contract is private.
