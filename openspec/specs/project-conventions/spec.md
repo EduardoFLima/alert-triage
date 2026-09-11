@@ -19,6 +19,13 @@ published contract, and everything behind it is private. Any vocabulary shared
 by more than one context SHALL depend on no context at all. Violations SHALL
 fail an automated check, not rely on code review to catch them.
 
+Within a context's adapters, a declaration SHALL NOT depend on the framework
+machinery that runs it. The machinery depends on the declarations and never the
+reverse: a declaration reaching into the machinery — for a constant, a type, or
+anything else — is what makes it framework-specific, in a tree whose point is
+that a declaration outlives the framework currently running it. This SHALL fail
+the same automated check.
+
 #### Scenario: Domain module imports an adapter
 
 - **WHEN** a module in any context's domain layer imports from that context's
@@ -65,6 +72,20 @@ fail an automated check, not rely on code review to catch them.
   context
 - **THEN** the architecture check fails, because shared vocabulary that depends
   on one context is that context's, not shared
+
+#### Scenario: A declaration imports the framework that runs it
+
+- **WHEN** a module declaring an agent imports from the framework machinery
+  that turns declarations into running agents
+- **THEN** the architecture check fails and names the offending module and
+  import
+
+#### Scenario: The framework machinery imports a declaration
+
+- **WHEN** a module of the framework machinery imports a declaration in order
+  to run it
+- **THEN** the architecture check passes, because that is the direction the
+  dependency is meant to point
 
 #### Scenario: An enforced rule goes missing
 
