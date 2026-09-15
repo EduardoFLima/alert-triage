@@ -901,9 +901,56 @@ testable, building only on the slices before it.
 ## Roadmap (after v1)
 
 The slices above get the thing working: alerts in, investigated, a report out.
-What follows gets it working *well*. Acknowledgement comes first — it is the
-gap a team feels immediately. The other two need a running system to measure
-and a history to remember, and memory depends on the harness.
+What follows gets it working *well*. The first two fix what a team already
+meets on every run: an investigation that fails for Datadog's reasons rather
+than ours, and a report that is hard to read. Acknowledgement comes next — it
+is the gap a team feels as soon as reports arrive. The last two need a running
+system to measure and a history to remember, and memory depends on the
+harness.
+
+### A Datadog integration that holds up
+
+Live runs fail intermittently, and the causes sit in how we talk to Datadog's
+MCP server rather than in the design:
+
+- **The query dialect.** A specialist writes queries in Datadog's own syntax,
+  and the server rejects some of what the model writes.
+- **Tool versions.** Tool names and argument shapes change between server
+  versions, so a declaration that worked last month can quietly stop working.
+- **Tools in Preview.** Some of the most useful tools live in Datadog's
+  Preview `apm` toolset — `apm_latency_bottleneck_summary`,
+  `apm_search_watchdog_stories`, `get_change_stories`,
+  `semantic_search_change_stories` and `apm_query_trace`. An account reaches
+  them only once Datadog grants access, and a Preview tool can change or
+  vanish without notice. Today one hand-set switch, `APM_TOOLSET_AVAILABLE`,
+  decides whether the APM and trace specialists declare them. It is off, so
+  both run on their reduced form, and only a credential-gated live test checks
+  the switch against what the account can actually reach. Get it wrong and a
+  tool the server refuses reads as a failed retrieval, marking the whole
+  investigation incomplete.
+- **The result envelope.** A result arrives as a raw MCP envelope — one text
+  block — that the evidence layer does not unwrap. That is why per-item
+  citations (`call-3/item-7`) never resolve live and every finding falls back
+  to citing the whole call.
+
+The fix is to pin down what the server actually accepts and returns, and to
+make the live tests that should catch this run rather than skip. Ordered first
+because everything after it depends on it: a report is only as good as the
+evidence behind it, and the [evaluation harness](#evaluation-harness) records
+its cases from this same platform.
+
+### A report that reads well
+
+Today the report is one block of text: plain text in the email, the same body
+dropped into a single Teams card. It should read at a glance — hypothesis and
+confidence first, then evidence, with links that look like links — in whatever
+each channel renders best (HTML email, a structured Adaptive Card).
+
+The Report agent decides what the report says; this is about how it looks. The
+real design question is the contract: `TriageReport.body` is plain text that a
+channel carries unchanged, so a channel has nothing to lay out. Either the body
+gains a light markup each channel renders, or the report crosses as sections
+rather than one string.
 
 ### Acknowledgement — the missing input
 
@@ -992,8 +1039,7 @@ in the direction where anchoring quietly makes it worse.
 
 ### Ideas for improvement
 
-Smaller than the three above, and independent of them.
-
+Smaller than the five above, and independent of them.
 - FinOps agent (cost-impact or cost-anomaly investigation). Datadog's
   `cost_recommendations` makes this a specialist declaration rather than an
   integration.
