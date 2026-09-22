@@ -1,3 +1,5 @@
+from typing import get_args
+
 from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     Diagnosed,
@@ -118,6 +120,21 @@ def test_its_schema_admits_only_the_declared_confidence_levels() -> None:
         Diagnosed.model_validate(
             {"hypothesis": "something", "confidence": "fairly sure"}
         )
+
+
+def test_its_schema_accepts_exactly_the_levels_the_contract_declares() -> None:
+    """The other half of the equality the test above establishes.
+
+    Validating every declared level catches one added to ``Confidence`` and not
+    to the schema. It cannot catch the reverse — a level the schema admits that
+    the contract never declared — because nothing there iterates the schema. A
+    reader is promised one of the declared levels and an evaluation harness
+    scores against them, so the two sets have to be the same set rather than
+    one containing the other.
+    """
+    admitted = get_args(Diagnosed.model_fields["confidence"].annotation)
+
+    assert set(admitted) == {level.value for level in Confidence}
 
 
 def test_it_is_told_one_specialist_is_rarely_the_whole_picture() -> None:
