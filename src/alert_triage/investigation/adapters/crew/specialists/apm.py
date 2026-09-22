@@ -24,6 +24,7 @@ grain.
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
+    AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
     SKILL_LIST_TOOL,
@@ -46,7 +47,7 @@ APM_TOOLSET = "apm"
 METRIC_TOOL = "get_datadog_metric"
 METRIC_SEARCH_TOOL = "search_datadog_metrics"
 METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
-DEPENDENCIES_TOOL = "search_datadog_service_dependencies"
+CATALOG_TOOL = "search_datadog_entities"
 EVENTS_TOOL = "search_datadog_events"
 """The tools every account has, whatever its Preview access.
 
@@ -60,6 +61,11 @@ service is fine" from "I made that name up".
 and answers with its unit, its type and the tags it carries. It enumerates
 nothing, and a specialist told otherwise asks it for a service's whole
 catalogue — which it has no argument for, so the retrieval is refused.
+
+``CATALOG_TOOL`` is the platform's catalogue search, which answers about a
+service's identity and ownership as well as its neighbours. It replaced a
+dependency lookup that took a service and named what it talked to; a search has
+to be asked a question, so the instruction says what to ask for.
 
 ``EVENTS_TOOL`` carries deploy correlation on an account without Preview. It
 returns deployments, infrastructure changes and monitor alerts rather than the
@@ -85,8 +91,10 @@ _CORE_TOOLS_DESCRIBED = f"""\
 - `{METRIC_CONTEXT_TOOL}` takes one metric you have already found and tells
   you its unit, its type and what tags it carries.
 - `{METRIC_TOOL}` returns a metric's values over a time range.
-- `{DEPENDENCIES_TOOL}` names the service's immediate upstream and downstream
-  neighbours."""
+- `{CATALOG_TOOL}` searches the platform's catalogue of services. Ask it for
+  the immediate upstream and downstream dependencies of the service you were
+  told about; it answers what you ask, so ask about that service and not about
+  its neighbours in turn."""
 
 _PREVIEW_TOOLS_DESCRIBED = f"""\
 - `{BOTTLENECK_TOOL}` breaks a service's latency down into where the time was
@@ -171,10 +179,9 @@ The tools you have are Datadog's:
 
 Ask `{METRIC_SEARCH_TOOL}` which metrics the service reports before you query
 one, and read the name you query out of what it answers. Do not guess a metric
-name: a name this service does not report comes back empty, and an empty
-answer means the service does not report it, which is not the same as the
-service being healthy. If you find yourself reporting that a signal was quiet,
-be sure you asked for a metric that exists.
+name: a name this service does not report comes back empty.
+
+{AN_EMPTY_ANSWER}
 
 {METRIC_QUERY_DIALECT}
 
@@ -189,7 +196,7 @@ Rules you must follow:
 - Every result you are given back is identified. A retrieval is `call-N`, and
   each individual entry within it is `call-N/item-M`. Cite what shows your
   observation: `call-N/item-M` for entries you read it from, and `call-N` for
-  an aggregate — a latency breakdown, a dependency map — where there are no
+  an aggregate — a metric's series, a latency breakdown — where there are no
   individual entries to point at. Cite at most {MAX_EXAMPLES_PER_FINDING} per
   observation, choosing ones that represent what you observed. An observation
   citing neither will be discarded.
@@ -257,7 +264,7 @@ def apm_specialist(*, preview: bool) -> Specialist:
                     METRIC_TOOL,
                     METRIC_SEARCH_TOOL,
                     METRIC_CONTEXT_TOOL,
-                    DEPENDENCIES_TOOL,
+                    CATALOG_TOOL,
                     SKILL_LIST_TOOL,
                     SKILL_LOAD_TOOL,
                 ),
@@ -283,7 +290,7 @@ def apm_specialist(*, preview: bool) -> Specialist:
                 METRIC_TOOL,
                 METRIC_SEARCH_TOOL,
                 METRIC_CONTEXT_TOOL,
-                DEPENDENCIES_TOOL,
+                CATALOG_TOOL,
                 EVENTS_TOOL,
                 SKILL_LIST_TOOL,
                 SKILL_LOAD_TOOL,

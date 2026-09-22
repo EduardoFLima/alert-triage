@@ -13,6 +13,7 @@ from alert_triage.investigation.adapters.crew.specialists.trace import (
     TraceFinding,
     trace_specialist,
 )
+from alert_triage.investigation.adapters.datadog.dialect import AN_EMPTY_ANSWER
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 
 
@@ -68,9 +69,25 @@ def test_with_preview_it_reaches_both_the_core_and_apm_toolsets() -> None:
         "search_datadog_spans",
         "get_datadog_trace",
         "apm_query_trace",
+        "apm_discover_span_tags",
         "list_datadog_skills",
         "load_datadog_skill",
     }
+
+
+def test_without_preview_facet_discovery_is_neither_permitted_nor_named() -> None:
+    without = trace_specialist(preview=False)
+
+    assert "apm_discover_span_tags" not in _tools(without)
+    assert "apm_discover_span_tags" not in without.instruction
+
+
+def test_with_preview_it_can_ask_which_facets_a_service_carries() -> None:
+    """What makes the check against a guessed facet cheap rather than implied."""
+    with_preview = trace_specialist(preview=True)
+
+    assert "apm_discover_span_tags" in _tools(with_preview)
+    assert "apm_discover_span_tags" in with_preview.instruction
 
 
 def test_with_preview_it_is_told_to_rank_within_a_fetched_trace() -> None:
@@ -110,6 +127,21 @@ def test_the_instruction_forbids_describing_a_typical_request() -> None:
 
     assert "typical" in lowered
     assert "retrieved" in lowered
+
+
+def test_an_empty_span_search_is_read_as_a_question_about_the_query() -> None:
+    """A facet the service does not carry answers exactly as a healthy service does.
+
+    Told whether or not the account can check its facets, because the rule's
+    weaker form still changes what the specialist reports.
+    """
+    for preview in (False, True):
+        instruction = trace_specialist(preview=preview).instruction
+        flowed = " ".join(instruction.lower().split())
+
+        assert AN_EMPTY_ANSWER in instruction
+        assert "about your query rather than about the service" in flowed
+        assert "do not guess a facet" in flowed
 
 
 def test_the_instruction_asks_for_both_citation_grains() -> None:

@@ -26,7 +26,8 @@ when it flips, and nothing else in the codebase has to change:
 - the APM specialist regains latency-bottleneck breakdown, the platform's own
   Watchdog anomalies, and change stories in place of raw events;
 - the trace specialist regains ranking within a trace rather than reading one
-  whole.
+  whole, and can ask which facets a service's spans carry rather than
+  checking against the spans it has already seen.
 
 The credential-gated live test is what confirms the account really has it: this
 constant states an intent and the server settles it.

@@ -47,6 +47,21 @@ here would be the transcription this replaced, one indirection out, and stale
 the day the platform renames it.
 """
 
+AN_EMPTY_ANSWER = """
+An empty answer is about what you asked, not about the service. It means what
+you asked for is not reported, which is not the same as healthy: a query naming
+something the service does not carry comes back empty exactly as a quiet one
+does, and the two readings are opposite findings. Before you report that
+something was quiet, be sure what you asked about is something the service
+reports.
+""".strip()
+"""What an empty answer means, for every specialist whose query can name a guess.
+
+The principle only. Which listing a specialist checks its guess against is its
+own, because the specialists hold different ones — and one holds none at all
+unless the account has Preview, and is told the principle regardless.
+"""
+
 METRIC_QUERY_DIALECT = """
 A metric query is an aggregator, a metric name, and a scope in braces:
 `avg:system.cpu.user{service:checkout}`. Use `sum:...{service:checkout}.as_count()`

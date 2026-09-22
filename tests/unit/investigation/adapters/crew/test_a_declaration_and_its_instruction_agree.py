@@ -14,6 +14,14 @@ import re
 import pytest
 
 from alert_triage.investigation.adapters.crew.roster import CREW
+from alert_triage.investigation.adapters.crew.specialists.apm import APM_SPECIALIST
+from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
+    INFRASTRUCTURE_SPECIALIST,
+)
+from alert_triage.investigation.adapters.crew.specialists.trace import (
+    TRACE_SPECIALIST,
+)
+from alert_triage.investigation.adapters.datadog.dialect import AN_EMPTY_ANSWER
 from alert_triage.investigation.domain.specialist import Specialist
 
 QUOTED_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
@@ -77,3 +85,24 @@ def test_every_specialist_takes_the_deployments_model_unless_configured(
 ) -> None:
     """Which specialist deserves a stronger model is a question for evidence."""
     assert specialist.model is None
+
+
+EMPTY_IS_AMBIGUOUS = pytest.mark.parametrize(
+    "specialist",
+    (APM_SPECIALIST, TRACE_SPECIALIST, INFRASTRUCTURE_SPECIALIST),
+    ids=lambda specialist: specialist.name,
+)
+"""The specialists whose query names something the service may not report.
+
+A metric name, a span facet, a workload: each is a guess the platform answers
+with nothing rather than with a refusal, so an empty answer reads exactly like
+a quiet service.
+"""
+
+
+@EMPTY_IS_AMBIGUOUS
+def test_an_empty_answer_is_explained_in_the_same_words_everywhere(
+    specialist: Specialist,
+) -> None:
+    """One account of it, so a correction reaches every specialist at once."""
+    assert AN_EMPTY_ANSWER in specialist.instruction

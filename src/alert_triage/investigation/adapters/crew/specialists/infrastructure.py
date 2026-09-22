@@ -16,6 +16,7 @@ answer is retained as a retrieval that found nothing.
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
+    AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
     SKILL_LIST_TOOL,
@@ -40,7 +41,14 @@ METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
 HOSTS_TOOL = "search_datadog_hosts"
 K8S_SEARCH_TOOL = "search_datadog_k8s_resources"
 K8S_DESCRIBE_TOOL = "describe_datadog_k8s_resource"
-"""The tools this specialist may reach, and the only ones."""
+K8S_ROLLOUT_TOOL = "analyse_datadog_k8s_rollout"
+"""The tools this specialist may reach, and the only ones.
+
+``K8S_ROLLOUT_TOOL`` is spelled ``analyse`` where its neighbours in the same
+catalogue are spelled ``analyze``. It is a string that either exists on the
+server or does not, and the live run is what settles which; do not correct it
+by eye.
+"""
 
 INFRASTRUCTURE_INSTRUCTION = f"""
 You are an infrastructure specialist doing the first-pass investigation a
@@ -65,15 +73,22 @@ The tools you have are Datadog's:
   the deployment has them.
 - `{K8S_DESCRIBE_TOOL}` returns one such workload in full, including its
   restarts and why it was last rescheduled.
+- `{K8S_ROLLOUT_TOOL}` accounts for how one such workload was most recently
+  rolled out: when it started, and how it went.
+
+Search before you analyse. A rollout is analysed for a workload by its
+cluster, its namespace and its name, and the search is where those come from:
+analyse the rollout of a workload the search named, never of one you named
+yourself.
 
 {CONSULT_THE_PLATFORM}
 
 Ask `{METRIC_SEARCH_TOOL}` which metrics are reported before you query one,
 and read the name you query out of what it answers. Do not guess a metric
-name: a name nothing reports comes back empty, and an empty answer means it is
-not reported, which is not the same as the resource being healthy. A managed
-service reports a different set from a virtual machine, and neither reports
-everything.
+name: a name nothing reports comes back empty. A managed service reports a
+different set from a virtual machine, and neither reports everything.
+
+{AN_EMPTY_ANSWER}
 
 {METRIC_QUERY_DIALECT}
 
@@ -88,6 +103,10 @@ What to report:
   through the window, say so — that is a useful answer.
 - The state of the workload the service runs as, where the platform has one,
   including restarts and scheduling failures over the window.
+- How that workload was most recently rolled out, where the platform can say,
+  and when. A rollout near the alerts is a coincidence in time that you
+  observed, reported beside the restarts with the same standing. It is not a
+  cause, and you must not present it as one.
 
 Rules you must follow:
 
@@ -172,7 +191,7 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
         Toolset(
             provider=DATADOG,
             name=KUBERNETES_TOOLSET,
-            tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL),
+            tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL, K8S_ROLLOUT_TOOL),
         ),
     ),
 )
