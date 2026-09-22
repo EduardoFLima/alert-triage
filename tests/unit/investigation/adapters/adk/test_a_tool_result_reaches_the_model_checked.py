@@ -179,7 +179,7 @@ def test_the_call_is_logged_before_it_is_made_and_nothing_else_happens(
 ) -> None:
     """Slice 12's seat, with a test already on it."""
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
-        refused = log_tool_call("logs_specialist")(
+        refused = log_tool_call("logs_specialist", PERMITTED)(
             tool=_Tool(), args={"query": "status:error"}, tool_context=None
         )
 

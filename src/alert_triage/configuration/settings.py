@@ -233,8 +233,11 @@ class CircuitBreakers:
     specialists one incident may cost.
 
     Attributes:
-        max_tool_calls_per_agent: Tool calls one specialist may make while
-            investigating one incident, across every consultation of it.
+        max_tool_calls_per_agent: Calls to the platform one specialist may make
+            while investigating one incident, across every consultation of it.
+            Only the tools its declaration named are counted: a framework's own
+            tools cost the platform nothing, and a specialist does not pay out
+            of this to report what it found.
         max_agent_hops: Specialist consultations one investigation may make. A
             hop is the reasoning reaching a specialist and that specialist
             reporting back, so counting hops is counting consultations. It is

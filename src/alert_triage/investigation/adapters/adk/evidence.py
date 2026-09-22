@@ -291,23 +291,24 @@ def keep_evidence_callback(
 
 
 def log_tool_call(
-    caller: str, retrieved: Retrieved | None = None, bounds: Bounds | None = None
+    caller: str,
+    permitted: frozenset[str],
+    retrieved: Retrieved | None = None,
+    bounds: Bounds | None = None,
 ) -> BeforeTool:
-    """The callback that decides whether one more call may be made, and writes it down.
+    """The callback that bounds a specialist's calls, and writes down the rest.
 
-    Two jobs on one seat, because they are the same moment. It writes down what
-    the specialist is about to ask the platform for, which is the half of a
-    retrieval the result alone does not say: an answer with nothing in it reads
-    very differently once the question is beside it. And it declines the call
-    once this specialist has spent what it is allowed, or once the investigation
-    has run out of time.
+    It declines rather than counts: a coordinator tallying afterwards has
+    already paid for the search it wanted to prevent.
 
-    It declines rather than counts. A callback can answer the call instead of
-    making it, whereas a coordinator tallying afterwards has already paid for
-    the search it wanted to prevent.
+    Only the tools the declaration named are bounded. A framework's own cross
+    this seat too, including the one a model answers through where it cannot
+    pair an output schema with tools — and bounding that leaves a spent
+    specialist no way to report at all.
 
     Args:
         caller: The specialist making the call.
+        permitted: The tools it declared. Anything else passes through.
         retrieved: This investigation's evidence, which a declined call is
             recorded against so the report says the account is incomplete.
         bounds: What this investigation may still do. Absent, the documented
@@ -323,6 +324,8 @@ def log_tool_call(
     def _logged(
         *, tool: Any, args: dict[str, Any], tool_context: Any
     ) -> dict[str, Any] | None:
+        if named_tool(tool) not in permitted:
+            return None
         declined = within.decline_call(caller)
         if declined is not None:
             return kept.refuse_call(declined)

@@ -184,7 +184,9 @@ def build_agent(
             )
             for toolset in specialist.toolsets
         ],
-        before_tool_callback=log_tool_call(specialist.name, retrieved, bounds),
+        before_tool_callback=log_tool_call(
+            specialist.name, _permitted_tools(specialist), retrieved, bounds
+        ),
         after_tool_callback=keep_evidence_callback(
             retrieved, _permitted_tools(specialist), specialist.name
         ),

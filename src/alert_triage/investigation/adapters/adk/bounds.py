@@ -36,14 +36,20 @@ CALL_DECLINED = (
     "This call did not happen. The investigation has reached a bound it may not "
     "cross, so the platform was never asked and has returned nothing. This is "
     "not a platform that answered with no results, and nothing about the "
-    "service may be concluded from it in either direction. Report what the "
-    "calls that did happen show."
+    "service may be concluded from it in either direction. Stop searching and "
+    "give your final answer now, in the shape you were asked for, reporting "
+    "what the calls that did happen show."
 )
 """What a specialist is handed in place of a call a bound will not permit.
 
 Deliberately verbose, for the reason ``RETRIEVAL_FAILED`` is: a bound that reads
 as an empty result is how "we stopped looking" becomes "there was nothing to
 find", and that misreading is the one this whole register exists to prevent.
+
+It names the answer as well as the refusal. A specialist told only that a call
+failed tries another one, and a specialist out of calls can spend a whole turn
+that way and end in prose — which its schema does not survive. Being told to
+report now is what turns a bound into a short answer rather than no answer.
 """
 
 Clock = Callable[[], float]

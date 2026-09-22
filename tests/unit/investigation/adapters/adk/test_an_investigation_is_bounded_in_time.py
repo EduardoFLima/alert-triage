@@ -79,7 +79,7 @@ def _consult(consulted: Consulted, name: str = "logs_specialist") -> Any:
 
 
 def _call(caller: str, retrieved: Retrieved, bounds: Bounds) -> Any:
-    declined = log_tool_call(caller, retrieved, bounds)(
+    declined = log_tool_call(caller, PERMITTED, retrieved, bounds)(
         tool=_Tool(), args={"query": "status:error"}, tool_context=None
     )
     if declined is None:

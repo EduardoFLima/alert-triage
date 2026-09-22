@@ -42,7 +42,7 @@ def _bounds(calls: int) -> Bounds:
 
 def _call(caller: str, retrieved: Retrieved, bounds: Bounds) -> dict[str, Any] | None:
     """One tool call, driven the way the framework drives one."""
-    declined = log_tool_call(caller, retrieved, bounds)(
+    declined = log_tool_call(caller, PERMITTED, retrieved, bounds)(
         tool=_Tool(), args={"query": "status:error"}, tool_context=None
     )
     if declined is None:
@@ -152,7 +152,7 @@ def test_a_permitted_call_is_still_written_down_before_it_is_made(
     from alert_triage.investigation.adapters.adk.evidence import TOOL_CALL_LOGGER
 
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
-        declined = log_tool_call("logs_specialist", Retrieved(), _bounds(1))(
+        declined = log_tool_call("logs_specialist", PERMITTED, Retrieved(), _bounds(1))(
             tool=_Tool(), args={"query": "status:error"}, tool_context=None
         )
 

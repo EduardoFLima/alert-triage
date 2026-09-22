@@ -140,7 +140,7 @@ def test_a_tool_call_is_written_down_with_the_specialist_making_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
-        log_tool_call("logs_specialist")(
+        log_tool_call("logs_specialist", PERMITTED)(
             tool=_Tool("search_datadog_logs"),
             args={"query": "service:checkout status:error"},
             tool_context=None,
@@ -203,7 +203,7 @@ def test_the_tool_back_and_forth_is_written_where_it_can_be_held_on_its_own(
 ) -> None:
     """A deployment that wants the account without the working turns off one name."""
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
-        log_tool_call("logs_specialist")(
+        log_tool_call("logs_specialist", PERMITTED)(
             tool=_Tool("search_datadog_logs"), args={}, tool_context=None
         )
         keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
