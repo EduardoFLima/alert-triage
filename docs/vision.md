@@ -1043,6 +1043,16 @@ Smaller than the five above, and independent of them.
 - FinOps agent (cost-impact or cost-anomaly investigation). Datadog's
   `cost_recommendations` makes this a specialist declaration rather than an
   integration.
+- Error Tracking as a signal. `search_datadog_error_tracking_issues` groups
+  errors into issues carrying first-seen and last-seen, which answers "is this
+  new?" — the first question a triage asks, and the one the logs specialist can
+  only approximate by clustering messages. Whether that is a fifth `Signal` or
+  a wider logs specialist is the question to settle, not the tool.
+- Database Monitoring, a whole toolset nothing reaches. The trace specialist
+  regularly ends at "the time went into a database call", which is exactly
+  where an engineer would open `get_datadog_database_query_performance` next.
+  The natural second hop from a specialist that already exists rather than a
+  signal of its own.
 - Multi-hop dependency traversal — recursively investigating upstream and
   downstream services, not just single-hop evidence.
 - GitHub deploy-history correlation. Datadog's change-story tools already
