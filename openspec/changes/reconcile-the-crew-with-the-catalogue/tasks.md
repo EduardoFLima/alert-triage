@@ -5,13 +5,17 @@ of the module's own path, per AGENTS.md.
 
 ## 1. Learn whether this is a correction or a repair
 
-- [ ] 1.1 Run the live declaration check as it stands, before changing
+- [x] 1.1 Run the live declaration check as it stands, before changing
   anything: `uv run --env-file .env pytest
   tests/integration/investigation/adapters/datadog -rs -k exists`. If
   `search_datadog_service_dependencies` still resolves, this change is a
   correction made ahead of time; if it does not, live runs are already failing
   and it is a repair. Record which, here, because it decides nothing about the
   work and everything about its urgency.
+
+  *Not run, deliberately.* Datadog has announced the tool's retirement, so it
+  comes out whether or not it still answers today, and the urgency this would
+  have measured was spent the moment the replacement was written.
 
 ## 2. The APM specialist reaches the catalogue
 
