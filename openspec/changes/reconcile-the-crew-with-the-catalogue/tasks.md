@@ -82,6 +82,12 @@ of the module's own path, per AGENTS.md.
   declared toolset resolves and a real model given each instruction still
   retrieves. Credential-gated, so this is a developer's run and not CI's — see
   [`docs/live-testing.md`](../../../docs/live-testing.md).
+
+  *Partial, 2026-09-22:* the `-k exists` subset passed against this change's
+  declarations, so every declared toolset resolves and the filter admits every
+  declared tool — `search_datadog_entities` and `analyse_datadog_k8s_rollout`
+  among them, the latter spelled as declared. The real-model half of this task
+  has not been run.
 - [ ] 7.2 Record the outcome here before archiving, naming what was *not*
   established: the Preview branch is unverifiable while
   `APM_TOOLSET_AVAILABLE` is off, so `apm_discover_span_tags` ships declared
