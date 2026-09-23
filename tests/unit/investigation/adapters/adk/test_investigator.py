@@ -85,7 +85,7 @@ def _manager(
             retrieved.refuse_evidence("the platform could not be reached")
         if retrieves:
             retrieved.retain_evidence(
-                {"logs": [{"message": message} for message in retrieves]}
+                "search_logs", {"logs": [{"message": message} for message in retrieves]}
             )
         for name in consults:
             specialist = consulted.named(name)
@@ -279,7 +279,7 @@ def test_a_manager_that_never_concluded_still_reports_what_it_found(
     def _stops_early(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         specialist = consulted.named("apm_specialist")
         assert specialist is not None
         consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})
@@ -305,7 +305,7 @@ def test_reaching_no_conclusion_is_distinguishable_from_answering_with_none(
     def _answers_emptily(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         specialist = consulted.named("apm_specialist")
         assert specialist is not None
         consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})

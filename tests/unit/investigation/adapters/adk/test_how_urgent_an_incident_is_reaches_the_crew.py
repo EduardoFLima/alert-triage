@@ -53,7 +53,7 @@ def _finds(asked: list[str], crews: list[tuple[Specialist, ...]]) -> Any:
     ) -> dict[str, Any]:
         asked.append(prompt)
         crews.append(tuple(crew))
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         specialist = consulted.named("logs_specialist")
         assert specialist is not None
         consulted.record(

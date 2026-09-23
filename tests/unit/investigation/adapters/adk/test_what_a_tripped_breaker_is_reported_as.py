@@ -82,7 +82,9 @@ def _keeps_asking(*, gathers: bool) -> Any:
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
         if gathers:
-            retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+            retrieved.retain_evidence(
+                "search_logs", {"logs": [{"message": "OOMKilled"}]}
+            )
         bound = bound_consultations_callback(consulted)
         for _ in range(consulted.bounds.hops + 2):
             refused = bound(tool=_tool("logs_specialist"), args={}, tool_context=None)
@@ -168,7 +170,7 @@ def test_an_investigation_within_every_bound_carries_no_incompleteness() -> None
     def _asks_once(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         consulted.record(LOGS, {"findings": [_finding()]})
         return {"hypothesis": "the pods are out of memory", "confidence": "high"}
 

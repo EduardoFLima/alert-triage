@@ -17,10 +17,11 @@ clone stay green.
 import asyncio
 import logging
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from functools import cache
+from typing import Any
 
 import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
@@ -54,7 +55,12 @@ from alert_triage.investigation.adapters.crew.specialists.logs import (
     LOGS_SPECIALIST,
 )
 from alert_triage.investigation.adapters.datadog.guides import DatadogGuide, guides_for
-from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
+from alert_triage.investigation.adapters.datadog.links import (
+    ITEM_KEYS,
+    LOG_TOOLS,
+    UNADDRESSED,
+    DatadogLinks,
+)
 from alert_triage.investigation.adapters.datadog.mcp import (
     DATADOG,
     mcp_endpoint,
@@ -229,29 +235,62 @@ def test_a_real_model_given_the_instruction_calls_them(specialist: Specialist) -
     assert retrieved.failures == ()
 
 
-def _investigated() -> Retrieved:
+class _Recorded:
+    """This account's addresses, noting which tool each retrieval address was for.
+
+    A retrieval's address is judged against the tool that produced it: a Log
+    Explorer address is right for a log search and a lie under a metric, and
+    nothing in the address itself says which it was built for.
+    """
+
+    def __init__(self, links: DatadogLinks) -> None:
+        self._links = links
+        self.addressed: list[tuple[str, str | None]] = []
+
+    def to_retrieval(self, tool: str, args: Mapping[str, Any]) -> str | None:
+        address = self._links.to_retrieval(tool, args)
+        self.addressed.append((tool, address))
+        return address
+
+    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+        return self._links.to_item(tool, payload, within)
+
+
+def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:
     """One real consultation, kept with this account's addresses attached."""
-    connection = resolve_connection()
-    retrieved = Retrieved(link=DatadogLinks(connection.web_host))
+    links = _Recorded(DatadogLinks(resolve_connection().web_host))
+    retrieved = Retrieved(link=links)
     asyncio.run(
         run_agent(
-            build_agent(LOGS_SPECIALIST, _deployment(), retrieved),
+            build_agent(specialist, _deployment(), retrieved),
             _target().describe(),
         )
     )
-    return retrieved
+    return retrieved, links
 
 
-def test_an_address_built_from_a_real_retrieval_opens_rather_than_404s(
-    answers: Callable[[str], bool],
+@pytest.mark.parametrize(
+    "specialist", CREW, ids=[specialist.name for specialist in CREW]
+)
+def test_each_retrieval_address_opens_rather_than_404s_or_is_absent(
+    specialist: Specialist, answers: Callable[[str], bool]
 ) -> None:
-    """A unit test asserts the string; only Datadog says whether it is a route."""
-    retrieved = _investigated()
+    """A unit test asserts the string; only Datadog says whether it is a route.
 
-    address = retrieved.resolve("call-1").url  # type: ignore[union-attr]
+    Every retrieval rather than ``call-1``, which is as likely to be the
+    platform's guide to its own grammar as it is evidence. Both outcomes are
+    specified: a tool with an address form gets an address that opens, and one
+    without gets none. A Log Explorer address for a metric is neither.
+    """
+    retrieved, links = _investigated(specialist)
 
-    assert address is not None
-    assert answers(address), f"the platform serves nothing at {address}"
+    assert retrieved.retrievals >= 1
+    for tool, address in links.addressed:
+        if tool in UNADDRESSED:
+            assert address is None, f"{tool} was addressed at {address}"
+        else:
+            assert address is not None, f"{tool} was given no address"
+            assert answers(address), f"the platform serves nothing at {address}"
 
 
 def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
@@ -262,9 +301,16 @@ def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
     adapter reads is a finding to fold back into ``ITEM_KEYS`` — not a broken
     link. What this records is which of them a live payload actually uses.
     """
-    retrieved = _investigated()
+    retrieved, links = _investigated(LOGS_SPECIALIST)
 
-    item = retrieved.resolve("call-1/item-1")
+    item = next(
+        (
+            retrieved.resolve(f"call-{call}/item-1")
+            for call, (tool, _) in enumerate(links.addressed, start=1)
+            if tool in LOG_TOOLS
+        ),
+        None,
+    )
     if item is None:
         pytest.skip(f"the logs of {SERVICE!r} were quiet, so no item was returned")
 

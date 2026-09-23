@@ -9,38 +9,38 @@ that fails its live check is dropped rather than shipped.
 
 ## 1. A retrieval is addressed as what produced it
 
-- [ ] 1.1 In `tests/unit/investigation/adapters/datadog/test_evidence_is_addressed_where_it_lives.py`,
+- [x] 1.1 In `tests/unit/investigation/adapters/datadog/test_evidence_is_addressed_where_it_lives.py`,
   assert a retrieval from a tool `DatadogLinks` has no address form for gets
   no address at all — `None`, not a Log Explorer search. Give
   `DatadogLinks.to_retrieval` the tool's name and route on it, with the
   existing Log Explorer construction reached only by the log tools.
-- [ ] 1.2 In the same file, assert the log tools still produce exactly the
+- [x] 1.2 In the same file, assert the log tools still produce exactly the
   address they produce today, query and window and `live=false` included. This
   is the refactor's safety net: the one form already confirmed against a real
   account must come out the other side unchanged.
-- [ ] 1.3 Assert `to_item` routes the same way, so an item from an unmapped
+- [x] 1.3 Assert `to_item` routes the same way, so an item from an unmapped
   tool inherits nothing rather than inheriting a log address. Give it the tool
   name too, and keep the fallback-to-the-retrieval behaviour within a form.
 
 ## 2. The framework hands the platform the tool
 
-- [ ] 2.1 In `tests/unit/investigation/adapters/adk/test_only_what_was_retrieved_is_citable.py`,
+- [x] 2.1 In `tests/unit/investigation/adapters/adk/test_only_what_was_retrieved_is_citable.py`,
   assert `retain_evidence` passes the tool it was called for to the linker, and
   that a `Retrieved` built without a linker still keeps every `url` at `None`.
   Add the tool's name to `Links.to_retrieval` and `Links.to_item` in
   `adk/evidence.py`, and thread it through `_address_of` and `_item_addresses`.
-- [ ] 2.2 In `tests/unit/investigation/adapters/adk/test_a_tool_result_reaches_the_model_checked.py`,
+- [x] 2.2 In `tests/unit/investigation/adapters/adk/test_a_tool_result_reaches_the_model_checked.py`,
   assert `_kept` hands `retain_evidence` the name it already computed for the
   permitted-tools check rather than computing it twice or passing the tool
   object. A failed retrieval is still refused unchanged.
-- [ ] 2.3 Run `uv run pytest tests/unit/investigation/adapters/adk/test_architecture.py`
+- [x] 2.3 Run `uv run pytest tests/unit/investigation/adapters/adk/test_architecture.py`
   — or the architecture test wherever it lives — and confirm `adk/` still has
   no import of `datadog/`. The tool name is a string; if this cycle needed an
   import, the linker has stopped being injected.
 
 ## 3. No tool is forgotten
 
-- [ ] 3.1 In `tests/unit/investigation/adapters/datadog/test_evidence_is_addressed_where_it_lives.py`,
+- [x] 3.1 In `tests/unit/investigation/adapters/datadog/test_evidence_is_addressed_where_it_lives.py`,
   assert that for every tool the crew declares, `DatadogLinks` either has an
   address form or is recorded as deliberately having none. Watch it fail for
   the tools with no form yet, then add the record. This is what keeps a
@@ -93,7 +93,7 @@ design.md.
 
 ## 6. The live check covers the crew, not one specialist
 
-- [ ] 6.1 In `tests/integration/investigation/adapters/datadog/test_every_specialist_reaches_the_real_platform.py`,
+- [x] 6.1 In `tests/integration/investigation/adapters/datadog/test_every_specialist_reaches_the_real_platform.py`,
   parameterise the address check over `CREW` rather than running it against
   `LOGS_SPECIALIST` alone, the way the declaration check beside it already is.
   Assert each specialist's `call-1` either opens or is absent by design — both
@@ -119,6 +119,6 @@ design.md.
 - [ ] 7.1 Run the full gate: `uv run ruff check src tests`,
   `uv run ruff format --check src tests`, `uv run mypy`, `uv run pytest`.
 - [ ] 7.2 `openspec validate address-evidence-where-it-came-from --strict`.
-- [ ] 7.3 Update `links.py`'s module docstring, which currently describes every
+- [x] 7.3 Update `links.py`'s module docstring, which currently describes every
   address as a Log Explorer search. It is the file's own account of what it
   does and it stops being true in task 1.

@@ -37,7 +37,7 @@ def _cited(
 def test_a_retained_result_is_citable_as_the_call_it_came_from() -> None:
     retrieved = Retrieved()
 
-    offered = retrieved.retain_evidence(_aggregate())
+    offered = retrieved.retain_evidence("search_logs", _aggregate())
 
     assert offered["call"] == "call-1"
     assert retrieved.resolve("call-1") is not None
@@ -46,8 +46,8 @@ def test_a_retained_result_is_citable_as_the_call_it_came_from() -> None:
 def test_two_calls_in_one_investigation_get_distinct_identifiers() -> None:
     retrieved = Retrieved()
 
-    first = retrieved.retain_evidence(_logs("first"))
-    second = retrieved.retain_evidence(_logs("second"))
+    first = retrieved.retain_evidence("search_logs", _logs("first"))
+    second = retrieved.retain_evidence("search_logs", _logs("second"))
 
     assert first["call"] != second["call"]
     assert [
@@ -61,7 +61,7 @@ def test_a_retained_result_keeps_what_the_platform_returned_verbatim() -> None:
     retrieved = Retrieved()
     result = _aggregate()
 
-    retrieved.retain_evidence(result)
+    retrieved.retain_evidence("search_logs", result)
 
     call = retrieved.resolve("call-1")
     assert call is not None and call.payload == result
@@ -70,7 +70,7 @@ def test_a_retained_result_keeps_what_the_platform_returned_verbatim() -> None:
 def test_the_items_within_a_call_are_addressable_beneath_it() -> None:
     retrieved = Retrieved()
 
-    offered = retrieved.retain_evidence(_logs("first", "second"))
+    offered = retrieved.retain_evidence("search_logs", _logs("first", "second"))
 
     assert [item["id"] for item in offered["items"]] == [
         "call-1/item-1",
@@ -81,7 +81,7 @@ def test_the_items_within_a_call_are_addressable_beneath_it() -> None:
 def test_the_identifiers_the_model_is_shown_are_the_ones_that_resolve() -> None:
     retrieved = Retrieved()
 
-    offered = retrieved.retain_evidence(_logs("first", "second"))
+    offered = retrieved.retain_evidence("search_logs", _logs("first", "second"))
 
     for item in offered["items"]:
         assert retrieved.resolve(item["id"]) is not None
@@ -89,7 +89,7 @@ def test_the_identifiers_the_model_is_shown_are_the_ones_that_resolve() -> None:
 
 def test_a_citation_to_a_call_that_was_never_made_resolves_to_nothing() -> None:
     retrieved = Retrieved()
-    retrieved.retain_evidence(_logs("first"))
+    retrieved.retain_evidence("search_logs", _logs("first"))
 
     assert retrieved.resolve("call-9") is None
     assert retrieved.resolve("call-1/item-9") is None
@@ -98,7 +98,7 @@ def test_a_citation_to_a_call_that_was_never_made_resolves_to_nothing() -> None:
 def test_each_investigation_starts_with_nothing_citable() -> None:
     """An identifier from an earlier incident must not resolve in a later one."""
     earlier = Retrieved()
-    earlier.retain_evidence(_logs("first"))
+    earlier.retain_evidence("search_logs", _logs("first"))
 
     later = Retrieved()
 
@@ -127,9 +127,9 @@ def test_a_refused_retrieval_is_not_citable_as_evidence() -> None:
 def test_failures_and_successes_accumulate_side_by_side() -> None:
     retrieved = Retrieved()
 
-    retrieved.retain_evidence(_logs("first"))
+    retrieved.retain_evidence("search_logs", _logs("first"))
     retrieved.refuse_evidence("the metrics search was refused")
-    retrieved.retain_evidence(_logs("second"))
+    retrieved.retain_evidence("search_logs", _logs("second"))
 
     assert retrieved.failures == ("the metrics search was refused",)
     assert retrieved.retrievals == 2
@@ -138,14 +138,49 @@ def test_failures_and_successes_accumulate_side_by_side() -> None:
 
 
 class _Links:
-    """A platform's addresses, standing in for the one bound to a real site."""
+    """A platform's addresses, standing in for the one bound to a real site.
 
-    def to_retrieval(self, args: Any) -> str | None:
+    It records which tool each address was asked for, which is the one thing a
+    platform needs to know about a retrieval that its arguments cannot say.
+    """
+
+    def __init__(self) -> None:
+        self.asked_for: list[str] = []
+
+    def to_retrieval(self, tool: str, args: Any) -> str | None:
+        self.asked_for.append(tool)
         return f"https://platform/search?query={args.get('query', '')}"
 
-    def to_item(self, payload: Any, within: str | None) -> str | None:
+    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+        self.asked_for.append(tool)
         item = payload.get("id") if isinstance(payload, dict) else None
         return f"https://platform/logs?event={item}" if item else within
+
+
+def test_the_linker_is_told_which_tool_each_address_is_for() -> None:
+    """Arguments alone cannot say whether a query was a log search or a metric."""
+    links = _Links()
+    retrieved = Retrieved(link=links)
+
+    retrieved.retain_evidence("get_metric", _identified("series-a"))
+
+    assert links.asked_for == ["get_metric", "get_metric"]
+
+
+def test_a_retrieval_from_a_tool_the_linker_cannot_place_carries_no_address() -> None:
+    class _Unplaced(_Links):
+        def to_retrieval(self, tool: str, args: Any) -> str | None:
+            return None
+
+        def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+            return None
+
+    retrieved = Retrieved(link=_Unplaced())
+
+    retrieved.retain_evidence("get_metric", _identified("series-a"))
+
+    assert retrieved.resolve("call-1").url is None  # type: ignore[union-attr]
+    assert retrieved.resolve("call-1/item-1").url is None  # type: ignore[union-attr]
 
 
 def _identified(*items: str) -> dict[str, Any]:
@@ -160,7 +195,7 @@ def _identified(*items: str) -> dict[str, Any]:
 def test_items_resolve_to_evidence_carrying_the_address_the_linker_built() -> None:
     retrieved = Retrieved(link=_Links())
 
-    retrieved.retain_evidence(_identified("log-a", "log-b"))
+    retrieved.retain_evidence("search_logs", _identified("log-a", "log-b"))
 
     assert [retrieved.resolve(f"call-1/item-{n}").url for n in (1, 2)] == [  # type: ignore[union-attr]
         "https://platform/logs?event=log-a",
@@ -172,7 +207,7 @@ def test_a_retrieval_kept_without_a_linker_addresses_nothing() -> None:
     """Evidence with no address is still evidence, which is what this describes."""
     retrieved = Retrieved()
 
-    retrieved.retain_evidence(_logs("first"))
+    retrieved.retain_evidence("search_logs", _logs("first"))
 
     assert retrieved.resolve("call-1/item-1").url is None  # type: ignore[union-attr]
     assert retrieved.resolve("call-1").url is None  # type: ignore[union-attr]
@@ -182,7 +217,9 @@ def test_an_item_the_platform_cannot_address_falls_back_to_its_retrieval() -> No
     """A reader lands on the search that produced it rather than nowhere."""
     retrieved = Retrieved(link=_Links())
 
-    retrieved.retain_evidence(_logs("first"), args={"query": "service:checkout"})
+    retrieved.retain_evidence(
+        "search_logs", _logs("first"), args={"query": "service:checkout"}
+    )
 
     assert retrieved.resolve("call-1/item-1").url == (  # type: ignore[union-attr]
         "https://platform/search?query=service:checkout"
@@ -194,7 +231,7 @@ def test_the_call_an_aggregate_is_cited_by_carries_the_retrievals_address() -> N
     retrieved = Retrieved(link=_Links())
 
     retrieved.retain_evidence(
-        _aggregate(), args={"query": "service:checkout status:error"}
+        "search_logs", _aggregate(), args={"query": "service:checkout status:error"}
     )
 
     assert retrieved.resolve("call-1").url == (  # type: ignore[union-attr]
@@ -206,6 +243,6 @@ def test_a_retrieval_kept_with_no_arguments_is_still_addressed_as_it_can_be() ->
     """ADK hands over what the tool was called with; a caller need not."""
     retrieved = Retrieved(link=_Links())
 
-    retrieved.retain_evidence(_aggregate())
+    retrieved.retain_evidence("search_logs", _aggregate())
 
     assert retrieved.resolve("call-1").url == "https://platform/search?query="  # type: ignore[union-attr]

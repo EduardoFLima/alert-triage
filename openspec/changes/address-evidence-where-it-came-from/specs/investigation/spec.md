@@ -42,7 +42,7 @@ retrieval depends on which tool was called, so the address SHALL be derived
 from the tool as well as from what the tool was asked, and the system SHALL
 NOT address a retrieval as a kind of thing it did not come from. Where the
 platform's address for a retrieval of that kind is not known, the evidence
-SHALL carry no address: absence is alre, and anady a complete answer here
+SHALL carry no address: absence is already a complete answer here, and an
 address that opens the wrong view is worse than none, because a reader cannot
 tell it from a view that is genuinely empty.
 

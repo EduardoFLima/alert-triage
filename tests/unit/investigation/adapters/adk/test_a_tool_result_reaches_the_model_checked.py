@@ -208,16 +208,16 @@ def test_a_framework_tool_that_fails_is_not_a_failed_retrieval() -> None:
 
 
 class _Args:
-    """Keeps what a retrieval was told the tool was called with."""
+    """Keeps which tool a retrieval was addressed for, and what it was called with."""
 
     def __init__(self) -> None:
-        self.seen: list[Any] = []
+        self.seen: list[tuple[Any, Any]] = []
 
-    def to_retrieval(self, args: Any) -> str | None:
-        self.seen.append(args)
+    def to_retrieval(self, tool: str, args: Any) -> str | None:
+        self.seen.append((tool, args))
         return "https://platform/search"
 
-    def to_item(self, payload: Any, within: str | None) -> str | None:
+    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
         return within
 
 
@@ -228,7 +228,21 @@ def test_the_arguments_a_tool_was_called_with_reach_what_keeps_its_result() -> N
 
     _after(retrieved, _result("OOMKilled"))
 
-    assert links.seen == [{"query": "service:checkout status:error"}]
+    assert [args for _, args in links.seen] == [
+        {"query": "service:checkout status:error"}
+    ]
+
+
+def test_what_keeps_a_result_is_told_the_tools_name_rather_than_handed_the_tool() -> (
+    None
+):
+    """The name the permitted-tools check read is the one the address is built for."""
+    links = _Args()
+    retrieved = Retrieved(link=links)
+
+    _after(retrieved, _result("OOMKilled"))
+
+    assert [tool for tool, _ in links.seen] == ["search_datadog_logs"]
 
 
 def test_a_failed_retrieval_is_still_refused_rather_than_addressed() -> None:

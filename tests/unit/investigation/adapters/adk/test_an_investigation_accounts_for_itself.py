@@ -61,7 +61,7 @@ def _specialist() -> Specialist:
 
 def _consulted() -> Consulted:
     retrieved = Retrieved()
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
     return Consulted(offered=(_specialist(),), retrieved=retrieved)
 
 

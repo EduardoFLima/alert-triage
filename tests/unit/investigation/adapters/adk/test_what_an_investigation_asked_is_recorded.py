@@ -59,7 +59,7 @@ def test_it_knows_the_whole_crew_it_offered() -> None:
 
 def test_it_records_which_specialists_were_asked_in_order() -> None:
     consulted, retrieved = _consulted(LOGS, APM)
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
 
     consulted.record(APM, _report("call-1"))
     consulted.record(LOGS, _report("call-1"))
@@ -69,7 +69,7 @@ def test_it_records_which_specialists_were_asked_in_order() -> None:
 
 def test_it_accumulates_the_findings_that_survived() -> None:
     consulted, retrieved = _consulted(LOGS, APM)
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
 
     consulted.record(LOGS, _report("call-1/item-1", observation="the logs recur"))
     consulted.record(APM, _report("call-1", observation="latency doubled"))
@@ -87,7 +87,7 @@ def test_it_accumulates_the_findings_that_survived() -> None:
 def test_the_signals_consulted_name_each_one_once() -> None:
     """A specialist asked twice consulted one signal, and cost two questions."""
     consulted, retrieved = _consulted(LOGS, APM)
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
 
     consulted.record(LOGS, _report("call-1/item-1"))
     consulted.record(LOGS, _report("call-1/item-1"))
@@ -98,7 +98,7 @@ def test_the_signals_consulted_name_each_one_once() -> None:
 
 def test_a_specialist_never_asked_names_no_signal() -> None:
     consulted, retrieved = _consulted(LOGS, APM)
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
 
     consulted.record(LOGS, _report("call-1/item-1"))
 
@@ -109,7 +109,7 @@ def test_a_specialist_never_asked_names_no_signal() -> None:
 def test_a_specialist_whose_findings_were_all_discarded_was_still_consulted() -> None:
     """Consultation and evidence are independent facts, and this is where they part."""
     consulted, retrieved = _consulted(LOGS)
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
 
     consulted.record(LOGS, _report("call-9/item-1"))
 

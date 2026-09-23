@@ -145,9 +145,11 @@ def _reported(cites: list[str]) -> dict[str, Any]:
 def _retrieved() -> Retrieved:
     retrieved = Retrieved()
     retrieved.retain_evidence(
-        {"logs": [{"message": "OOMKilled"}, {"message": "restarting"}]}
+        "search_logs", {"logs": [{"message": "OOMKilled"}, {"message": "restarting"}]}
     )
-    retrieved.retain_evidence({"buckets": [{"by": "status", "count": 91}]})
+    retrieved.retain_evidence(
+        "search_logs", {"buckets": [{"by": "status", "count": 91}]}
+    )
     return retrieved
 
 
