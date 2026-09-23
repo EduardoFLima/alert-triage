@@ -22,6 +22,10 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
+from alert_triage.configuration.adapters.yaml.loader import (
+    DEFAULT_CONFIG_PATH,
+    load_config,
+)
 from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import Investigation
 from alert_triage.investigation.adapters.adk.agent import (
@@ -106,7 +110,15 @@ a connection to each, and a failure has to say which half of it is missing.
 
 
 def _deployment() -> Deployment:
+    """The deployment a real run would assemble, bounds included.
+
+    The breakers are read the way a run reads them, so an override in the
+    environment or the config file governs this suite too. Built with the
+    defaults instead, a specialist here would stop at the default call budget
+    whatever the developer had configured.
+    """
     connection = resolve_connection()
+    breakers = load_config(DEFAULT_CONFIG_PATH).circuit_breakers
     model = build_model(Investigation.DEFAULT_MODEL, resolve_model_access())
     return Deployment(
         platforms={
@@ -118,6 +130,7 @@ def _deployment() -> Deployment:
             )
         },
         model_for=lambda named: model,
+        breakers=breakers,
     )
 
 
