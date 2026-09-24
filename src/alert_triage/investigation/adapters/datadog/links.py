@@ -31,46 +31,50 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import urlencode
 
+from alert_triage.investigation.adapters.datadog import tools
+
 LOG_EXPLORER_PATH = "logs"
 
-LOG_TOOLS = frozenset({"search_datadog_logs", "analyze_datadog_logs"})
+LOG_TOOLS = frozenset({tools.SEARCH_LOGS.name, tools.ANALYZE_LOGS.name})
 """The tools whose retrievals are Log Explorer searches, and the only ones."""
 
 ADDRESSED = LOG_TOOLS
 """Every tool an address template is known for."""
 
 UNADDRESSED = frozenset(
-    {
-        "get_datadog_metric",
-        "search_datadog_metrics",
-        "get_datadog_metric_context",
-        "search_datadog_entities",
-        "search_datadog_events",
-        "search_datadog_hosts",
-        "search_datadog_k8s_resources",
-        "describe_datadog_k8s_resource",
-        "analyse_datadog_k8s_rollout",
-        "search_datadog_spans",
-        "get_datadog_trace",
-        "apm_latency_bottleneck_summary",
-        "apm_search_watchdog_stories",
-        "get_change_stories",
-        "semantic_search_change_stories",
-        "apm_query_trace",
-        "apm_discover_span_tags",
-        "list_datadog_skills",
-        "load_datadog_skill",
-    }
+    tool.name
+    for tool in (
+        tools.GET_METRIC,
+        tools.SEARCH_METRICS,
+        tools.GET_METRIC_CONTEXT,
+        tools.SEARCH_ENTITIES,
+        tools.SEARCH_EVENTS,
+        tools.SEARCH_HOSTS,
+        tools.SEARCH_K8S_RESOURCES,
+        tools.DESCRIBE_K8S_RESOURCE,
+        tools.ANALYSE_K8S_ROLLOUT,
+        tools.SEARCH_SPANS,
+        tools.GET_TRACE,
+        tools.LATENCY_BOTTLENECK_SUMMARY,
+        tools.SEARCH_WATCHDOG_STORIES,
+        tools.GET_CHANGE_STORIES,
+        tools.SEARCH_CHANGE_STORIES,
+        tools.QUERY_TRACE,
+        tools.DISCOVER_SPAN_TAGS,
+        tools.LIST_SKILLS,
+        tools.LOAD_SKILL,
+    )
 )
 """Every tool the crew reaches that deliberately has no address template yet.
 
 Recorded rather than merely absent, so that a tool a specialist is widened to
 later fails a unit test until someone decides which of these two it belongs
 in, instead of quietly reporting its evidence without an address. A tool here
-is linkless because no template for it has been confirmed against a real account,
-and an unconfirmed template is how a reader gets sent to a page that looks like an
-answer and is not. The skill tools are here for a different reason: what they
-return is the platform's guidance on its own grammar, not evidence of anything.
+is linkless because no template for it has been confirmed against a real
+account, and an unconfirmed template is how a reader gets sent to a page that
+looks like an answer and is not. The skill tools are here for a different
+reason: what they return is the platform's guidance on its own grammar, not
+evidence of anything.
 """
 
 ITEM_KEYS = ("id", "log_id", "event_id")
