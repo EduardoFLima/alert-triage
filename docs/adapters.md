@@ -92,7 +92,9 @@ choice of two homes and no honest answer.
 
 A provider this project has never reached is a directory of your own beside
 `datadog/`, holding how its MCP server is addressed, how the items it returns
-are addressed, and the constant your declarations name it by.
+are addressed, the constant your declarations name it by, and a catalogue of
+the tools it serves — each tool's name, toolset and description stated once,
+for declarations to pick from.
 
 | Yours to declare | What it is |
 |---|---|
@@ -100,7 +102,7 @@ are addressed, and the constant your declarations name it by.
 | `signal` | the dimension its findings are drawn from |
 | `instruction` | what it looks for, in your providers' own terms — including their query dialects, which are not translatable |
 | `output_schema` | the shape it reports in. It cites what it was shown; there is no field to write evidence into |
-| `toolsets` | one per group of tools, each naming the provider serving it, the group as that provider names it, and the tools within it this specialist may reach |
+| `toolsets` | one per group of tools, each naming the provider serving it, the group as that provider names it, and the tools within it this specialist may reach. Derive them from the tools you pick out of the provider's catalogue rather than writing them by hand, so they cannot disagree with the instruction's list |
 | `model` | optional, where this specialist needs a different model from its siblings |
 
 The deployment supplies the rest — where each provider is, the credentials that

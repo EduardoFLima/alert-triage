@@ -27,57 +27,38 @@ from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
-    SKILL_LIST_TOOL,
-    SKILL_LOAD_TOOL,
 )
-from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
 )
+from alert_triage.investigation.adapters.datadog.tools import (
+    GET_CHANGE_STORIES,
+    GET_METRIC,
+    GET_METRIC_CONTEXT,
+    LATENCY_BOTTLENECK_SUMMARY,
+    LIST_SKILLS,
+    LOAD_SKILL,
+    SEARCH_CHANGE_STORIES,
+    SEARCH_ENTITIES,
+    SEARCH_EVENTS,
+    SEARCH_METRICS,
+    SEARCH_WATCHDOG_STORIES,
+    DatadogTool,
+    described,
+    toolsets,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
-from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.investigation.domain.specialist import Specialist
 
-CORE_TOOLSET = "core"
-APM_TOOLSET = "apm"
-"""The toolsets on the platform's server holding what this specialist reaches.
+_METRIC_TOOLS = (SEARCH_METRICS, GET_METRIC_CONTEXT, GET_METRIC)
+"""The metric tools every account has, whatever its Preview access."""
 
-``apm`` is reached only where the account has it; see ``preview``.
-"""
-
-METRIC_TOOL = "get_datadog_metric"
-METRIC_SEARCH_TOOL = "search_datadog_metrics"
-METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
-CATALOG_TOOL = "search_datadog_entities"
-EVENTS_TOOL = "search_datadog_events"
-"""The tools every account has, whatever its Preview access.
-
-``METRIC_SEARCH_TOOL`` is what keeps a guessed metric name from reading as a
-healthy service. A metric query the platform has never heard of comes back
-empty, and an empty answer is deliberately not a failure — so without a way to
-ask which metrics a service actually reports, the specialist cannot tell "this
-service is fine" from "I made that name up".
-
-``METRIC_CONTEXT_TOOL`` is the second half of that: it takes one metric name
-and answers with its unit, its type and the tags it carries. It enumerates
-nothing, and a specialist told otherwise asks it for a service's whole
-catalogue — which it has no argument for, so the retrieval is refused.
-
-``CATALOG_TOOL`` is the platform's catalogue search, which answers about a
-service's identity and ownership as well as its neighbours. It replaced a
-dependency lookup that took a service and named what it talked to; a search has
-to be asked a question, so the instruction says what to ask for.
-
-``EVENTS_TOOL`` carries deploy correlation on an account without Preview. It
-returns deployments, infrastructure changes and monitor alerts rather than the
-change stories assembled for an APM service: coarser, and enough, because the
-question is whether something landed near the alerts rather than what it
-consisted of.
-"""
-
-BOTTLENECK_TOOL = "apm_latency_bottleneck_summary"
-WATCHDOG_TOOL = "apm_search_watchdog_stories"
-CHANGES_TOOL = "get_change_stories"
-CHANGE_SEARCH_TOOL = "semantic_search_change_stories"
+_PREVIEW_TOOLS = (
+    LATENCY_BOTTLENECK_SUMMARY,
+    SEARCH_WATCHDOG_STORIES,
+    GET_CHANGE_STORIES,
+    SEARCH_CHANGE_STORIES,
+)
 """The tools that exist only in the Preview toolset, reached only where granted.
 
 That these names exist and that the filter admits them is what the
@@ -85,32 +66,24 @@ credential-gated live run establishes; a fake is built from the same
 assumptions this declaration is.
 """
 
-_CORE_TOOLS_DESCRIBED = f"""\
-- `{METRIC_SEARCH_TOOL}` lists the metrics that exist, filtered by name or by
-  tag — `service:the-service` is how you narrow it to one service's.
-- `{METRIC_CONTEXT_TOOL}` takes one metric you have already found and tells
-  you its unit, its type and what tags it carries.
-- `{METRIC_TOOL}` returns a metric's values over a time range.
-- `{CATALOG_TOOL}` searches the platform's catalogue of services. Ask it for
-  the immediate upstream and downstream dependencies of the service you were
-  told about; it answers what you ask, so ask about that service and not about
-  its neighbours in turn."""
+_WITHOUT_PREVIEW_TOOLS = (SEARCH_EVENTS,)
+"""What carries deploy correlation on an account without Preview.
 
-_PREVIEW_TOOLS_DESCRIBED = f"""\
-- `{BOTTLENECK_TOOL}` breaks a service's latency down into where the time was
-  spent, when you have seen latency move and want to say where it went.
-- `{WATCHDOG_TOOL}` returns the anomalies the platform itself already detected
-  for a service over a time range.
-- `{CHANGES_TOOL}` returns the deployments, feature-flag changes and
-  configuration changes recorded for a service over a time range.
-- `{CHANGE_SEARCH_TOOL}` searches those same changes in plain language, for
-  when you want the ones that could plausibly explain a movement you have
-  already observed rather than all of them."""
+Events are deployments, infrastructure changes and monitor alerts rather than
+the change stories assembled for an APM service: coarser, and enough, because
+the question is whether something landed near the alerts rather than what it
+consisted of.
+"""
 
-_EVENTS_DESCRIBED = f"""\
-- `{EVENTS_TOOL}` returns the events recorded around a service — deployments,
-  infrastructure changes and monitor alerts — which is how you find out
-  whether something landed near the alerts."""
+_CATALOGUE_ASK = """\
+The catalogue answers what you ask, so ask it for the immediate upstream and
+downstream dependencies of the service you were told about, and not about its
+neighbours in turn."""
+"""What to ask the catalogue search, which would otherwise be asked anything.
+
+It follows the list directly, and the catalogue search is listed last, so the
+ask sits beside the tool it is about.
+"""
 
 _WATCHDOG_ASK = """\
 - Anything the platform already flagged for this service over the window. It
@@ -140,13 +113,12 @@ _CHANGE_ASK = """\
   present it as one."""
 
 
-def _tools_described(preview: bool) -> str:
-    """The tools this specialist is told it has, given what the account may reach."""
-    return "\n".join(
-        (
-            _CORE_TOOLS_DESCRIBED,
-            _PREVIEW_TOOLS_DESCRIBED if preview else _EVENTS_DESCRIBED,
-        )
+def _tools(preview: bool) -> tuple[DatadogTool, ...]:
+    """The tools this specialist may call, given what the account may reach."""
+    return (
+        *_METRIC_TOOLS,
+        *(_PREVIEW_TOOLS if preview else _WITHOUT_PREVIEW_TOOLS),
+        SEARCH_ENTITIES,
     )
 
 
@@ -173,11 +145,13 @@ window: what moved, by how much, and when it moved relative to the alerts.
 
 The tools you have are Datadog's:
 
-{_tools_described(preview)}
+{described(*_tools(preview))}
+
+{_CATALOGUE_ASK}
 
 {CONSULT_THE_PLATFORM}
 
-Ask `{METRIC_SEARCH_TOOL}` which metrics the service reports before you query
+Ask `{SEARCH_METRICS.name}` which metrics the service reports before you query
 one, and read the name you query out of what it answers. Do not guess a metric
 name: a name this service does not report comes back empty.
 
@@ -255,68 +229,12 @@ def apm_specialist(*, preview: bool) -> Specialist:
         The declaration, reaching only tools the account can actually call and
         instructed only in what those tools can establish.
     """
-    if preview:
-        return _declared(
-            Toolset(
-                provider=DATADOG,
-                name=CORE_TOOLSET,
-                tools=(
-                    METRIC_TOOL,
-                    METRIC_SEARCH_TOOL,
-                    METRIC_CONTEXT_TOOL,
-                    CATALOG_TOOL,
-                    SKILL_LIST_TOOL,
-                    SKILL_LOAD_TOOL,
-                ),
-            ),
-            Toolset(
-                provider=DATADOG,
-                name=APM_TOOLSET,
-                tools=(
-                    BOTTLENECK_TOOL,
-                    WATCHDOG_TOOL,
-                    CHANGES_TOOL,
-                    CHANGE_SEARCH_TOOL,
-                ),
-            ),
-            preview=preview,
-        )
-
-    return _declared(
-        Toolset(
-            provider=DATADOG,
-            name=CORE_TOOLSET,
-            tools=(
-                METRIC_TOOL,
-                METRIC_SEARCH_TOOL,
-                METRIC_CONTEXT_TOOL,
-                CATALOG_TOOL,
-                EVENTS_TOOL,
-                SKILL_LIST_TOOL,
-                SKILL_LOAD_TOOL,
-            ),
-        ),
-        preview=preview,
-    )
-
-
-def _declared(*toolsets: Toolset, preview: bool) -> Specialist:
-    """The declaration around the toolsets the account turned out to have.
-
-    Args:
-        toolsets: What this account's specialist may reach.
-        preview: Whether those include the Preview toolset, which is what the
-            instruction is written against.
-
-    Returns:
-        The declaration, with the instruction matching the tools.
-    """
     return Specialist(
         name="apm_specialist",
         signal=Signal.APM,
         instruction=_instruction(preview),
         output_schema=ReportedFindings,
-        toolsets=toolsets,
+        toolsets=toolsets(*_tools(preview), LIST_SKILLS, LOAD_SKILL),
     )
 
 

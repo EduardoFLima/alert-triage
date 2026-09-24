@@ -12,25 +12,21 @@ query — they look alike and are not — and each paragraph below is one 400 it
 came back with.
 """
 
-SKILL_LIST_TOOL = "list_datadog_skills"
-SKILL_LOAD_TOOL = "load_datadog_skill"
-"""How the platform publishes the grammars its own tools are queried in.
-
-Named here rather than in each specialist because every specialist that
-queries anything reaches both, and because this is the module that exists to
-answer "how is a query written on this platform" — which these two answer
-better than a transcription can.
-"""
+from alert_triage.investigation.adapters.datadog.tools import (
+    LIST_SKILLS,
+    LOAD_SKILL,
+    described,
+)
 
 CONSULT_THE_PLATFORM = f"""
 This platform documents how its own tools are queried, and that documentation
 is the authority on syntax — not your recollection of it, and not the shape of
 a query you wrote for a different tool.
 
-- `{SKILL_LIST_TOOL}` lists the guides it publishes.
-- `{SKILL_LOAD_TOOL}` loads one, by the name the listing gave it. A guide may
-  point you at a further reference of its own; load that one the same way,
-  passing the path it named you.
+{described(LIST_SKILLS, LOAD_SKILL)}
+
+A guide may point you at a further reference of its own; load that one the
+same way, passing the path it named you.
 
 Load the guide covering a tool before you write your first query with it. The
 tools here take several different query languages — one takes SQL over a

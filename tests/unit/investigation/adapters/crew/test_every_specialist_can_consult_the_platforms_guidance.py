@@ -16,11 +16,8 @@ this exists to remove, one indirection out.
 import pytest
 
 from alert_triage.investigation.adapters.crew.roster import CREW
-from alert_triage.investigation.adapters.datadog.dialect import (
-    CONSULT_THE_PLATFORM,
-    SKILL_LIST_TOOL,
-    SKILL_LOAD_TOOL,
-)
+from alert_triage.investigation.adapters.datadog.dialect import CONSULT_THE_PLATFORM
+from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_SKILL
 from alert_triage.investigation.domain.specialist import Specialist
 
 CREWED = pytest.mark.parametrize(
@@ -37,7 +34,7 @@ def test_a_specialist_may_reach_the_platforms_own_guidance(
     specialist: Specialist,
 ) -> None:
     """Both halves: one lists what is published, the other fetches one."""
-    assert {SKILL_LIST_TOOL, SKILL_LOAD_TOOL} <= _permitted(specialist)
+    assert {LIST_SKILLS.name, LOAD_SKILL.name} <= _permitted(specialist)
 
 
 @CREWED
@@ -45,8 +42,8 @@ def test_a_specialist_is_told_to_consult_it_before_writing_a_query(
     specialist: Specialist,
 ) -> None:
     """A tool it may reach and is never told to use is a tool it will not use."""
-    assert SKILL_LIST_TOOL in specialist.instruction
-    assert SKILL_LOAD_TOOL in specialist.instruction
+    assert LIST_SKILLS.name in specialist.instruction
+    assert LOAD_SKILL.name in specialist.instruction
 
 
 @CREWED

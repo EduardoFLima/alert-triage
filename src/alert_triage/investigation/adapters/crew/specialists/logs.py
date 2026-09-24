@@ -19,28 +19,24 @@ from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
-    SKILL_LIST_TOOL,
-    SKILL_LOAD_TOOL,
 )
-from alert_triage.investigation.adapters.datadog.mcp import DATADOG
+from alert_triage.investigation.adapters.datadog.tools import (
+    ANALYZE_LOGS,
+    LIST_SKILLS,
+    LOAD_SKILL,
+    SEARCH_LOGS,
+    described,
+    toolsets,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
-from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.investigation.domain.specialist import Specialist
 
-LOGS_TOOLSET = "core"
-"""The toolset on the platform's server holding its log tools."""
-
-LOG_SEARCH_TOOL = "search_datadog_logs"
-LOG_ANALYSIS_TOOL = "analyze_datadog_logs"
+LOG_TOOLS = (SEARCH_LOGS, ANALYZE_LOGS)
 """The log tools this specialist may reach, and the only ones.
 
-Named for analysis rather than aggregation, after the tool it holds. That also
-keeps the constant clear of this project's own use of "aggregate", which is a
-grain of evidence — a result with no discrete items to cite — and not a kind of
-tool.
-
-Widening this is a word in the declaration below. It is also the one thing a
-fake cannot verify — that these names exist and that the filter admits them is
-what the credential-gated live run is for.
+Widening this is a word in the tuple. It is also the one thing a fake cannot
+verify — that these names exist and that the filter admits them is what the
+credential-gated live run is for.
 """
 
 LOGS_INSTRUCTION = f"""
@@ -53,13 +49,10 @@ find: what recurs, how often, and when it started relative to the alerts.
 
 The tools you have are Datadog's:
 
-- `{LOG_SEARCH_TOOL}` returns individual log events matching a Datadog log
-  query. Its `use_log_patterns` returns clusters of similar messages instead of
-  raw events, which is what recurs, already grouped — usually the quickest way
-  to the answer you are being asked for.
-- `{LOG_ANALYSIS_TOOL}` runs SQL over a virtual `logs` table holding the events
-  its own Datadog log query admits, when you want the shape of a pattern —
-  a count, a breakdown by status or host — rather than its instances.
+{described(*LOG_TOOLS)}
+
+`use_log_patterns` is usually the quickest way to the answer you are being
+asked for.
 
 {CONSULT_THE_PLATFORM}
 
@@ -138,17 +131,6 @@ LOGS_SPECIALIST = Specialist(
     signal=Signal.LOGS,
     instruction=LOGS_INSTRUCTION,
     output_schema=ReportedFindings,
-    toolsets=(
-        Toolset(
-            provider=DATADOG,
-            name=LOGS_TOOLSET,
-            tools=(
-                LOG_SEARCH_TOOL,
-                LOG_ANALYSIS_TOOL,
-                SKILL_LIST_TOOL,
-                SKILL_LOAD_TOOL,
-            ),
-        ),
-    ),
+    toolsets=toolsets(*LOG_TOOLS, LIST_SKILLS, LOAD_SKILL),
 )
 """The Logs specialist as the crew sees it: one declaration, nothing else."""
