@@ -247,13 +247,17 @@ class _Recorded:
         self._links = links
         self.addressed: list[tuple[str, str | None]] = []
 
-    def to_retrieval(self, tool: str, args: Mapping[str, Any]) -> str | None:
-        address = self._links.to_retrieval(tool, args)
+    def to_retrieval(
+        self, tool: str, args: Mapping[str, Any], service: str = ""
+    ) -> str | None:
+        address = self._links.to_retrieval(tool, args, service)
         self.addressed.append((tool, address))
         return address
 
-    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
-        return self._links.to_item(tool, payload, within)
+    def to_item(
+        self, tool: str, payload: Any, within: str | None, service: str = ""
+    ) -> str | None:
+        return self._links.to_item(tool, payload, within, service)
 
 
 def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:

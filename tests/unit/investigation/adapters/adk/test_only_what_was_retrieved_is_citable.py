@@ -147,11 +147,13 @@ class _Links:
     def __init__(self) -> None:
         self.asked_for: list[str] = []
 
-    def to_retrieval(self, tool: str, args: Any) -> str | None:
+    def to_retrieval(self, tool: str, args: Any, service: str = "") -> str | None:
         self.asked_for.append(tool)
         return f"https://platform/search?query={args.get('query', '')}"
 
-    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+    def to_item(
+        self, tool: str, payload: Any, within: str | None, service: str = ""
+    ) -> str | None:
         self.asked_for.append(tool)
         item = payload.get("id") if isinstance(payload, dict) else None
         return f"https://platform/logs?event={item}" if item else within
@@ -169,10 +171,12 @@ def test_the_linker_is_told_which_tool_each_address_is_for() -> None:
 
 def test_a_retrieval_from_a_tool_the_linker_cannot_place_carries_no_address() -> None:
     class _Unplaced(_Links):
-        def to_retrieval(self, tool: str, args: Any) -> str | None:
+        def to_retrieval(self, tool: str, args: Any, service: str = "") -> str | None:
             return None
 
-        def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+        def to_item(
+            self, tool: str, payload: Any, within: str | None, service: str = ""
+        ) -> str | None:
             return None
 
     retrieved = Retrieved(link=_Unplaced())

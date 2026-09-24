@@ -55,19 +55,19 @@ composed from the service and the window the investigation already holds — no
 template reads a query out of the retrieval's `args`, for the reasons in
 design.md.
 
-- [ ] 4.1 The APM tools — `get_datadog_metric`, `search_datadog_metrics`,
+- [x] 4.1 The APM tools — `get_datadog_metric`, `search_datadog_metrics`,
   `get_datadog_metric_context` and the catalogue tool — addressed as the
   service's own page:
   `https://{host}/apm/entity/service%3A{service}?start={ms}&end={ms}`.
-- [ ] 4.2 The span and trace tools — `search_datadog_spans`,
+- [x] 4.2 The span and trace tools — `search_datadog_spans`,
   `get_datadog_trace` — addressed as the trace explorer scoped to the service:
   `https://{host}/apm/traces?query=service%3A{service}&start={ms}&end={ms}`.
-- [ ] 4.3 The host and Kubernetes tools — `search_datadog_hosts`,
+- [x] 4.3 The host and Kubernetes tools — `search_datadog_hosts`,
   `search_datadog_k8s_resources`, `describe_datadog_k8s_resource`.
-- [ ] 4.4 `search_datadog_events`, which has a template already written next
+- [x] 4.4 `search_datadog_events`, which has a template already written next
   door in `triage/adapters/datadog/alert_source.py` and confirmed live. Written
   again here rather than shared — see design.md.
-- [ ] 4.5 Assert in each cycle that the window is expressed in milliseconds
+- [x] 4.5 Assert in each cycle that the window is expressed in milliseconds
   under the parameter names that template uses — `start`/`end` for the APM
   templates, `from_ts`/`to_ts` for the log one — and that a template whose
   window cannot be read drops both ends rather than one, which `links._window`
@@ -103,13 +103,21 @@ design.md.
 - [ ] 6.2 Assert an anchored service-page address opens, and that it opens for
   an anchor the enumerated set contains. The section is the one part of an
   address this project lets the reasoning choose, so it is the part worth
-  seeing resolve against a real account.
+  seeing resolve against a real account. Pass the target's service into the
+  `Retrieved`/`_Recorded` the live run builds: task 4 threaded the service
+  through the linker but left the live wrapper constructing `Retrieved()`
+  service-less, so every service-scoped address resolves against an empty
+  `service:` until this does.
 - [ ] 6.3 Run `uv run --env-file .env pytest
   tests/integration/investigation/adapters/datadog -rs` and record the outcome
   here: which templates were confirmed to open, which specialists ship
   linkless, and which templates were written and then dropped.
   Credential-gated, so a developer's run and not CI's — see
-  [`docs/live-testing.md`](../../../docs/live-testing.md).
+  [`docs/live-testing.md`](../../../docs/live-testing.md). Watch the
+  infrastructure template (task 4.3) first: it is the one written without a
+  shape given in its task — `…/infrastructure?filter=service:{service}`, and
+  windowless because the inventory is a live view — so it is the likeliest of
+  the four to be confirmed-or-dropped here.
 - [ ] 6.4 Say plainly in that record that `to_item` was not exercised live.
   Per-item citations do not resolve against the real server while the MCP
   envelope stays unwrapped, so every live address is a retrieval address and

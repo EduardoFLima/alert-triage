@@ -14,12 +14,17 @@ for another kind of retrieval opens a page that looks like an answer — an empt
 Log Explorer under a metric — and a reader cannot tell it from one that is
 genuinely empty, whereas no address is visibly nothing.
 
-The one template so far is the Log Explorer's. A log retrieval is addressed as the
-search that produced it — a query, the window it ran over as millisecond
-timestamps, and a view pinned to that window rather than to the present. An
-item the payload identifies is addressed as that same search with the item
-named on it, so an address that cannot open the item still opens the search the
-item is in. A link that degrades to the right page is the whole point.
+Most templates are service-scoped, composed from the service the investigation
+holds and the window the retrieval ran over rather than from the query in its
+arguments: a metric, its context and the catalogue open the service's own APM
+page; spans and traces open the Trace Explorer scoped to the service; hosts and
+Kubernetes workloads open the service's infrastructure inventory; events open
+the Event Explorer over the service. The Log Explorer's is the exception,
+composed from the retrieval's own query — a query, the window it ran over as
+millisecond timestamps, and a view pinned to that window rather than to the
+present. An item the payload identifies is addressed as its retrieval with the
+item named on it, so an address that cannot open the item still opens the view
+the item is in. A link that degrades to the right page is the whole point.
 
 "Item" throughout, never "entry": it is the word the citation format
 ``call-N/item-M`` already commits this project to, and one thing retrieved
@@ -38,23 +43,47 @@ LOG_EXPLORER_PATH = "logs"
 LOG_TOOLS = frozenset({tools.SEARCH_LOGS.name, tools.ANALYZE_LOGS.name})
 """The tools whose retrievals are Log Explorer searches, and the only ones."""
 
-ADDRESSED = LOG_TOOLS
-"""Every tool an address template is known for."""
-
-UNADDRESSED = frozenset(
+APM_SERVICE_TOOLS = frozenset(
     tool.name
     for tool in (
         tools.GET_METRIC,
         tools.SEARCH_METRICS,
         tools.GET_METRIC_CONTEXT,
         tools.SEARCH_ENTITIES,
-        tools.SEARCH_EVENTS,
+    )
+)
+"""The tools a service's own APM page answers for — its metrics and its catalogue."""
+
+TRACE_TOOLS = frozenset({tools.SEARCH_SPANS.name, tools.GET_TRACE.name})
+"""The tools whose retrievals are the service's traces, opened in the explorer."""
+
+INFRASTRUCTURE_TOOLS = frozenset(
+    tool.name
+    for tool in (
         tools.SEARCH_HOSTS,
         tools.SEARCH_K8S_RESOURCES,
         tools.DESCRIBE_K8S_RESOURCE,
+    )
+)
+"""The tools whose retrievals are what a service runs on, opened in its inventory."""
+
+EVENT_TOOLS = frozenset({tools.SEARCH_EVENTS.name})
+"""The tool whose retrievals are the service's events, opened in their explorer.
+
+Its address is the same shape ``triage`` builds for an alert's own events and is
+written again here rather than shared: a Datadog route is platform knowledge one
+context keeps, not vocabulary two contexts pass across the shared kernel.
+"""
+
+ADDRESSED = (
+    LOG_TOOLS | APM_SERVICE_TOOLS | TRACE_TOOLS | INFRASTRUCTURE_TOOLS | EVENT_TOOLS
+)
+"""Every tool an address template is known for."""
+
+UNADDRESSED = frozenset(
+    tool.name
+    for tool in (
         tools.ANALYSE_K8S_ROLLOUT,
-        tools.SEARCH_SPANS,
-        tools.GET_TRACE,
         tools.LATENCY_BOTTLENECK_SUMMARY,
         tools.SEARCH_WATCHDOG_STORIES,
         tools.GET_CHANGE_STORIES,
@@ -88,6 +117,9 @@ why the list being incomplete costs precision rather than a working link.
 QUERY_KEYS = ("query", "filter_query", "search_query")
 """What the tool called the log query it was given."""
 
+SERVICE_TAG_PREFIX = "service:"
+"""How a service is named to an explorer's query, the same tag ``triage`` uses."""
+
 FROM_KEYS = ("from", "from_ts", "start", "filter_from")
 TO_KEYS = ("to", "to_ts", "end", "filter_to")
 """What the tool called the ends of the window it searched."""
@@ -115,11 +147,17 @@ class DatadogLinks:
         """
         self._web_host = web_host
 
-        self._templates: Mapping[str, Callable[[Mapping[str, Any]], str]] = (
-            dict.fromkeys(LOG_TOOLS, self._log_search)
-        )
+        self._templates: Mapping[str, Callable[[Mapping[str, Any], str], str]] = {
+            **dict.fromkeys(LOG_TOOLS, self._log_search),
+            **dict.fromkeys(APM_SERVICE_TOOLS, self._service_page),
+            **dict.fromkeys(TRACE_TOOLS, self._trace_explorer),
+            **dict.fromkeys(INFRASTRUCTURE_TOOLS, self._infrastructure),
+            **dict.fromkeys(EVENT_TOOLS, self._event_explorer),
+        }
 
-    def to_retrieval(self, tool: str, args: Mapping[str, Any]) -> str | None:
+    def to_retrieval(
+        self, tool: str, args: Mapping[str, Any], service: str = ""
+    ) -> str | None:
         """Where whatever produced one retrieval is opened.
 
         Args:
@@ -127,6 +165,11 @@ class DatadogLinks:
                 the retrieval came from.
             args: What the tool was called with. What the address needs is read
                 out of it; what cannot be read is left off rather than guessed.
+            service: The service under investigation, which the service-scoped
+                pages are addressed to. Held by the investigation rather than
+                read out of ``args``, because how a service is named in a query
+                differs by tool and a page scoped to the wrong one is a page to
+                the wrong thing.
 
         Returns:
             The address of the view that retrieval came from, or ``None`` where
@@ -134,10 +177,15 @@ class DatadogLinks:
             kind of retrieval opens a page that looks like an answer and is not.
         """
         template = self._templates.get(tool)
-        return None if template is None else template(args)
+        return None if template is None else template(args, service)
 
-    def _log_search(self, args: Mapping[str, Any]) -> str:
-        """The Log Explorer search a log retrieval came from, pinned to its window."""
+    def _log_search(self, args: Mapping[str, Any], service: str) -> str:
+        """The Log Explorer search a log retrieval came from, pinned to its window.
+
+        The one template composed from the retrieval's own query rather than
+        from the service, because a log search is what its query says and the
+        Log Explorer speaks that query back.
+        """
         parameters: dict[str, str] = {"query": _first(args, QUERY_KEYS) or ""}
         window = _window(args)
         if window is not None:
@@ -145,7 +193,48 @@ class DatadogLinks:
         parameters["live"] = "false"
         return f"https://{self._web_host}/{LOG_EXPLORER_PATH}?{urlencode(parameters)}"
 
-    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+    def _service_page(self, args: Mapping[str, Any], service: str) -> str:
+        """The service's own APM page, over the window the retrieval ran across.
+
+        Where a metric, a metric search, a metric's context and the catalogue
+        all point: the entity whose resources they describe, not the query that
+        described them.
+        """
+        page = f"https://{self._web_host}/apm/entity/service%3A{service}"
+        window = _apm_window(args)
+        return f"{page}?{urlencode(window)}" if window else page
+
+    def _trace_explorer(self, args: Mapping[str, Any], service: str) -> str:
+        """The Trace Explorer scoped to the service, over the retrieval's window.
+
+        Scoped by the service and not by the retrieval's query: a span-level
+        query resolves differently on a view that lists the traces containing a
+        matching span, and a service scope means the same thing on either.
+        """
+        parameters = {"query": f"{SERVICE_TAG_PREFIX}{service}", **_apm_window(args)}
+        return f"https://{self._web_host}/apm/traces?{urlencode(parameters)}"
+
+    def _infrastructure(self, args: Mapping[str, Any], service: str) -> str:
+        """The infrastructure inventory filtered to what the service runs on.
+
+        The one service-scoped address with no window: the inventory is a live
+        view of what is running now, not a period a retrieval ran over.
+        """
+        scope = urlencode({"filter": f"{SERVICE_TAG_PREFIX}{service}"})
+        return f"https://{self._web_host}/infrastructure?{scope}"
+
+    def _event_explorer(self, args: Mapping[str, Any], service: str) -> str:
+        """The Event Explorer over the service, pinned to the retrieval's window."""
+        parameters: dict[str, str] = {"query": f"{SERVICE_TAG_PREFIX}{service}"}
+        window = _window(args)
+        if window is not None:
+            parameters["from_ts"], parameters["to_ts"] = window
+        parameters["live"] = "false"
+        return f"https://{self._web_host}/event/explorer?{urlencode(parameters)}"
+
+    def to_item(
+        self, tool: str, payload: Any, within: str | None, service: str = ""
+    ) -> str | None:
         """Where one retrieved item is opened.
 
         Args:
@@ -155,6 +244,8 @@ class DatadogLinks:
             payload: The item as the platform returned it.
             within: Where the retrieval it came from is opened, which is what
                 an item the payload does not identify falls back to.
+            service: The service under investigation, used to rebuild the
+                retrieval's address where the caller did not supply one.
 
         Returns:
             The address of that item, of the retrieval it came from, or
@@ -166,7 +257,7 @@ class DatadogLinks:
         item = _first(payload, ITEM_KEYS) if isinstance(payload, dict) else None
         if item is None:
             return within
-        search = within or template({})
+        search = within or template({}, service)
         return f"{search}&{urlencode({'event': item})}"
 
 
@@ -193,6 +284,19 @@ def _window(args: Mapping[str, Any]) -> tuple[str, str] | None:
     if start is None or end is None:
         return None
     return str(start), str(end)
+
+
+def _apm_window(args: Mapping[str, Any]) -> dict[str, str]:
+    """A retrieval's window under the parameter names an APM view expresses it by.
+
+    Empty where the window cannot be read, so an APM address drops both ends
+    rather than one, for the reason ``_window`` already refuses a half window.
+    """
+    window = _window(args)
+    if window is None:
+        return {}
+    start, end = window
+    return {"start": start, "end": end}
 
 
 def _end_of(args: Mapping[str, Any], keys: tuple[str, ...]) -> Any:

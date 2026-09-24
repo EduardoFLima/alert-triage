@@ -89,13 +89,21 @@ class Links(Protocol):
     tool was called and its arguments cannot say: a query over a window is a
     log search or a metric or an audit trail. ``None`` is a complete answer,
     and the right one for a tool the platform has no known address for.
+
+    Both are told the service too, because a service-scoped page is addressed
+    to the service the investigation holds rather than to whatever the query
+    happened to name, and how a service is named to a tool differs by tool.
     """
 
-    def to_retrieval(self, tool: str, args: Mapping[str, Any]) -> str | None:
+    def to_retrieval(
+        self, tool: str, args: Mapping[str, Any], service: str
+    ) -> str | None:
         """Where whatever produced this retrieval is opened, if it can be."""
         ...
 
-    def to_item(self, tool: str, payload: Any, within: str | None) -> str | None:
+    def to_item(
+        self, tool: str, payload: Any, within: str | None, service: str
+    ) -> str | None:
         """Where this item is opened, or ``within`` when it names no item."""
         ...
 
@@ -108,17 +116,22 @@ class Retrieved:
     a stale identifier from an earlier incident cannot resolve.
     """
 
-    def __init__(self, link: Links | None = None) -> None:
+    def __init__(self, link: Links | None = None, service: str = "") -> None:
         """Start with nothing retrieved, nothing citable, and nothing failed.
 
         Args:
             link: How this deployment's platform addresses what it returns.
                 Absent, every piece of evidence is kept without an address.
+            service: The service under investigation, which the platform's
+                service-scoped addresses are pinned to. Passed from the target
+                rather than read from a tool's arguments, because how a service
+                is named to a tool differs by tool.
         """
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
         self._link = link
+        self._service = service
 
     @property
     def retrievals(self) -> int:
@@ -210,14 +223,16 @@ class Retrieved:
 
     def _address_of(self, tool: str, args: Mapping[str, Any]) -> str | None:
         """Where whatever this retrieval came from is opened."""
-        return None if self._link is None else self._link.to_retrieval(tool, args)
+        if self._link is None:
+            return None
+        return self._link.to_retrieval(tool, args, self._service)
 
     def _item_addresses(self, tool: str, within: str | None) -> Linker | None:
         """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None
-        return lambda payload: link.to_item(tool, payload, within)
+        return lambda payload: link.to_item(tool, payload, within, self._service)
 
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any
