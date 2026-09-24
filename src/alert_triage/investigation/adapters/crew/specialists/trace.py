@@ -32,30 +32,30 @@ from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
 )
-from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
 )
-from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_SKILL
+from alert_triage.investigation.adapters.datadog.tools import (
+    DISCOVER_SPAN_TAGS,
+    GET_TRACE,
+    LIST_SKILLS,
+    LOAD_SKILL,
+    QUERY_TRACE,
+    SEARCH_SPANS,
+    DatadogTool,
+    described,
+    toolsets,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
-from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.investigation.domain.specialist import Specialist
 
-CORE_TOOLSET = "core"
-APM_TOOLSET = "apm"
-"""The toolsets on the platform's server holding its trace tools.
-
-``apm`` is reached only where the account has it; see ``preview``.
-"""
-
-SPAN_SEARCH_TOOL = "search_datadog_spans"
-TRACE_TOOL = "get_datadog_trace"
+_TRACE_TOOLS = (SEARCH_SPANS, GET_TRACE)
 """The trace tools every account has, whatever its Preview access."""
 
-TRACE_QUERY_TOOL = "apm_query_trace"
-TAG_DISCOVERY_TOOL = "apm_discover_span_tags"
-"""Ranking within a trace, and asking which facets a service's spans carry.
+_PREVIEW_TOOLS = (DISCOVER_SPAN_TAGS, QUERY_TRACE)
+"""Asking which facets a service's spans carry, and ranking within a trace.
 
-Both exist only in the Preview toolset. The second is what makes a guessed
+Both exist only in the Preview toolset. The first is what makes a guessed
 facet cheap to check; without it the specialist is still told not to guess,
 and checks against the spans it has seen instead.
 """
@@ -71,11 +71,8 @@ it was waiting on.
 
 The tools you have are Datadog's:
 
-- `{SPAN_SEARCH_TOOL}` returns spans matching a query, which is how you find a
-  request worth looking at and the identifier of the trace it belongs to.
-- `{TRACE_TOOL}` returns one whole trace by its identifier, which is where you
-  see what a single request actually spent its time on.
-{PREVIEW_TOOLS}
+{TOOLS}
+
 {ORDERING}
 
 {CONSULT_THE_PLATFORM}
@@ -126,13 +123,6 @@ Rules you must follow:
 """
 
 
-_PREVIEW_TOOLS_DESCRIBED = f"""
-- `{TAG_DISCOVERY_TOOL}` lists the tags a service's spans actually carry, which
-  is how you know a facet exists before you filter on it.
-- `{TRACE_QUERY_TOOL}` filters, aggregates and ranks the spans within a trace,
-  which is how you find the operation that dominated it rather than reading
-  the whole waterfall yourself.""".strip("\n")
-
 _ORDER_WITH_RANKING = """
 Search before you fetch, and rank before you conclude. A trace is fetched by an
 identifier and the search is where an identifier comes from; once you hold a
@@ -150,7 +140,7 @@ see.""".strip("\n")
 
 _FACETS_DISCOVERED = f"""
 Filter on the service, the status and the duration, which every span carries,
-and ask `{TAG_DISCOVERY_TOOL}` which tags the service's spans carry before you
+and ask `{DISCOVER_SPAN_TAGS.name}` which tags the service's spans carry before you
 filter on any other.""".strip("\n")
 
 _FACETS_SEEN_ON_A_SPAN = """
@@ -159,15 +149,18 @@ and on any other attribute only once you have seen it on a span this service
 returned.""".strip("\n")
 
 
+def _tools(preview: bool) -> tuple[DatadogTool, ...]:
+    """The tools this specialist may call, given what the account may reach."""
+    return (*_TRACE_TOOLS, *(_PREVIEW_TOOLS if preview else ()))
+
+
 def _instruction(preview: bool) -> str:
     """What this specialist is asked, given whether it can rank within a trace."""
     return _INSTRUCTION_TEMPLATE.format(
-        SPAN_SEARCH_TOOL=SPAN_SEARCH_TOOL,
-        TRACE_TOOL=TRACE_TOOL,
+        TOOLS=described(*_tools(preview)),
         CONSULT_THE_PLATFORM=CONSULT_THE_PLATFORM,
         AN_EMPTY_ANSWER=AN_EMPTY_ANSWER,
         MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
-        PREVIEW_TOOLS=f"{_PREVIEW_TOOLS_DESCRIBED}\n" if preview else "",
         ORDERING=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
         FACET_CHECK=_FACETS_DISCOVERED if preview else _FACETS_SEEN_ON_A_SPAN,
     ).strip()
@@ -214,28 +207,12 @@ def trace_specialist(*, preview: bool) -> Specialist:
         The declaration, reaching only tools the account can actually call and
         instructed only in what those tools can establish.
     """
-    core = Toolset(
-        provider=DATADOG,
-        name=CORE_TOOLSET,
-        tools=(SPAN_SEARCH_TOOL, TRACE_TOOL, LIST_SKILLS.name, LOAD_SKILL.name),
-    )
-    ranking = (
-        (
-            Toolset(
-                provider=DATADOG,
-                name=APM_TOOLSET,
-                tools=(TRACE_QUERY_TOOL, TAG_DISCOVERY_TOOL),
-            ),
-        )
-        if preview
-        else ()
-    )
     return Specialist(
         name="trace_specialist",
         signal=Signal.TRACE,
         instruction=_instruction(preview),
         output_schema=ReportedFindings,
-        toolsets=(core, *ranking),
+        toolsets=toolsets(*_tools(preview), LIST_SKILLS, LOAD_SKILL),
     )
 
 
