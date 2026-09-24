@@ -1,11 +1,11 @@
 ## 1. The catalogue
 
-- [ ] 1.1 Red/green: `DatadogTool` holds a name, a toolset and a description, and rejects an empty one
-- [ ] 1.2 Red/green: `toolsets(...)` groups tools by toolset in first-seen order, each with `provider=DATADOG`
-- [ ] 1.3 Red/green: `described(...)` renders each tool as a ``- `name` description`` bullet, in the order given
-- [ ] 1.4 Add every tool the crew permits today to `datadog/tools.py`, with the toolset it is declared in today
-- [ ] 1.5 Move `SKILL_LIST_TOOL` and `SKILL_LOAD_TOOL` from `dialect.py` into the catalogue
-- [ ] 1.6 Red/green: no two catalogue tools share a name, and every catalogue tool is permitted by some specialist
+- [x] 1.1 Red/green: `DatadogTool` holds a name, a toolset and a description, and rejects an empty one
+- [x] 1.2 Red/green: `toolsets(...)` groups tools by toolset in first-seen order, each with `provider=DATADOG`
+- [x] 1.3 Red/green: `described(...)` renders each tool as a ``- `name` description`` bullet, in the order given
+- [x] 1.4 Add every tool the crew permits today to `datadog/tools.py`, with the toolset it is declared in today
+- [x] 1.5 Move `SKILL_LIST_TOOL` and `SKILL_LOAD_TOOL` from `dialect.py` into the catalogue
+- [x] 1.6 Red/green: no two catalogue tools share a name, and every catalogue tool is permitted by some specialist
 
 ## 2. Specialists pick from it
 

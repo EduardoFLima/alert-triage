@@ -31,13 +31,12 @@ from pydantic import BaseModel, Field
 from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
-    SKILL_LIST_TOOL,
-    SKILL_LOAD_TOOL,
 )
 from alert_triage.investigation.adapters.datadog.mcp import DATADOG
 from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
 )
+from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_SKILL
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -218,7 +217,7 @@ def trace_specialist(*, preview: bool) -> Specialist:
     core = Toolset(
         provider=DATADOG,
         name=CORE_TOOLSET,
-        tools=(SPAN_SEARCH_TOOL, TRACE_TOOL, SKILL_LIST_TOOL, SKILL_LOAD_TOOL),
+        tools=(SPAN_SEARCH_TOOL, TRACE_TOOL, LIST_SKILLS.name, LOAD_SKILL.name),
     )
     ranking = (
         (

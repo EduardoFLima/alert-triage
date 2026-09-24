@@ -19,10 +19,9 @@ from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
-    SKILL_LIST_TOOL,
-    SKILL_LOAD_TOOL,
 )
 from alert_triage.investigation.adapters.datadog.mcp import DATADOG
+from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_SKILL
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -184,8 +183,8 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
                 METRIC_SEARCH_TOOL,
                 METRIC_CONTEXT_TOOL,
                 HOSTS_TOOL,
-                SKILL_LIST_TOOL,
-                SKILL_LOAD_TOOL,
+                LIST_SKILLS.name,
+                LOAD_SKILL.name,
             ),
         ),
         Toolset(

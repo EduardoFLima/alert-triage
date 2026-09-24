@@ -19,10 +19,9 @@ from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
-    SKILL_LIST_TOOL,
-    SKILL_LOAD_TOOL,
 )
 from alert_triage.investigation.adapters.datadog.mcp import DATADOG
+from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_SKILL
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -145,8 +144,8 @@ LOGS_SPECIALIST = Specialist(
             tools=(
                 LOG_SEARCH_TOOL,
                 LOG_ANALYSIS_TOOL,
-                SKILL_LIST_TOOL,
-                SKILL_LOAD_TOOL,
+                LIST_SKILLS.name,
+                LOAD_SKILL.name,
             ),
         ),
     ),
