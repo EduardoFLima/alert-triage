@@ -19,11 +19,17 @@ without retrieving anything, and would be indistinguishable from a finding to
 everyone downstream. So the instruction says in as many words that a typical
 request is not a finding, and the schema — like every specialist's — offers
 nowhere to write a waterfall into.
+
+Its quieter failure is the opposite one: a span query filtering on a facet the
+service does not carry returns nothing, which reads exactly like a service with
+nothing slow. So it is told not to guess a facet whether or not it has the
+Preview tool that makes checking one cheap.
 """
 
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
+    AN_EMPTY_ANSWER,
     CONSULT_THE_PLATFORM,
     SKILL_LIST_TOOL,
     SKILL_LOAD_TOOL,
@@ -47,7 +53,13 @@ TRACE_TOOL = "get_datadog_trace"
 """The trace tools every account has, whatever its Preview access."""
 
 TRACE_QUERY_TOOL = "apm_query_trace"
-"""Ranking within a trace, which exists only in the Preview toolset."""
+TAG_DISCOVERY_TOOL = "apm_discover_span_tags"
+"""Ranking within a trace, and asking which facets a service's spans carry.
+
+Both exist only in the Preview toolset. The second is what makes a guessed
+facet cheap to check; without it the specialist is still told not to guess,
+and checks against the spans it has seen instead.
+"""
 
 _INSTRUCTION_TEMPLATE = """\
 You are a trace specialist doing the first-pass investigation a knowledgeable
@@ -64,7 +76,7 @@ The tools you have are Datadog's:
   request worth looking at and the identifier of the trace it belongs to.
 - `{TRACE_TOOL}` returns one whole trace by its identifier, which is where you
   see what a single request actually spent its time on.
-{RANKING_TOOL}
+{PREVIEW_TOOLS}
 {ORDERING}
 
 {CONSULT_THE_PLATFORM}
@@ -73,6 +85,12 @@ A span query is facets joined by spaces —
 `service:checkout status:error`, `service:checkout @duration:>2s` for the slow
 ones, `-` to negate and `*` to wildcard. Always scope the query to the service
 you were told about and the window you were given.
+
+{AN_EMPTY_ANSWER}
+
+A span search that returns nothing may be telling you about your query rather
+than about the service. Do not guess a facet.
+{FACET_CHECK}
 
 What to report:
 
@@ -109,7 +127,9 @@ Rules you must follow:
 """
 
 
-_RANKING_TOOL_DESCRIBED = f"""
+_PREVIEW_TOOLS_DESCRIBED = f"""
+- `{TAG_DISCOVERY_TOOL}` lists the tags a service's spans actually carry, which
+  is how you know a facet exists before you filter on it.
 - `{TRACE_QUERY_TOOL}` filters, aggregates and ranks the spans within a trace,
   which is how you find the operation that dominated it rather than reading
   the whole waterfall yourself.""".strip("\n")
@@ -129,15 +149,28 @@ account for where the time went rather than naming the first slow thing you
 see.""".strip("\n")
 
 
+_FACETS_DISCOVERED = f"""
+Filter on the service, the status and the duration, which every span carries,
+and ask `{TAG_DISCOVERY_TOOL}` which tags the service's spans carry before you
+filter on any other.""".strip("\n")
+
+_FACETS_SEEN_ON_A_SPAN = """
+Filter on the service, the status and the duration, which every span carries,
+and on any other attribute only once you have seen it on a span this service
+returned.""".strip("\n")
+
+
 def _instruction(preview: bool) -> str:
     """What this specialist is asked, given whether it can rank within a trace."""
     return _INSTRUCTION_TEMPLATE.format(
         SPAN_SEARCH_TOOL=SPAN_SEARCH_TOOL,
         TRACE_TOOL=TRACE_TOOL,
         CONSULT_THE_PLATFORM=CONSULT_THE_PLATFORM,
+        AN_EMPTY_ANSWER=AN_EMPTY_ANSWER,
         MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
-        RANKING_TOOL=f"{_RANKING_TOOL_DESCRIBED}\n" if preview else "",
+        PREVIEW_TOOLS=f"{_PREVIEW_TOOLS_DESCRIBED}\n" if preview else "",
         ORDERING=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
+        FACET_CHECK=_FACETS_DISCOVERED if preview else _FACETS_SEEN_ON_A_SPAN,
     ).strip()
 
 
@@ -188,7 +221,13 @@ def trace_specialist(*, preview: bool) -> Specialist:
         tools=(SPAN_SEARCH_TOOL, TRACE_TOOL, SKILL_LIST_TOOL, SKILL_LOAD_TOOL),
     )
     ranking = (
-        (Toolset(provider=DATADOG, name=APM_TOOLSET, tools=(TRACE_QUERY_TOOL,)),)
+        (
+            Toolset(
+                provider=DATADOG,
+                name=APM_TOOLSET,
+                tools=(TRACE_QUERY_TOOL, TAG_DISCOVERY_TOOL),
+            ),
+        )
         if preview
         else ()
     )

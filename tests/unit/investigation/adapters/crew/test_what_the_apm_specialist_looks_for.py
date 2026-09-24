@@ -47,11 +47,47 @@ def test_without_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
         "get_datadog_metric",
         "get_datadog_metric_context",
         "search_datadog_metrics",
-        "search_datadog_service_dependencies",
+        "search_datadog_entities",
         "search_datadog_events",
         "list_datadog_skills",
         "load_datadog_skill",
     }
+
+
+RETIRED_TOOL = "search_datadog_service_dependencies"
+"""Deprecated by the platform in favour of its catalogue search."""
+
+
+def test_no_declaration_permits_or_names_the_retired_dependency_tool() -> None:
+    """A tool the platform stops serving comes back as a refused retrieval."""
+    for preview in (False, True):
+        declared = apm_specialist(preview=preview)
+
+        assert RETIRED_TOOL not in _permitted(declared)
+        assert RETIRED_TOOL not in declared.instruction
+
+
+def test_both_declarations_reach_the_catalogue() -> None:
+    for preview in (False, True):
+        declared = apm_specialist(preview=preview)
+
+        assert "search_datadog_entities" in _permitted(declared)
+        assert "search_datadog_entities" in declared.instruction
+
+
+def test_the_instruction_says_what_to_ask_the_catalogue_for() -> None:
+    """A search handed over as a lookup is searched for the service and nothing else.
+
+    The retired tool took a service and answered with its neighbours; the
+    catalogue has to be asked, so the line describing it names the ask.
+    """
+    for preview in (False, True):
+        flowed = " ".join(apm_specialist(preview=preview).instruction.split())
+        described = flowed[flowed.index("`search_datadog_entities`") :]
+        line = described[: described.index(" - `")]
+
+        assert "ask it for" in line.lower()
+        assert "upstream and downstream" in line.lower()
 
 
 def test_without_preview_no_preview_tool_is_permitted_or_named() -> None:
@@ -83,7 +119,7 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
             "get_datadog_metric",
             "get_datadog_metric_context",
             "search_datadog_metrics",
-            "search_datadog_service_dependencies",
+            "search_datadog_entities",
             "list_datadog_skills",
             "load_datadog_skill",
         }
@@ -182,6 +218,14 @@ def test_the_instruction_forbids_naming_a_change_as_the_cause() -> None:
 def test_the_instruction_asks_for_both_citation_grains() -> None:
     assert "call-N/item-M" in APM_INSTRUCTION
     assert "call-N" in APM_INSTRUCTION
+
+
+def test_the_aggregate_example_does_not_assume_the_catalogues_grain() -> None:
+    """Whether the catalogue answers in discrete entities is a live question."""
+    for preview in (False, True):
+        flowed = " ".join(apm_specialist(preview=preview).instruction.split())
+
+        assert "dependency map" not in flowed
 
 
 def test_the_instruction_bounds_the_examples_it_asks_for() -> None:

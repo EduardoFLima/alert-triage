@@ -161,7 +161,7 @@ The crew:
   X"). Deliberately bounded to one hop — it does not recursively
   investigate the neighboring services themselves. That's a roadmap item.
   On Datadog the dependency evidence is a tool rather than an inference:
-  `search_datadog_service_dependencies`. Note that Grafana has no
+  the catalogue search, `search_datadog_entities`. Note that Grafana has no
   equivalent, which is one of the reasons the platform boundary moved —
   see below.
 - **Trace agent** — specific slow/failed trace waterfall analysis
@@ -226,7 +226,7 @@ bite.
 **The catalogue is far larger than a port can track.** Datadog's MCP server
 exposes 150+ tools across 20+ toolsets. The four planned specialists want
 roughly fifteen between them — `analyze_datadog_logs`,
-`search_datadog_service_dependencies`, `apm_latency_bottleneck_summary`,
+`search_datadog_entities`, `apm_latency_bottleneck_summary`,
 `get_change_stories`, `search_datadog_k8s_resources`, and the rest. One
 method cost ~245 lines of adapter, nearly all of it turning JSON into other
 JSON. The volume is not the worst of it; the gate is. Widening what an
@@ -920,7 +920,8 @@ MCP server rather than in the design:
 - **Tools in Preview.** Some of the most useful tools live in Datadog's
   Preview `apm` toolset — `apm_latency_bottleneck_summary`,
   `apm_search_watchdog_stories`, `get_change_stories`,
-  `semantic_search_change_stories` and `apm_query_trace`. An account reaches
+  `semantic_search_change_stories`, `apm_query_trace` and
+  `apm_discover_span_tags`. An account reaches
   them only once Datadog grants access, and a Preview tool can change or
   vanish without notice. Today one hand-set switch, `APM_TOOLSET_AVAILABLE`,
   decides whether the APM and trace specialists declare them. It is off, so

@@ -45,9 +45,22 @@ def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
         "search_datadog_hosts",
         "search_datadog_k8s_resources",
         "describe_datadog_k8s_resource",
+        "analyse_datadog_k8s_rollout",
         "list_datadog_skills",
         "load_datadog_skill",
     }
+
+
+def test_the_declaration_can_analyse_a_workloads_rollout() -> None:
+    """Spelled `analyse`, where its catalogue neighbours are spelled `analyze`."""
+    kubernetes = next(
+        toolset
+        for toolset in INFRASTRUCTURE_SPECIALIST.toolsets
+        if toolset.name == "kubernetes"
+    )
+
+    assert "analyse_datadog_k8s_rollout" in kubernetes.tools
+    assert "analyse_datadog_k8s_rollout" in INFRASTRUCTURE_INSTRUCTION
 
 
 def test_the_declaration_can_list_the_metrics_a_host_or_service_reports() -> None:
@@ -91,6 +104,23 @@ def test_the_instruction_asks_for_the_workload_state_and_its_restarts() -> None:
 
     assert "workload" in lowered
     assert "restart" in lowered
+
+
+def test_a_rollout_is_analysed_for_a_workload_that_was_searched_for() -> None:
+    """Its arguments are a cluster, a namespace and a name only a search supplies."""
+    flowed = _flowed()
+
+    assert "search before you analyse" in flowed
+    assert "a workload the search named" in flowed
+
+
+def test_the_rollout_is_reported_beside_the_restarts_and_not_as_a_cause() -> None:
+    flowed = _flowed()
+    reported = flowed[flowed.index("what to report") : flowed.index("rules you must")]
+
+    assert "rolled out" in reported
+    assert "restart" in reported
+    assert "not a cause" in reported
 
 
 def test_the_instruction_says_an_absent_signal_is_an_answer_not_a_failure() -> None:
