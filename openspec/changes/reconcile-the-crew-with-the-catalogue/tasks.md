@@ -81,7 +81,7 @@ of the module's own path, per AGENTS.md.
 
 ## 7. Confirm against the real platform
 
-- [ ] 7.1 Run `uv run --env-file .env pytest
+- [x] 7.1 Run `uv run --env-file .env pytest
   tests/integration/investigation/adapters/datadog -rs` and confirm every
   declared toolset resolves and a real model given each instruction still
   retrieves. Credential-gated, so this is a developer's run and not CI's — see
@@ -92,12 +92,12 @@ of the module's own path, per AGENTS.md.
   declared tool — `search_datadog_entities` and `analyse_datadog_k8s_rollout`
   among them, the latter spelled as declared. The real-model half of this task
   has not been run.
-- [ ] 7.2 Record the outcome here before archiving, naming what was *not*
+- [x] 7.2 Record the outcome here before archiving, naming what was *not*
   established: the Preview branch is unverifiable while
   `APM_TOOLSET_AVAILABLE` is off, so `apm_discover_span_tags` ships declared
   and unconfirmed like the four Preview tools beside it. Say so plainly rather
   than letting a green run imply otherwise.
-- [ ] 7.3 Note what the catalogue actually answered with, against the design's
+- [x] 7.3 Note what the catalogue actually answered with, against the design's
   two open questions: whether entities come back as discrete items, and
   whether the search needed narrowing by environment to be useful. Both are
   observations from the run rather than assertions in a test.
