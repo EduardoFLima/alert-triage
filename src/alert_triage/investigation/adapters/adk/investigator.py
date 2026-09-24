@@ -59,6 +59,7 @@ from alert_triage.investigation.contract import (
     InvestigationTarget,
 )
 from alert_triage.investigation.domain import account
+from alert_triage.investigation.domain.account import FindingPage
 from alert_triage.investigation.domain.specialist import Specialist
 from alert_triage.investigation.ports.investigator import InvestigatorError
 from alert_triage.shared import journal
@@ -207,16 +208,26 @@ class AdkInvestigator:
         it is the last place the discipline can still be applied.
         """
         headline, narrative = self._words(target, findings, hypothesis, confidence)
+        page = self._service_page(target)
         return Diagnosis(
             headline=headline,
             account=(
-                account.compose(narrative, findings, confidence)
+                account.compose(narrative, findings, confidence, page)
                 if narrative
-                else account.without_words(hypothesis, confidence, findings)
+                else account.without_words(hypothesis, confidence, findings, page)
             ),
             hypothesis=hypothesis,
             confidence=confidence,
             findings=findings,
+        )
+
+    def _service_page(self, target: InvestigationTarget) -> FindingPage | None:
+        """Where each finding's service is looked at, on the section it named."""
+        links = self._links
+        if links is None:
+            return None
+        return lambda finding: links.to_service(
+            target.service, target.window, finding.section
         )
 
     def _words(

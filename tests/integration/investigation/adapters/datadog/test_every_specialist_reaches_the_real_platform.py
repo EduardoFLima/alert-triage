@@ -66,7 +66,7 @@ from alert_triage.investigation.adapters.datadog.mcp import (
     mcp_endpoint,
     mcp_headers,
 )
-from alert_triage.investigation.contract import InvestigationTarget
+from alert_triage.investigation.contract import InvestigationTarget, Section
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 from alert_triage.shared.window import Window
 from alert_triage.triage.adapters.datadog.connection import (
@@ -259,6 +259,11 @@ class _Recorded:
     ) -> str | None:
         return self._links.to_item(tool, payload, within, service)
 
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        return self._links.to_service(service, window, section)
+
 
 def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:
     """One real consultation, kept with this account's addresses attached."""
@@ -295,6 +300,26 @@ def test_each_retrieval_address_opens_rather_than_404s_or_is_absent(
         else:
             assert address is not None, f"{tool} was given no address"
             assert answers(address), f"the platform serves nothing at {address}"
+
+
+@pytest.mark.parametrize("section", [None, *Section], ids=str)
+def test_a_findings_service_page_opens_rather_than_404s(
+    section: Section | None, answers: Callable[[str], bool]
+) -> None:
+    """The section is the one part of an address the reasoning chooses.
+
+    What this can establish is that the page each section is anchored on opens.
+    It cannot establish that the anchor lands anywhere in particular: a browser
+    resolves a fragment and the server never sees one, so no status code speaks
+    to it. A wrong anchor degrades to the top of the right page, which is why
+    the choice was admissible — and why confirming one is a human's look.
+    """
+    links = DatadogLinks(resolve_connection().web_host)
+
+    address = links.to_service(SERVICE, _target().window, section)
+
+    assert address is not None
+    assert answers(address), f"the platform serves nothing at {address}"
 
 
 def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:

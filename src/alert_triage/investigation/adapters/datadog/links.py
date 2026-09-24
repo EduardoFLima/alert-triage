@@ -37,6 +37,8 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 from alert_triage.investigation.adapters.datadog import tools
+from alert_triage.investigation.contract import Section
+from alert_triage.shared.window import Window
 
 LOG_EXPLORER_PATH = "logs"
 
@@ -116,6 +118,23 @@ why the list being incomplete costs precision rather than a working link.
 
 QUERY_KEYS = ("query", "filter_query", "search_query")
 """What the tool called the log query it was given."""
+
+SERVICE_PAGE_ANCHORS: Mapping[Section, str] = {
+    Section.ERRORS: "errors",
+    Section.DEPLOYMENTS: "deployments",
+    Section.DEPENDENCIES: "dependencies",
+    Section.INFRASTRUCTURE: "infrastructure",
+    Section.TRACES: "traces",
+    Section.LOGS: "logs",
+}
+"""Where each section a finding may name sits on a service's APM page.
+
+The contract names what a reader goes to look at; this is where that is on
+Datadog's page. An anchor is resolved by the browser and never reaches the
+server, so no status code confirms one: a wrong anchor lands a reader at the
+top of the right page, which is the degradation that makes letting the
+reasoning choose a section admissible at all.
+"""
 
 SERVICE_TAG_PREFIX = "service:"
 """How a service is named to an explorer's query, the same tag ``triage`` uses."""
@@ -200,6 +219,29 @@ class DatadogLinks:
         parameters["live"] = "false"
         return f"https://{self._web_host}/{LOG_EXPLORER_PATH}?{urlencode(parameters)}"
 
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        """Where a reader looks at the service a finding concerns.
+
+        Args:
+            service: The service under investigation.
+            window: The period the investigation gathered evidence over.
+            section: Which part of the service the finding named, which opens
+                the page on that section. ``None`` opens it at the top.
+
+        Returns:
+            The service's own APM page over that window, or ``None`` where
+            there is no service to address it to.
+        """
+        if not service.strip():
+            return None
+        page = self._apm_entity(
+            service,
+            {"start": _epoch_ms(window.start), "end": _epoch_ms(window.end)},
+        )
+        return page if section is None else f"{page}#{SERVICE_PAGE_ANCHORS[section]}"
+
     def _service_page(self, args: Mapping[str, Any], service: str) -> str:
         """The service's own APM page, over the window the retrieval ran across.
 
@@ -207,10 +249,13 @@ class DatadogLinks:
         all point: the entity whose resources they describe, not the query that
         described them.
         """
+        return self._apm_entity(service, _apm_window(args))
+
+    def _apm_entity(self, service: str, window: Mapping[str, str]) -> str:
+        """A service's APM page, pinned to a window where one is given."""
         page = (
             f"https://{self._web_host}/apm/entity/service%3A{quote(service, safe='')}"
         )
-        window = _apm_window(args)
         return f"{page}?{urlencode(window)}" if window else page
 
     def _trace_explorer(self, args: Mapping[str, Any], service: str) -> str:
@@ -307,6 +352,11 @@ def _apm_window(args: Mapping[str, Any]) -> dict[str, str]:
         return {}
     start, end = window
     return {"start": start, "end": end}
+
+
+def _epoch_ms(instant: datetime) -> str:
+    """An instant as the millisecond epoch an explorer's window is written in."""
+    return str(int(instant.timestamp() * 1000))
 
 
 def _end_of(args: Mapping[str, Any], keys: tuple[str, ...]) -> Any:

@@ -162,7 +162,12 @@ def test_the_instruction_forbids_naming_a_root_cause() -> None:
 
 
 def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
-    assert set(TraceFinding.model_fields) == {"observation", "occurrences", "cites"}
+    assert set(TraceFinding.model_fields) == {
+        "observation",
+        "occurrences",
+        "cites",
+        "section",
+    }
 
 
 def test_the_schema_carries_a_list_of_findings() -> None:

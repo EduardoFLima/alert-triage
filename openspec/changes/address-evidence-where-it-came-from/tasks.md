@@ -75,20 +75,26 @@ design.md.
 
 ## 5. A finding says which section it concerns
 
-- [ ] 5.1 In `tests/unit/investigation/test_findings.py`, assert `Finding`
+- [x] 5.1 In `tests/unit/investigation/test_findings.py`, assert `Finding`
   carries an optional section drawn from an enumerated set and defaults to
   none, so every existing construction keeps compiling. Add it to
   `investigation/contract.py` alongside the set it is drawn from.
-- [ ] 5.2 In the specialist schema tests, assert a specialist may set it and
+- [x] 5.2 In the specialist schema tests, assert a specialist may set it and
   that a value outside the set does not validate — the bound is what makes this
   admissible at all. Watch the rejection fail first.
-- [ ] 5.3 In `tests/unit/triage/domain/test_what_a_report_says.py`, assert a
+- [x] 5.3 In `tests/unit/triage/domain/test_what_a_report_says.py`, assert a
   finding with a section renders a service-page address anchored to it, that a
   finding with none renders the same address without an anchor, and that an
   unrecognised section is treated as none rather than concatenated. Compose the
   address where the report is built, from the service, the window and the
   section.
-- [ ] 5.4 Assert the evidence's own retrieval address is unchanged and still
+  Done where the account is rendered rather than in
+  `triage/domain/report.py`, which reads a diagnosis' headline and account and
+  no longer sees a finding: `investigation/domain/account.py` renders the
+  address from a page callable the investigator hands it, and `DatadogLinks`
+  composes it, so no Datadog route enters a domain layer. The tests live in
+  `tests/unit/investigation/domain/test_a_finding_points_at_the_service_it_concerns.py`.
+- [x] 5.4 Assert the evidence's own retrieval address is unchanged and still
   rendered beside it. Two addresses, two jobs: where this evidence came from,
   and where to go and look at the service.
 
@@ -100,7 +106,7 @@ design.md.
   Assert each specialist's `call-1` either opens or is absent by design — both
   are specified outcomes, and a Log Explorer address for a metric retrieval is
   neither.
-- [ ] 6.2 Assert an anchored service-page address opens, and that it opens for
+- [x] 6.2 Assert an anchored service-page address opens, and that it opens for
   an anchor the enumerated set contains. The section is the one part of an
   address this project lets the reasoning choose, so it is the part worth
   seeing resolve against a real account. Pass the target's service into the

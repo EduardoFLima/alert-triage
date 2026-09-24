@@ -16,8 +16,9 @@ from alert_triage.investigation.adapters.adk.evidence import (
     keep_evidence_callback,
     log_tool_call,
 )
-from alert_triage.investigation.contract import Signal
+from alert_triage.investigation.contract import Section, Signal
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED, findings_from
+from alert_triage.shared.window import Window
 
 
 class _Tool:
@@ -221,6 +222,11 @@ class _Args:
         self, tool: str, payload: Any, within: str | None, service: str = ""
     ) -> str | None:
         return within
+
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        return None
 
 
 def test_the_arguments_a_tool_was_called_with_reach_what_keeps_its_result() -> None:

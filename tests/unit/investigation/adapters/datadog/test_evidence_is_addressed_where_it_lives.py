@@ -20,11 +20,14 @@ from alert_triage.investigation.adapters.datadog.links import (
     APM_SERVICE_TOOLS,
     EVENT_TOOLS,
     INFRASTRUCTURE_TOOLS,
+    SERVICE_PAGE_ANCHORS,
     TRACE_TOOLS,
     UNADDRESSED,
     DatadogLinks,
 )
 from alert_triage.investigation.adapters.datadog.mcp import DATADOG
+from alert_triage.investigation.contract import Section
+from alert_triage.shared.window import Window
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 ONE_PM = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
@@ -262,3 +265,37 @@ def test_an_item_from_a_service_scoped_tool_is_addressed_as_its_retrieval(
     address = _links().to_item(tool, {"id": "host-1"}, retrieval, CHECKOUT)
 
     assert address == retrieval
+
+
+WINDOW = Window(start=NOON, end=ONE_PM)
+
+
+def test_a_findings_service_page_opens_on_the_section_it_named() -> None:
+    address = _links().to_service(CHECKOUT, WINDOW, Section.INFRASTRUCTURE)
+
+    assert address == (
+        "https://app.datadoghq.com/apm/entity/service%3Acheckout"
+        f"?start={FROM_MS}&end={TO_MS}#infrastructure"
+    )
+
+
+def test_a_findings_service_page_with_no_section_has_no_anchor() -> None:
+    address = _links().to_service(CHECKOUT, WINDOW, None)
+
+    assert address == (
+        "https://app.datadoghq.com/apm/entity/service%3Acheckout"
+        f"?start={FROM_MS}&end={TO_MS}"
+    )
+
+
+@pytest.mark.parametrize("section", list(Section))
+def test_every_section_has_an_anchor_on_the_service_page(section: Section) -> None:
+    """A member with no anchor would be a choice the reasoning makes for nothing."""
+    address = _links().to_service(CHECKOUT, WINDOW, section)
+
+    assert address is not None
+    assert address.endswith(f"#{SERVICE_PAGE_ANCHORS[section]}")
+
+
+def test_a_findings_service_page_needs_a_service() -> None:
+    assert _links().to_service("", WINDOW, Section.LOGS) is None

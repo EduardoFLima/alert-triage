@@ -11,7 +11,7 @@ library. No agent framework, no platform, no vendor: rendering an account is
 this context's, and a deployment swapping either keeps it.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from alert_triage.investigation.contract import (
     Confidence,
@@ -47,6 +47,22 @@ Worded rather than left to the template, because a sentence naming an empty list
 of signals is how a report starts lying about its scope.
 """
 
+SERVICE_PAGE_LABEL = "Look at the service:"
+"""What introduces where a reader goes to look at the service a finding concerns.
+
+Labelled where an evidence address is not, because a finding's is a different
+job: an evidence address says where that evidence came from, and this says
+where to go and look. Two bare addresses in a row would not say which is which.
+"""
+
+FindingPage = Callable[[Finding], str | None]
+"""Where a reader looks at the service a finding concerns, on the section it named.
+
+Handed in rather than built here: how a platform addresses a service page is
+the platform adapter's knowledge, and this renders what it is given. ``None``
+is a complete answer — a platform with no such page has said so.
+"""
+
 NO_HYPOTHESIS = (
     "The investigation reached no hypothesis about these alerts. What it did "
     "examine is below."
@@ -65,7 +81,10 @@ agent's and this line is the system's.
 
 
 def compose(
-    narrative: str, findings: Findings, confidence: Confidence | None = None
+    narrative: str,
+    findings: Findings,
+    confidence: Confidence | None = None,
+    page: FindingPage | None = None,
 ) -> str:
     """The account as a reader receives it: what was written, over what was found.
 
@@ -74,6 +93,8 @@ def compose(
         findings: What the investigation found, with the evidence behind it.
         confidence: How much weight the investigation put on its hypothesis, or
             ``None`` where it reached none to weigh.
+        page: Where each finding's service is looked at. Absent, findings carry
+            only their evidence's own addresses.
 
     Returns:
         The narrative, the confidence it carries, and the evidence it is checked
@@ -84,11 +105,14 @@ def compose(
         if confidence is None
         else [CONFIDENCE_TEMPLATE.format(level=confidence.value), ""]
     )
-    return "\n".join([narrative.strip(), "", *weight, *evidence_lines(findings)])
+    return "\n".join([narrative.strip(), "", *weight, *evidence_lines(findings, page)])
 
 
 def without_words(
-    hypothesis: str | None, confidence: Confidence | None, findings: Findings
+    hypothesis: str | None,
+    confidence: Confidence | None,
+    findings: Findings,
+    page: FindingPage | None = None,
 ) -> str:
     """The account this project composes when no agent worded one.
 
@@ -100,12 +124,13 @@ def without_words(
         hypothesis: What the investigation concluded, if anything.
         confidence: How much weight it put on that.
         findings: What the investigation found.
+        page: Where each finding's service is looked at, as for ``compose``.
 
     Returns:
         The account, stating the conclusion plainly and then showing its basis.
     """
     return "\n".join(
-        [*_conclusion_lines(hypothesis, confidence), *evidence_lines(findings)]
+        [*_conclusion_lines(hypothesis, confidence), *evidence_lines(findings, page)]
     )
 
 
@@ -130,7 +155,7 @@ def _conclusion_lines(
     return [f"What this looks like{weight}:", "", hypothesis.strip(), ""]
 
 
-def evidence_lines(findings: Findings) -> list[str]:
+def evidence_lines(findings: Findings, page: FindingPage | None = None) -> list[str]:
     """Every finding with its count and the evidence that shows it.
 
     Led by the incompleteness note where there is one: a reader deciding how
@@ -142,7 +167,7 @@ def evidence_lines(findings: Findings) -> list[str]:
         return [*lines, nothing_notable(findings.consulted)]
     lines.append("What the investigation found:")
     for finding in findings.findings:
-        lines.extend(("", *_finding_lines(finding)))
+        lines.extend(("", *_finding_lines(finding, page)))
     return lines
 
 
@@ -168,12 +193,15 @@ def _listed(signals: Sequence[Signal]) -> str:
     return f"{', '.join(named[:-1])} and {named[-1]}"
 
 
-def _finding_lines(finding: Finding) -> list[str]:
-    """One finding: what was observed, how often, and the evidence for it."""
+def _finding_lines(finding: Finding, page: FindingPage | None) -> list[str]:
+    """One finding: what was observed, how often, where to look, and its evidence."""
     occurrences = f"seen {finding.occurrences} time" + (
         "" if finding.occurrences == 1 else "s"
     )
     lines = [f"- [{finding.signal}] {finding.observation} ({occurrences})"]
+    address = None if page is None else page(finding)
+    if address is not None:
+        lines.append(f"    {SERVICE_PAGE_LABEL} {address}")
     for item in finding.examples:
         lines.extend(f"    {line}" for line in _evidence_item_lines(item))
     return lines

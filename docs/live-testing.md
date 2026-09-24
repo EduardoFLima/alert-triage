@@ -1,7 +1,7 @@
 # Testing against a real account
 
 Almost everything is exercised offline, against a fake MCP server and a
-scripted model. Seven tests are not, because three things cannot be
+scripted model. A handful of tests are not, because three things cannot be
 established by a fake — a fake is built from the same assumptions the code is:
 
 - that the tool names in a specialist's declaration **exist** on Datadog's MCP
@@ -21,10 +21,10 @@ uv run pytest tests/integration/investigation/adapters/datadog \
               tests/integration/triage/adapters/datadog -rs
 ```
 
-Those two paths are exactly the seven; nothing else in the suite is
+Those two paths hold every one of them; nothing else in the suite is
 credential-gated. `-rs` is what tells you they ran rather than skipped past —
-without it a skip and a pass look alike in the summary, which is how "7
-skipped" scrolls by unnoticed.
+without it a skip and a pass look alike in the summary, which is how a line
+of skips scrolls by unnoticed.
 
 A run costs a model call and a handful of platform calls.
 
@@ -79,7 +79,7 @@ keeps that an explicit act.
 
 ## The link checks
 
-Two of the seven follow an address this project built and rule out a 404. They
+Three of them follow an address this project built and rule out a 404. They
 are worth running alone after touching anything that composes a URL:
 
 ```bash
@@ -97,10 +97,11 @@ why these exist.
 
 ## What "live" means twice
 
-`-k live` is the wrong selector: it collects fourteen tests, not seven. The
+`-k live` is the wrong selector: it collects far more than these. The
 email and Teams channel tests are named `_live` in a different sense — a real
 server started **inside the test process**, no account and no credentials —
-and those run on every ordinary `uv run pytest`. Select the seven by path, as
+and those run on every ordinary `uv run pytest`, as does anything whose name
+contains "deliver". Select the credential-gated ones by path, as
 above.
 
 ## Settings

@@ -26,7 +26,13 @@ import logging
 from collections.abc import Iterable, Sequence
 from typing import Any, Protocol
 
-from alert_triage.investigation.contract import EvidenceItem, Finding, Findings, Signal
+from alert_triage.investigation.contract import (
+    EvidenceItem,
+    Finding,
+    Findings,
+    Section,
+    Signal,
+)
 from alert_triage.shared import journal
 
 _log = logging.getLogger(__name__)
@@ -108,7 +114,20 @@ def _finding(payload: Any, retrieved: Citable, signal: Signal) -> Finding | None
         observation=observation,
         occurrences=max(_occurrences(payload), len(examples)),
         examples=examples,
+        section=_section(payload),
     )
+
+
+def _section(payload: dict[str, Any]) -> Section | None:
+    """The section a finding named, or none where it named nothing in the set.
+
+    Treated as absent rather than as grounds to drop the finding: a wrong
+    section costs a reader a tab, while dropping the finding costs them what
+    it observed.
+    """
+    named = payload.get("section")
+    known = {section.value for section in Section}
+    return Section(named) if isinstance(named, str) and named in known else None
 
 
 def _examples(

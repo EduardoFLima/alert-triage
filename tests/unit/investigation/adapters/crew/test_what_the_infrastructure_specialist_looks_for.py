@@ -161,6 +161,7 @@ def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
         "observation",
         "occurrences",
         "cites",
+        "section",
     }
 
 

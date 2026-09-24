@@ -133,6 +133,28 @@ class Signal(StrEnum):
     INFRASTRUCTURE = "infrastructure"
 
 
+class Section(StrEnum):
+    """Which part of the service a finding concerns, for a reader landing on it.
+
+    The one part of an address the reasoning is allowed to contribute, and a
+    closed set for the reason ``Confidence`` is one: a member can be checked
+    and a sentence cannot. The system composes the address around it — host,
+    path, service, window — and a wrong member lands a reader on the right
+    service looking at the wrong part of it, which is recoverable in a way a
+    written address is not.
+
+    Named for what a reader goes to look at rather than for any platform's
+    page, so a second platform's adapter maps these to its own layout.
+    """
+
+    ERRORS = "errors"
+    DEPLOYMENTS = "deployments"
+    DEPENDENCIES = "dependencies"
+    INFRASTRUCTURE = "infrastructure"
+    TRACES = "traces"
+    LOGS = "logs"
+
+
 @dataclass(frozen=True)
 class EvidenceItem:
     """One thing the observability platform returned, in a shape anything can render.
@@ -187,12 +209,16 @@ class Finding:
         examples: Evidence illustrating the pattern, oldest first, capped at
             ``MAX_EXAMPLES_PER_FINDING``. Never empty — a finding that shows
             nothing is an assertion.
+        section: Which part of the service this concerns, where the
+            investigation said. ``None`` sends a reader to the service as a
+            whole, which is never wrong, only less precise.
     """
 
     signal: Signal
     observation: str
     occurrences: int
     examples: tuple[EvidenceItem, ...]
+    section: Section | None = None
 
     def __post_init__(self) -> None:
         """Reject a finding that asserts more than it can show."""

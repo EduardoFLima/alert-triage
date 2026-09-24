@@ -9,8 +9,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
-from alert_triage.investigation.contract import Signal
+from alert_triage.investigation.contract import Section, Signal
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED, findings_from
+from alert_triage.shared.window import Window
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
@@ -157,6 +158,11 @@ class _Links:
         self.asked_for.append(tool)
         item = payload.get("id") if isinstance(payload, dict) else None
         return f"https://platform/logs?event={item}" if item else within
+
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        return None
 
 
 def test_the_linker_is_told_which_tool_each_address_is_for() -> None:

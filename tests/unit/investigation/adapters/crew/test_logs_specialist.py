@@ -131,7 +131,12 @@ def test_the_crew_names_each_specialist_once() -> None:
 
 def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
     """It may cite what it was shown; it may not compose it."""
-    assert set(LogsFinding.model_fields) == {"observation", "occurrences", "cites"}
+    assert set(LogsFinding.model_fields) == {
+        "observation",
+        "occurrences",
+        "cites",
+        "section",
+    }
 
 
 def test_the_schema_carries_a_list_of_findings() -> None:

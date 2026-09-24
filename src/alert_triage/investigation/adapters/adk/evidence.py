@@ -27,9 +27,10 @@ from alert_triage.investigation.adapters.adk.normalisation import (
     readable,
     summarise,
 )
-from alert_triage.investigation.contract import EvidenceItem
+from alert_triage.investigation.contract import EvidenceItem, Section
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
 from alert_triage.shared import journal
+from alert_triage.shared.window import Window
 
 _log = logging.getLogger(__name__)
 
@@ -90,6 +91,11 @@ class Links(Protocol):
     log search or a metric or an audit trail. ``None`` is a complete answer,
     and the right one for a tool the platform has no known address for.
 
+    ``to_service`` is the third address, and not a grain of evidence: where a
+    reader goes to look at the service a finding concerns, on the section the
+    finding named. It is built around a member of a closed set rather than
+    around anything the reasoning wrote.
+
     Both are told the service too, because a service-scoped page is addressed
     to the service the investigation holds rather than to whatever the query
     happened to name, and how a service is named to a tool differs by tool.
@@ -105,6 +111,12 @@ class Links(Protocol):
         self, tool: str, payload: Any, within: str | None, service: str
     ) -> str | None:
         """Where this item is opened, or ``within`` when it names no item."""
+        ...
+
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        """Where a reader looks at a service, opened on a section it names."""
         ...
 
 
