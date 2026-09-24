@@ -1,10 +1,10 @@
 ## 1. Matching and naming guides
 
-- [ ] 1.1 Red/green: a guide naming a permitted tool is matched to that specialist
-- [ ] 1.2 Red/green: a guide naming only other tools is not matched
-- [ ] 1.3 Red/green: matching is whole-word, so a tool name inside a longer one does not match
-- [ ] 1.4 Red/green: a specialist with two toolsets is matched on tools from either
-- [ ] 1.5 Red/green: a Datadog guide name that is not kebab-case becomes one ADK accepts
+- [x] 1.1 Red/green: a guide naming a permitted tool is matched to that specialist
+- [x] 1.2 Red/green: a guide naming only other tools is not matched
+- [x] 1.3 Red/green: matching is whole-word, so a tool name inside a longer one does not match
+- [x] 1.4 Red/green: a specialist with two toolsets is matched on tools from either
+- [x] 1.5 Red/green: a Datadog guide name that is not kebab-case becomes one ADK accepts
 
 ## 2. Fetching guides at startup
 
