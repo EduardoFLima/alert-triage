@@ -19,4 +19,4 @@
 
 - [x] 3.1 Diff each specialist's rendered instruction before and after; list every changed sentence in the commit message
 - [x] 3.2 Run ruff check, ruff format --check, mypy and pytest
-- [ ] 3.3 Live suite, once (credential-gated; the user runs it)
+- [x] 3.3 Live suite, once (credential-gated; the user runs it)
