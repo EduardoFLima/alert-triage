@@ -8,13 +8,13 @@ its own addresses without this file being edited.
 An address is routed on the tool that produced the retrieval, because what a
 retrieval came from depends on which tool was called and its arguments cannot
 say: a query over a window is a log search, a metric, or an audit trail. Only
-forms confirmed against a real account are built, one per kind of tool, and a
-tool with no form gets no address at all. That is deliberate. An address built
+templates confirmed against a real account are built, one per kind of tool, and a
+tool with no template gets no address at all. That is deliberate. An address built
 for another kind of retrieval opens a page that looks like an answer — an empty
 Log Explorer under a metric — and a reader cannot tell it from one that is
 genuinely empty, whereas no address is visibly nothing.
 
-The one form so far is the Log Explorer's. A log retrieval is addressed as the
+The one template so far is the Log Explorer's. A log retrieval is addressed as the
 search that produced it — a query, the window it ran over as millisecond
 timestamps, and a view pinned to that window rather than to the present. An
 item the payload identifies is addressed as that same search with the item
@@ -37,7 +37,7 @@ LOG_TOOLS = frozenset({"search_datadog_logs", "analyze_datadog_logs"})
 """The tools whose retrievals are Log Explorer searches, and the only ones."""
 
 ADDRESSED = LOG_TOOLS
-"""Every tool an address form is known for."""
+"""Every tool an address template is known for."""
 
 UNADDRESSED = frozenset(
     {
@@ -62,13 +62,13 @@ UNADDRESSED = frozenset(
         "load_datadog_skill",
     }
 )
-"""Every tool the crew reaches that deliberately has no address form yet.
+"""Every tool the crew reaches that deliberately has no address template yet.
 
 Recorded rather than merely absent, so that a tool a specialist is widened to
 later fails a unit test until someone decides which of these two it belongs
 in, instead of quietly reporting its evidence without an address. A tool here
-is linkless because no form for it has been confirmed against a real account,
-and an unconfirmed form is how a reader gets sent to a page that looks like an
+is linkless because no template for it has been confirmed against a real account,
+and an unconfirmed template is how a reader gets sent to a page that looks like an
 answer and is not. The skill tools are here for a different reason: what they
 return is the platform's guidance on its own grammar, not evidence of anything.
 """
@@ -111,8 +111,8 @@ class DatadogLinks:
         """
         self._web_host = web_host
 
-        self._forms: Mapping[str, Callable[[Mapping[str, Any]], str]] = dict.fromkeys(
-            LOG_TOOLS, self._log_search
+        self._templates: Mapping[str, Callable[[Mapping[str, Any]], str]] = (
+            dict.fromkeys(LOG_TOOLS, self._log_search)
         )
 
     def to_retrieval(self, tool: str, args: Mapping[str, Any]) -> str | None:
@@ -126,11 +126,11 @@ class DatadogLinks:
 
         Returns:
             The address of the view that retrieval came from, or ``None`` where
-            no address form is known for the tool. An address built for another
+            no address template is known for the tool. An address built for another
             kind of retrieval opens a page that looks like an answer and is not.
         """
-        form = self._forms.get(tool)
-        return None if form is None else form(args)
+        template = self._templates.get(tool)
+        return None if template is None else template(args)
 
     def _log_search(self, args: Mapping[str, Any]) -> str:
         """The Log Explorer search a log retrieval came from, pinned to its window."""
@@ -146,7 +146,7 @@ class DatadogLinks:
 
         Args:
             tool: The tool whose retrieval the item came from. An item from a
-                tool no address form is known for gets none, rather than one
+                tool no address template is known for gets none, rather than one
                 inherited from a kind of retrieval it did not come from.
             payload: The item as the platform returned it.
             within: Where the retrieval it came from is opened, which is what
@@ -156,13 +156,13 @@ class DatadogLinks:
             The address of that item, of the retrieval it came from, or
             ``None`` where the platform offers neither.
         """
-        form = self._forms.get(tool)
-        if form is None:
+        template = self._templates.get(tool)
+        if template is None:
             return None
         item = _first(payload, ITEM_KEYS) if isinstance(payload, dict) else None
         if item is None:
             return within
-        search = within or form({})
+        search = within or template({})
         return f"{search}&{urlencode({'event': item})}"
 
 

@@ -279,7 +279,7 @@ def test_each_retrieval_address_opens_rather_than_404s_or_is_absent(
 
     Every retrieval rather than ``call-1``, which is as likely to be the
     platform's guide to its own grammar as it is evidence. Both outcomes are
-    specified: a tool with an address form gets an address that opens, and one
+    specified: a tool with an address template gets an address that opens, and one
     without gets none. A Log Explorer address for a metric is neither.
     """
     retrieved, links = _investigated(specialist)

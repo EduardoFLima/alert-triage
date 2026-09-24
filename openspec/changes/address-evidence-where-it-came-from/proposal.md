@@ -23,15 +23,15 @@ tested, and the unit tests assert the string a log payload produces.
   `Links.to_retrieval` and `Links.to_item` take the tool's name.
   `evidence_kept` already computes it — `named_tool(tool)`, two lines above the
   `retain_evidence` call — so it is threaded, not discovered.
-- **A tool with no address form gets no address.** `DatadogLinks` answers
-  `None` for anything it cannot place, and `EvidenceItem.url` is already
-  `str | None` with a report that renders evidence without one. This is the
-  gate: after it, no retrieval is addressed as a page it did not come from,
-  and every address form added afterwards is an improvement on silence rather
-  than a correction of a lie.
-- **The APM and trace specialists get named forms.** APM evidence lands on the
-  service's own page — `/apm/entity/service%3A{service}?start=&end=`
-  — and trace evidence on the trace explorer scoped to that service,
+- **A tool with no address template gets no address.** `DatadogLinks` answers
+  `None` for anything it cannot place, and `EvidenceItem.url` is already `str |
+  None` with a report that renders evidence without one. This is the gate:
+  after it, no retrieval is addressed as a page it did not come from, and every
+  address template added afterwards is an improvement on silence rather than a
+  correction of a lie.
+- **The APM and trace specialists get named templates.** APM evidence lands on
+  the service's own page — `/apm/entity/service%3A{service}?start=&end=` — and
+  trace evidence on the trace explorer scoped to that service,
   `/apm/traces?query=service%3A{service}&start=&end=`. Both are composed from
   the service and the window, which the investigation already holds. Neither
   copies the query the tool was called with: the grammars do match, but the
@@ -44,11 +44,11 @@ tested, and the unit tests assert the string a log payload produces.
   every other part of the address. A wrong pick opens the right service page on
   the wrong tab, which is why a bounded choice is admissible here where a
   written address is not.
-- **Address forms are added one tool at a time, each confirmed live.** The Log
-  Explorer form is kept and narrowed to the log tools. The others are written
-  against the explorers their evidence actually lives in, and each is checked
-  the way the log form was — built from a real retrieval and required to answer
-  rather than 404.
+- **Address templates are added one tool at a time, each confirmed live.** The
+  Log Explorer template is kept and narrowed to the log tools. The others are
+  written against the explorers their evidence actually lives in, and each is
+  checked the way the log template was — built from a real retrieval and
+  required to answer rather than 404.
 - **The live check stops being about one specialist.** It is parameterised over
   the crew the way the declaration check already is, so a specialist whose
   evidence is addressed wrongly fails by name.
@@ -83,7 +83,7 @@ evidence came from.
 - Changed: `investigation/adapters/adk/evidence.py` (the `Links` protocol,
   `retain_evidence`, `_address_of`, `_item_addresses`, and the one call site in
   `_kept`), `investigation/adapters/datadog/links.py` (routing by tool, plus a
-  form per tool), and their unit tests.
+  template per tool), and their unit tests.
 - Changed: `tests/integration/investigation/adapters/datadog/test_every_specialist_reaches_the_real_platform.py`,
   which currently checks one specialist's address.
 - Changed: `investigation/contract.py`, where `Finding` gains an optional
@@ -102,12 +102,12 @@ evidence came from.
   change does. It is named in `docs/vision.md` under *A Datadog integration
   that holds up* and is a prerequisite for per-item addresses mattering, not
   for retrieval addresses being right.
-- **An address form for every tool in the crew.** Each is its own cycle and its
-  own live check, and a tool left without one is now correctly linkless. The
-  change ships the routing plus the forms that pass their check.
-- **Sharing a URL form with `triage`.** The alert source builds its own Event
-  Explorer address, and the two contexts keep their own Datadog adapters by
-  design — see design.md.
+- **An address template for every tool in the crew.** Each is its own cycle and
+  its own live check, and a tool left without one is now correctly linkless.
+  The change ships the routing plus the templates that pass their check.
+- **Sharing a URL template with `triage`.** The alert source builds its own
+  Event Explorer address, and the two contexts keep their own Datadog adapters
+  by design — see design.md.
 - **How a report renders an address.** Unchanged: its own line, below the
   evidence line, auto-linked by the channels. Evidence with no address renders
   as it already does.

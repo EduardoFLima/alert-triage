@@ -4,23 +4,23 @@ Test files are named for the behaviour they establish and live at the mirror
 of the module's own path, per AGENTS.md.
 
 Tasks 1 to 3 are the gate: after them, no retrieval is addressed as a page it
-did not come from. Tasks 4 and 5 are additive, one form at a time, and a form
-that fails its live check is dropped rather than shipped.
+did not come from. Tasks 4 and 5 are additive, one template at a time, and a
+template that fails its live check is dropped rather than shipped.
 
 ## 1. A retrieval is addressed as what produced it
 
 - [x] 1.1 In `tests/unit/investigation/adapters/datadog/test_evidence_is_addressed_where_it_lives.py`,
-  assert a retrieval from a tool `DatadogLinks` has no address form for gets
-  no address at all — `None`, not a Log Explorer search. Give
+  assert a retrieval from a tool `DatadogLinks` has no address template for
+  gets no address at all — `None`, not a Log Explorer search. Give
   `DatadogLinks.to_retrieval` the tool's name and route on it, with the
   existing Log Explorer construction reached only by the log tools.
 - [x] 1.2 In the same file, assert the log tools still produce exactly the
   address they produce today, query and window and `live=false` included. This
-  is the refactor's safety net: the one form already confirmed against a real
-  account must come out the other side unchanged.
+  is the refactor's safety net: the one template already confirmed against a
+  real account must come out the other side unchanged.
 - [x] 1.3 Assert `to_item` routes the same way, so an item from an unmapped
   tool inherits nothing rather than inheriting a log address. Give it the tool
-  name too, and keep the fallback-to-the-retrieval behaviour within a form.
+  name too, and keep the fallback-to-the-retrieval behaviour within a template.
 
 ## 2. The framework hands the platform the tool
 
@@ -42,17 +42,17 @@ that fails its live check is dropped rather than shipped.
 
 - [x] 3.1 In `tests/unit/investigation/adapters/datadog/test_evidence_is_addressed_where_it_lives.py`,
   assert that for every tool the crew declares, `DatadogLinks` either has an
-  address form or is recorded as deliberately having none. Watch it fail for
-  the tools with no form yet, then add the record. This is what keeps a
+  address template or is recorded as deliberately having none. Watch it fail
+  for the tools with no template yet, then add the record. This is what keeps a
   specialist widened later from losing its addresses quietly.
 
-## 4. A form per tool, each confirmed
+## 4. A template per tool, each confirmed
 
 Each of these is one cycle: a unit test asserting the string, then the live
-check asserting it answers. A form whose live check fails is removed and its
-tools left linkless, which task 1 made a correct outcome. Every form is
+check asserting it answers. A template whose live check fails is removed and
+its tools left linkless, which task 1 made a correct outcome. Every template is
 composed from the service and the window the investigation already holds — no
-form reads a query out of the retrieval's `args`, for the reasons in
+template reads a query out of the retrieval's `args`, for the reasons in
 design.md.
 
 - [ ] 4.1 The APM tools — `get_datadog_metric`, `search_datadog_metrics`,
@@ -64,13 +64,14 @@ design.md.
   `https://{host}/apm/traces?query=service%3A{service}&start={ms}&end={ms}`.
 - [ ] 4.3 The host and Kubernetes tools — `search_datadog_hosts`,
   `search_datadog_k8s_resources`, `describe_datadog_k8s_resource`.
-- [ ] 4.4 `search_datadog_events`, which has a form already written next door in
-  `triage/adapters/datadog/alert_source.py` and confirmed live. Written again
-  here rather than shared — see design.md.
+- [ ] 4.4 `search_datadog_events`, which has a template already written next
+  door in `triage/adapters/datadog/alert_source.py` and confirmed live. Written
+  again here rather than shared — see design.md.
 - [ ] 4.5 Assert in each cycle that the window is expressed in milliseconds
-  under the parameter names that form uses — `start`/`end` for the APM forms,
-  `from_ts`/`to_ts` for the log one — and that a form whose window cannot be
-  read drops both ends rather than one, which `links._window` already does.
+  under the parameter names that template uses — `start`/`end` for the APM
+  templates, `from_ts`/`to_ts` for the log one — and that a template whose
+  window cannot be read drops both ends rather than one, which `links._window`
+  already does.
 
 ## 5. A finding says which section it concerns
 
@@ -105,14 +106,14 @@ design.md.
   seeing resolve against a real account.
 - [ ] 6.3 Run `uv run --env-file .env pytest
   tests/integration/investigation/adapters/datadog -rs` and record the outcome
-  here: which forms were confirmed to open, which specialists ship linkless,
-  and which forms were written and then dropped. Credential-gated, so a
-  developer's run and not CI's — see
+  here: which templates were confirmed to open, which specialists ship
+  linkless, and which templates were written and then dropped.
+  Credential-gated, so a developer's run and not CI's — see
   [`docs/live-testing.md`](../../../docs/live-testing.md).
 - [ ] 6.4 Say plainly in that record that `to_item` was not exercised live.
   Per-item citations do not resolve against the real server while the MCP
   envelope stays unwrapped, so every live address is a retrieval address and
-  the item forms are unit-tested only.
+  the item templates are unit-tested only.
 
 ## 7. Close the change
 

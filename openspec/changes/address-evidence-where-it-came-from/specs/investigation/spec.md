@@ -143,8 +143,8 @@ examples travel with it for a human to check it against.
 - **THEN** it is ignored, and the reader is given the same address without a
   section rather than one built around a section that does not exist
 
-#### Scenario: A retrieval the platform's address form is unknown for
+#### Scenario: A retrieval the platform's address template is unknown for
 - **WHEN** a specialist retrieves evidence from a tool the system has no
-  address form for
+  address template for
 - **THEN** the evidence carries no address, and is reported with its
   identifier, instant, and summary as evidence the platform cannot be opened at

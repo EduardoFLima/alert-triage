@@ -1,7 +1,7 @@
 """An address opens the kind of thing its retrieval came from, or there is none.
 
 What produced a retrieval depends on which tool was called, so the tool is what
-an address is routed on. A tool with no address form known for it answers
+an address is routed on. A tool with no address template known for it answers
 ``None``: a Log Explorer search built for a metric query looks like an answer
 and is an empty page, and a reader cannot tell it from a genuinely empty one.
 """
@@ -42,12 +42,12 @@ def _links() -> DatadogLinks:
     return DatadogLinks("app.datadoghq.com")
 
 
-def test_a_retrieval_from_a_tool_with_no_address_form_has_no_address() -> None:
+def test_a_retrieval_from_a_tool_with_no_address_template_has_no_address() -> None:
     assert _links().to_retrieval("get_datadog_metric", METRIC_QUERY) is None
 
 
 def test_a_log_search_is_addressed_exactly_as_it_was_confirmed_live() -> None:
-    """The one form already checked against a real account comes out unchanged."""
+    """The one template already checked against a real account comes out unchanged."""
     address = _links().to_retrieval("search_datadog_logs", SEARCH)
 
     assert address == (
@@ -63,7 +63,7 @@ def test_a_log_analysis_is_addressed_as_the_search_it_ran_over() -> None:
     ) == _links().to_retrieval("search_datadog_logs", SEARCH)
 
 
-def test_an_item_from_a_tool_with_no_address_form_inherits_no_log_address() -> None:
+def test_an_item_from_a_tool_with_no_address_template_inherits_no_log_address() -> None:
     """Not even the item-named fallback: there is no search for it to be in."""
     address = _links().to_item(
         "get_datadog_metric", {"id": "series-1", "name": "system.cpu.user"}, None
