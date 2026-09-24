@@ -10,7 +10,7 @@
 ## 2. Specialists pick from it
 
 - [x] 2.1 Logs: toolsets and tool list from the catalogue; existing tests green
-- [ ] 2.2 Infrastructure: same; its host-tag sentence stays in its instruction
+- [x] 2.2 Infrastructure: same; its host-tag sentence stays in its instruction
 - [ ] 2.3 APM: same, for both Preview branches; its catalogue-search guidance stays in its instruction
 - [ ] 2.4 Trace: same, for both Preview branches
 - [ ] 2.5 Delete the per-specialist tool and toolset constants that are now unused

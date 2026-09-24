@@ -20,33 +20,37 @@ from alert_triage.investigation.adapters.datadog.dialect import (
     CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
 )
-from alert_triage.investigation.adapters.datadog.mcp import DATADOG
-from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_SKILL
+from alert_triage.investigation.adapters.datadog.tools import (
+    ANALYSE_K8S_ROLLOUT,
+    DESCRIBE_K8S_RESOURCE,
+    GET_METRIC,
+    GET_METRIC_CONTEXT,
+    LIST_SKILLS,
+    LOAD_SKILL,
+    SEARCH_HOSTS,
+    SEARCH_K8S_RESOURCES,
+    SEARCH_METRICS,
+    described,
+    toolsets,
+)
 from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
-from alert_triage.investigation.domain.specialist import Specialist, Toolset
+from alert_triage.investigation.domain.specialist import Specialist
 
-CORE_TOOLSET = "core"
-KUBERNETES_TOOLSET = "kubernetes"
-"""The toolsets on the platform's server holding what this specialist reaches.
-
-Both are asked for separately rather than as one connection: the group is how
-the platform organises its tools, and a specialist declaring which group it
-reaches for what is a specialist whose live check says which half is missing.
-"""
-
-METRIC_TOOL = "get_datadog_metric"
-METRIC_SEARCH_TOOL = "search_datadog_metrics"
-METRIC_CONTEXT_TOOL = "get_datadog_metric_context"
-HOSTS_TOOL = "search_datadog_hosts"
-K8S_SEARCH_TOOL = "search_datadog_k8s_resources"
-K8S_DESCRIBE_TOOL = "describe_datadog_k8s_resource"
-K8S_ROLLOUT_TOOL = "analyse_datadog_k8s_rollout"
+INFRASTRUCTURE_TOOLS = (
+    SEARCH_METRICS,
+    GET_METRIC_CONTEXT,
+    GET_METRIC,
+    SEARCH_HOSTS,
+    SEARCH_K8S_RESOURCES,
+    DESCRIBE_K8S_RESOURCE,
+    ANALYSE_K8S_ROLLOUT,
+)
 """The tools this specialist may reach, and the only ones.
 
-``K8S_ROLLOUT_TOOL`` is spelled ``analyse`` where its neighbours in the same
-catalogue are spelled ``analyze``. It is a string that either exists on the
-server or does not, and the live run is what settles which; do not correct it
-by eye.
+They span two toolsets, ``core`` and ``kubernetes``, asked for separately
+rather than as one connection: the group is how the platform organises its
+tools, and a specialist declaring which group it reaches for what is a
+specialist whose live check says which half is missing.
 """
 
 INFRASTRUCTURE_INSTRUCTION = f"""
@@ -60,20 +64,9 @@ began relative to the alerts.
 
 The tools you have are Datadog's:
 
-- `{METRIC_SEARCH_TOOL}` lists the metrics that exist, filtered by name or by
-  tag — `service:the-service` is how you narrow it to one service's, and a
-  host tag is how you narrow it to one host's.
-- `{METRIC_CONTEXT_TOOL}` takes one metric you have already found and tells
-  you its unit, its type and what tags it carries.
-- `{METRIC_TOOL}` returns a metric's values over a time range.
-- `{HOSTS_TOOL}` finds the hosts a service runs on, with the tags that say
-  what they are.
-- `{K8S_SEARCH_TOOL}` finds the container workloads a service runs as, where
-  the deployment has them.
-- `{K8S_DESCRIBE_TOOL}` returns one such workload in full, including its
-  restarts and why it was last rescheduled.
-- `{K8S_ROLLOUT_TOOL}` accounts for how one such workload was most recently
-  rolled out: when it started, and how it went.
+{described(*INFRASTRUCTURE_TOOLS)}
+
+A host tag is how you narrow `{SEARCH_METRICS.name}` to one host's.
 
 Search before you analyse. A rollout is analysed for a workload by its
 cluster, its namespace and its name, and the search is where those come from:
@@ -82,7 +75,7 @@ yourself.
 
 {CONSULT_THE_PLATFORM}
 
-Ask `{METRIC_SEARCH_TOOL}` which metrics are reported before you query one,
+Ask `{SEARCH_METRICS.name}` which metrics are reported before you query one,
 and read the name you query out of what it answers. Do not guess a metric
 name: a name nothing reports comes back empty. A managed service reports a
 different set from a virtual machine, and neither reports everything.
@@ -174,24 +167,6 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     signal=Signal.INFRASTRUCTURE,
     instruction=INFRASTRUCTURE_INSTRUCTION,
     output_schema=ReportedFindings,
-    toolsets=(
-        Toolset(
-            provider=DATADOG,
-            name=CORE_TOOLSET,
-            tools=(
-                METRIC_TOOL,
-                METRIC_SEARCH_TOOL,
-                METRIC_CONTEXT_TOOL,
-                HOSTS_TOOL,
-                LIST_SKILLS.name,
-                LOAD_SKILL.name,
-            ),
-        ),
-        Toolset(
-            provider=DATADOG,
-            name=KUBERNETES_TOOLSET,
-            tools=(K8S_SEARCH_TOOL, K8S_DESCRIBE_TOOL, K8S_ROLLOUT_TOOL),
-        ),
-    ),
+    toolsets=toolsets(*INFRASTRUCTURE_TOOLS, LIST_SKILLS, LOAD_SKILL),
 )
 """The infrastructure specialist as the crew sees it: one declaration, nothing else."""
