@@ -13,10 +13,10 @@
 - [x] 2.2 Infrastructure: same; its host-tag sentence stays in its instruction
 - [x] 2.3 APM: same, for both Preview branches; its catalogue-search guidance stays in its instruction
 - [x] 2.4 Trace: same, for both Preview branches
-- [ ] 2.5 Delete the per-specialist tool and toolset constants that are now unused
+- [x] 2.5 Delete the per-specialist tool and toolset constants that are now unused
 
 ## 3. Verification
 
-- [ ] 3.1 Diff each specialist's rendered instruction before and after; list every changed sentence in the commit message
-- [ ] 3.2 Run ruff check, ruff format --check, mypy and pytest
+- [x] 3.1 Diff each specialist's rendered instruction before and after; list every changed sentence in the commit message
+- [x] 3.2 Run ruff check, ruff format --check, mypy and pytest
 - [ ] 3.3 Live suite, once (credential-gated; the user runs it)

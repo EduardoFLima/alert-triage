@@ -51,8 +51,9 @@ app  ->  <context>.adapters  ->  <context>.ports  ->  <context>.domain
   adapters split three ways: `crew/` holds the declarations — `specialists/`
   and `reasoners/` as siblings, with `roster.py` saying which exist; `adk/` is
   the framework machinery that turns a declaration into a running agent; and
-  `datadog/` is one provider's plumbing, where its server is, how its items are
-  addressed, and the grammar its queries are written in. A declaration belongs
+  `datadog/` is one provider's plumbing, where its server is, which tools it
+  serves, how its items are addressed, and the grammar its queries are written
+  in. A declaration belongs
   to the crew rather than to a provider, because each of its toolsets names the
   provider serving it and one specialist may name two.
   Its `Investigator` port is declared here, not beside the caller: a port
