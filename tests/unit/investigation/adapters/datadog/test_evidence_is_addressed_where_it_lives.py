@@ -126,3 +126,9 @@ def test_a_tool_recorded_as_unaddressed_is_given_no_address(tool: str) -> None:
 @pytest.mark.parametrize("tool", sorted(ADDRESSED))
 def test_a_tool_recorded_as_addressed_is_given_one(tool: str) -> None:
     assert _links().to_retrieval(tool, SEARCH) is not None
+
+
+@pytest.mark.parametrize("tool", sorted(ADDRESSED | UNADDRESSED))
+def test_every_tool_recorded_is_one_the_crew_still_reaches(tool: str) -> None:
+    """A record for a tool nobody declares is a decision about nothing."""
+    assert tool in DECLARED_TOOLS
