@@ -34,7 +34,7 @@ deserves one name.
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from alert_triage.investigation.adapters.datadog import tools
 
@@ -147,8 +147,9 @@ class DatadogLinks:
         """
         self._web_host = web_host
 
-        self._templates: Mapping[str, Callable[[Mapping[str, Any], str], str]] = {
-            **dict.fromkeys(LOG_TOOLS, self._log_search),
+        self._service_templates: Mapping[
+            str, Callable[[Mapping[str, Any], str], str]
+        ] = {
             **dict.fromkeys(APM_SERVICE_TOOLS, self._service_page),
             **dict.fromkeys(TRACE_TOOLS, self._trace_explorer),
             **dict.fromkeys(INFRASTRUCTURE_TOOLS, self._infrastructure),
@@ -173,13 +174,19 @@ class DatadogLinks:
 
         Returns:
             The address of the view that retrieval came from, or ``None`` where
-            no address template is known for the tool. An address built for another
-            kind of retrieval opens a page that looks like an answer and is not.
+            no address template is known for the tool, or where the template is
+            scoped to a service and none was given. An address built for another
+            kind of retrieval, or scoped to nothing, opens a page that looks like
+            an answer and is not.
         """
-        template = self._templates.get(tool)
-        return None if template is None else template(args, service)
+        if tool in LOG_TOOLS:
+            return self._log_search(args)
+        template = self._service_templates.get(tool)
+        if template is None or not service.strip():
+            return None
+        return template(args, service)
 
-    def _log_search(self, args: Mapping[str, Any], service: str) -> str:
+    def _log_search(self, args: Mapping[str, Any]) -> str:
         """The Log Explorer search a log retrieval came from, pinned to its window.
 
         The one template composed from the retrieval's own query rather than
@@ -200,7 +207,9 @@ class DatadogLinks:
         all point: the entity whose resources they describe, not the query that
         described them.
         """
-        page = f"https://{self._web_host}/apm/entity/service%3A{service}"
+        page = (
+            f"https://{self._web_host}/apm/entity/service%3A{quote(service, safe='')}"
+        )
         window = _apm_window(args)
         return f"{page}?{urlencode(window)}" if window else page
 
@@ -243,21 +252,22 @@ class DatadogLinks:
                 inherited from a kind of retrieval it did not come from.
             payload: The item as the platform returned it.
             within: Where the retrieval it came from is opened, which is what
-                an item the payload does not identify falls back to.
-            service: The service under investigation, used to rebuild the
-                retrieval's address where the caller did not supply one.
+                an item the payload does not identify falls back to, and what
+                every item from a service-scoped view is addressed as.
+            service: The service under investigation. Unused by any template an
+                item can be named on today, and part of the protocol because a
+                platform's item addresses may be scoped as its retrievals are.
 
         Returns:
             The address of that item, of the retrieval it came from, or
             ``None`` where the platform offers neither.
         """
-        template = self._templates.get(tool)
-        if template is None:
-            return None
+        if tool not in LOG_TOOLS:
+            return within if tool in self._service_templates else None
         item = _first(payload, ITEM_KEYS) if isinstance(payload, dict) else None
         if item is None:
             return within
-        search = within or template({}, service)
+        search = within or self._log_search({})
         return f"{search}&{urlencode({'event': item})}"
 
 

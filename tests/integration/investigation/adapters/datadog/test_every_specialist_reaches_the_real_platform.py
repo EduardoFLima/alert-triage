@@ -263,7 +263,7 @@ class _Recorded:
 def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:
     """One real consultation, kept with this account's addresses attached."""
     links = _Recorded(DatadogLinks(resolve_connection().web_host))
-    retrieved = Retrieved(link=links)
+    retrieved = Retrieved(link=links, service=SERVICE)
     asyncio.run(
         run_agent(
             build_agent(specialist, _deployment(), retrieved),

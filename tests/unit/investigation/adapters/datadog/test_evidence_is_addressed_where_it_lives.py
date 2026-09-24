@@ -225,10 +225,40 @@ def test_a_tool_recorded_as_unaddressed_is_given_no_address(tool: str) -> None:
 
 @pytest.mark.parametrize("tool", sorted(ADDRESSED))
 def test_a_tool_recorded_as_addressed_is_given_one(tool: str) -> None:
-    assert _links().to_retrieval(tool, SEARCH) is not None
+    assert _links().to_retrieval(tool, SEARCH, CHECKOUT) is not None
 
 
 @pytest.mark.parametrize("tool", sorted(ADDRESSED | UNADDRESSED))
 def test_every_tool_recorded_is_one_the_crew_still_reaches(tool: str) -> None:
     """A record for a tool nobody declares is a decision about nothing."""
     assert tool in DECLARED_TOOLS
+
+
+SERVICE_SCOPED_TOOLS = sorted(
+    APM_SERVICE_TOOLS | TRACE_TOOLS | INFRASTRUCTURE_TOOLS | EVENT_TOOLS
+)
+
+
+@pytest.mark.parametrize("tool", SERVICE_SCOPED_TOOLS)
+def test_a_service_scoped_retrieval_with_no_service_has_no_address(tool: str) -> None:
+    """``service:`` with nothing after it is a page scoped to nothing."""
+    assert _links().to_retrieval(tool, SEARCH, "") is None
+
+
+def test_a_service_is_encoded_into_the_path_rather_than_pasted() -> None:
+    """A slash in a service name would otherwise start a path segment of its own."""
+    address = _links().to_retrieval("get_datadog_metric", HALF_A_WINDOW, "web/api")
+
+    assert address == "https://app.datadoghq.com/apm/entity/service%3Aweb%2Fapi"
+
+
+@pytest.mark.parametrize("tool", SERVICE_SCOPED_TOOLS)
+def test_an_item_from_a_service_scoped_tool_is_addressed_as_its_retrieval(
+    tool: str,
+) -> None:
+    """Naming an item on the page is the Log Explorer's grammar, not every view's."""
+    retrieval = _links().to_retrieval(tool, HALF_A_WINDOW, CHECKOUT)
+
+    address = _links().to_item(tool, {"id": "host-1"}, retrieval, CHECKOUT)
+
+    assert address == retrieval
