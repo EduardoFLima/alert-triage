@@ -156,3 +156,36 @@ Settled by reading the real listing and guides (task 2.1):
   result, not an exception.
 - A guide documents its tools under a `## Tools` section, one `### <tool>`
   heading each.
+
+## What the live run showed
+
+Settled by the live suite and one measured run per specialist (tasks 5.1–5.3),
+against the EU account with `gemini-2.5-flash`:
+
+- Every specialist is offered at least one guide. Of the guides published, 8
+  document a tool somebody on the crew holds:
+
+  | Specialist | Offered | Loaded | Added instruction |
+  |---|---|---|---|
+  | logs | `logs` | `logs` | 2,368 chars, ~360 words |
+  | apm | `advanced-products`, `metrics`, `resource-changes` | `metrics`, `advanced-products` | 3,068 chars, ~434 words |
+  | trace | `traces` | `traces` | 2,272 chars, ~343 words |
+  | infrastructure | `bulk-dpa-generator`, `kubernetes`, `metrics`, `services-and-infrastructure` | — (run failed, below) | 3,190 chars, ~453 words |
+
+- "Added instruction" is everything the skill toolset appends: ADK's generic
+  skills instruction plus the menu. It is in line with the ~400 tokens the
+  risk above assumed, so no override of `process_llm_request` is earned yet.
+- Every specialist that ran loaded a guide before querying, and none loaded a
+  guide it was not offered or a `references/` file.
+- `bulk-dpa-generator` (46 KB) is offered to the infrastructure specialist for
+  naming a metrics tool under its `## Tools`. It is a menu entry, not a load,
+  so it costs a line of the prompt; worth watching if it starts being loaded.
+- The infrastructure specialist's run fails before its first call: Gemini
+  refuses a tool schema as having "too much branching". The same test fails
+  the same way at `ea5575d`, before this change, so it comes from the
+  `kubernetes` toolset's schemas rather than from guides. Out of scope here.
+- The metrics guide does not cover the grammar in `METRIC_QUERY_DIALECT`. It
+  teaches the shape (`avg:metric{scope}`, a comma as AND, `p95:`) but not the
+  rule each paragraph was written for: that `,` and `!` must not share braces
+  with `AND`, `OR`, `NOT` or `IN`. Nor `!` or `.as_count()`. So task 5.3's
+  condition is not met and the grammar stays.
