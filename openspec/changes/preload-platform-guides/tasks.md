@@ -15,7 +15,7 @@
 - [x] 2.3 Red/green: fetched guides become ADK `Skill` objects, references in `Resources.references`
 - [x] 2.4 Red/green: an unreachable server yields no guides and a single warning, not an exception
 - [x] 2.5 Red/green: the fetch is bounded by `mcp_call_timeout_seconds`
-- [ ] 2.6 Red/green: `build_investigator` fetches once and hands the guides to the deployment; nothing is written to disk
+- [x] 2.6 Red/green: `build_investigator` fetches once and hands the guides to the deployment; nothing is written to disk
 
 ## 3. Offering guides to agents
 

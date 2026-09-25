@@ -16,6 +16,7 @@ import sqlite3
 import uuid
 from collections.abc import Mapping
 from contextlib import closing
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -29,6 +30,7 @@ from alert_triage.configuration.port import ConfigError
 from alert_triage.configuration.settings import CircuitBreakers, Investigation
 from alert_triage.investigation.adapters.adk.agent import Deployment, PlatformAccess
 from alert_triage.investigation.adapters.adk.credentials import resolve_model_access
+from alert_triage.investigation.adapters.adk.guides import fetch_guides
 from alert_triage.investigation.adapters.adk.investigator import (
     AdkInvestigator,
     report_with_adk,
@@ -182,6 +184,10 @@ def build_investigator(
     specialists an incident needs is the manager's decision, made per incident,
     and this only says which ones exist to be chosen from.
 
+    The platform's guides are read here, once, for the crew being built, and
+    held in the deployment for the run. Here because this runs before any alert
+    is fetched, so the reading sits outside every investigation's bounds.
+
     The model's credential is checked here rather than beside the other
     startup checks because this is what needs it: a deployment that stops
     building an investigator stops needing a key, and a check kept somewhere
@@ -227,8 +233,10 @@ def build_investigator(
         model_for=_model_for,
         breakers=breakers or CircuitBreakers(),
     )
+    crew = crew_for(investigation.specialists, providers=set(deployment.platforms))
+    deployment = replace(deployment, guides=fetch_guides(crew, deployment))
     return AdkInvestigator(
-        crew=crew_for(investigation.specialists, providers=set(deployment.platforms)),
+        crew=crew,
         links=DatadogLinks(datadog_connection.web_host),
         run_diagnostician=run_with_adk(deployment),
         run_report=report_with_adk(deployment),

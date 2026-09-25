@@ -33,6 +33,7 @@ from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
 from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     diagnostician,
 )
+from alert_triage.investigation.adapters.datadog.guides import DatadogGuide
 from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -91,11 +92,16 @@ class Deployment:
             than passed to each builder because they are a deployment fact
             travelling with the other deployment facts, and three signatures
             would otherwise grow to say so.
+        guides: The platform's guides, read once as the run started, from
+            which each specialist is offered those documenting its own tools.
+            A deployment fact rather than a declared one: what the platform
+            publishes changes without any declaration changing.
     """
 
     platforms: Mapping[str, PlatformAccess]
     model_for: ModelFor
     breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
+    guides: tuple[DatadogGuide, ...] = ()
 
 
 def connection_for(

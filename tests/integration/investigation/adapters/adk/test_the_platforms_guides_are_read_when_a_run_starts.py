@@ -9,6 +9,7 @@ import logging
 import threading
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 import uvicorn
@@ -141,6 +142,18 @@ def test_a_guide_offered_to_the_crew_is_read_with_its_description_and_references
             references={"references/log-syntax.md": "Quote a value with spaces."},
         ),
     )
+
+
+def test_reading_the_guides_leaves_nothing_on_disk(
+    serve: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Guides are the platform's to publish; a run holds them and lets go."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+
+    assert fetch_guides((LOGS,), _deployment(serve), pause=_no_pause)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_a_guide_offered_to_nobody_has_no_reference_loaded(
