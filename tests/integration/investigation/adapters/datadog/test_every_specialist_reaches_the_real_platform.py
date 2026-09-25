@@ -15,9 +15,12 @@ clone stay green.
 """
 
 import asyncio
+import logging
 import os
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from functools import cache
 
 import pytest
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
@@ -43,12 +46,14 @@ from alert_triage.investigation.adapters.adk.credentials import (
     resolve_model_access,
 )
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.adapters.adk.guides import fetch_guides
 from alert_triage.investigation.adapters.adk.investigator import run_agent
 from alert_triage.investigation.adapters.adk.model import build_model
 from alert_triage.investigation.adapters.crew.roster import CREW
 from alert_triage.investigation.adapters.crew.specialists.logs import (
     LOGS_SPECIALIST,
 )
+from alert_triage.investigation.adapters.datadog.guides import DatadogGuide, guides_for
 from alert_triage.investigation.adapters.datadog.links import ITEM_KEYS, DatadogLinks
 from alert_triage.investigation.adapters.datadog.mcp import (
     DATADOG,
@@ -109,14 +114,36 @@ a connection to each, and a failure has to say which half of it is missing.
 """
 
 
+_log = logging.getLogger(__name__)
+
+
 def _deployment() -> Deployment:
-    """The deployment a real run would assemble, bounds included.
+    """The deployment a real run would assemble, bounds and guides included.
 
     The breakers are read the way a run reads them, so an override in the
     environment or the config file governs this suite too. Built with the
     defaults instead, a specialist here would stop at the default call budget
     whatever the developer had configured.
+
+    The guides are the ones a run would read for this crew, so what a real
+    model is offered here is what it would be offered in production.
     """
+    return replace(_unguided_deployment(), guides=_guides())
+
+
+@cache
+def _guides() -> tuple[DatadogGuide, ...]:
+    """The platform's guides, read once for the whole module as a run reads them.
+
+    Reading them costs a call per guide the platform publishes, which is
+    worth paying once here rather than once per test.
+    """
+    return fetch_guides(CREW, _unguided_deployment())
+
+
+@cache
+def _unguided_deployment() -> Deployment:
+    """The deployment before its guides are read, built once so they are too."""
     connection = resolve_connection()
     breakers = load_config(DEFAULT_CONFIG_PATH).circuit_breakers
     model = build_model(Investigation.DEFAULT_MODEL, resolve_model_access())
@@ -160,6 +187,29 @@ def test_every_declared_tool_exists_and_the_filter_admits_it(
     tools = asyncio.run(toolset.get_tools())
 
     assert {tool.name for tool in tools} == set(declared.tools)
+
+
+@pytest.mark.parametrize(
+    "specialist", CREW, ids=[specialist.name for specialist in CREW]
+)
+def test_every_specialist_is_offered_a_guide_to_its_tools(
+    specialist: Specialist,
+) -> None:
+    """The one thing no fake establishes: that real guides document these tools.
+
+    Matching is by a guide's headings, which the platform can reshape; a
+    specialist offered nothing is back to writing queries from memory, and
+    nothing else in a run would say so. Run with ``--log-cli-level=INFO`` to
+    see which guides each is offered.
+    """
+    offered = guides_for(specialist, _deployment().guides)
+
+    _log.info(
+        "%s is offered %s",
+        specialist.name,
+        ", ".join(guide.name for guide in offered) or "nothing",
+    )
+    assert offered, f"{specialist.name} is offered no guide to its tools"
 
 
 @pytest.mark.parametrize(
