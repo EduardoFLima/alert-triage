@@ -866,9 +866,28 @@ as such.
 
 An address SHALL be available at both grains at which evidence is identified.
 An individual item SHALL be addressed as that item where the retrieved result
-identifies it, and a retrieval SHALL be addressed as the query that produced
-it over the window it ran over, so that evidence with no discrete items is
-still something a reader can go and look at.
+identifies it, and a retrieval SHALL be addressed as whatever produced it —
+the search, the query, or the view it came from — over the window it ran over,
+so that evidence with no discrete items is still something a reader can go and
+look at.
+
+An address SHALL open the retrieval it was built for. What produced a
+retrieval depends on which tool was called, so the address SHALL be derived
+from the tool as well as from what the tool was asked, and the system SHALL
+NOT address a retrieval as a kind of thing it did not come from. Where the
+platform's address for a retrieval of that kind is not known, the evidence
+SHALL carry no address: absence is already a complete answer here, and an
+address that opens the wrong view is worse than none, because a reader cannot
+tell it from a view that is genuinely empty.
+
+A finding MAY name which section of an address it concerns, chosen from a set
+the system enumerates. This is the only part of an address the reasoning
+contributes, and it is admissible where a written address is not because a
+choice from a closed set can be checked against that set, and a choice outside
+it is rejected rather than followed. The system SHALL compose the address
+itself — its host, its path, the service and the window it scopes to — and
+SHALL treat an absent or unrecognised section as no section, landing a reader
+on the address without it.
 
 A finding whose evidence cannot be traced back to what was retrieved SHALL be
 discarded, and the system SHALL record that it was discarded and why, so that
@@ -938,8 +957,31 @@ examples travel with it for a human to check it against.
 
 #### Scenario: An aggregate is addressable
 - **WHEN** a finding cites a retrieval that produced no discrete items
-- **THEN** the address a reader is given opens the query that produced it over
-  the window it ran over
+- **THEN** the address a reader is given opens whatever produced that
+  retrieval, over the window it ran over
+
+#### Scenario: Two retrievals from different kinds of tool
+- **WHEN** one finding cites a retrieval of the service's logs and another
+  cites a retrieval of its resource metrics
+- **THEN** each address opens the view its own retrieval came from, and
+  neither opens the other's
+
+#### Scenario: A finding names the section it concerns
+- **WHEN** a finding names a section from the enumerated set
+- **THEN** the address a reader is given opens on that section of the page the
+  system composed, and no part of that address but the section came from the
+  finding
+
+#### Scenario: A finding names a section that is not one of them
+- **WHEN** a finding names a section outside the enumerated set
+- **THEN** it is ignored, and the reader is given the same address without a
+  section rather than one built around a section that does not exist
+
+#### Scenario: A retrieval the platform's address template is unknown for
+- **WHEN** a specialist retrieves evidence from a tool the system has no
+  address template for
+- **THEN** the evidence carries no address, and is reported with its
+  identifier, instant, and summary as evidence the platform cannot be opened at
 
 ### Requirement: A failed retrieval is never an absence of evidence
 When a retrieval of evidence fails — the platform refuses it, is unreachable,
