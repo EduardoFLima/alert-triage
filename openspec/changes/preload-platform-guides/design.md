@@ -31,11 +31,21 @@ fetching on the first investigation, spares runs with no incidents the cost,
 but the user chose startup: it keeps the fetch out of the investigation path
 and its bounds.
 
-**Fetch through ADK's MCP toolset, not the `mcp` client directly.** An
-`McpToolset` filtered to the two skill tools, with the connection
-`connection_for` already builds, bounded by `mcp_call_timeout_seconds`. Using
-`mcp` directly would be a second way of reaching the same server and a new
-direct dependency to add to `.importlinter`.
+**Fetch through ADK's MCP session manager, not the `mcp` client directly.** An
+`MCPSessionManager` over the connection `connection_for` already builds, asked
+for every toolset the crew reaches (a guide's visibility depends on the
+toolsets requested), each call bounded by `mcp_call_timeout_seconds`. Not
+`McpToolset`: calling one of its tools outside an agent needs a `ToolContext`
+there is no invocation to build from. Using `mcp`'s transport directly would be
+a second way of reaching the same server.
+
+**One listing, then one load per guide, in sequence.** The listing with
+`include_header` gives every guide's name, description and bundled references
+in one call. Each guide's text is loaded one at a time; the server refuses a
+burst (about 45 loads in quick succession) with an error result, so a refused
+load is retried after a pause, a bounded number of times, and a guide still
+refused is left out with a warning naming it. References are loaded only for
+guides some specialist is offered, and guides offered to nobody are dropped.
 
 **Serve guides with `SkillToolset`, filtered to `load_skill` and
 `load_skill_resource`.** It gives the menu, the on-demand load, and refusal of
@@ -48,17 +58,31 @@ nothing refusing an off-menu guide). Its registry mode was rejected too: it
 fetches on demand, but then the prompt lists no menu and the model has to use
 `search_skills`, which is browsing again.
 
-**References are loaded with their guide.** Where a guide names a further
-reference, it is fetched at startup into `Resources.references` under the path
-the guide used, and served by `load_skill_resource`. One level, so a guide
-cannot pull the whole library in by chaining.
+**References are loaded with their guide.** A guide's references are the ones
+the listing names for it, every one under `references/`. Each is fetched at
+startup with `load_datadog_skill`'s `resource_path` and kept in
+`Resources.references` under the path without that prefix, which is how
+`load_skill_resource` looks it up. One level, so a guide cannot pull the whole
+library in by chaining; the other guides a guide points to are not followed.
 
-**Match a guide to a specialist by tool name.** A guide is offered to a
-specialist when its text names, as a whole word, any tool in that specialist's
-permitted set. The alternative — a hand-kept map of guide name to specialist —
-is what the proposal rejects. The rule lives in `adapters/datadog/`, because
-what a guide looks like is the provider's; building `Skill` objects lives in
+**Match a guide to a specialist by the tools it documents.** A guide is offered
+to a specialist when it has a heading naming, as a whole word, a tool in that
+specialist's permitted set (`### search_datadog_logs`). The first version
+matched any mention in the text, and the live library showed it too broad:
+database and LLM-observability playbooks name `search_datadog_logs` and
+`get_datadog_metric` in passing, so every specialist was offered 9 to 23 guides
+of up to 400k characters. By heading, each is offered the one to four guides
+that document its tools. No guide has a heading for either skill tool, so the
+match needs no exception for them while they are still permitted (until 4.2).
+The
+alternative — a hand-kept map of guide name to specialist — is what the
+proposal rejects. The rule lives in `adapters/datadog/`, because what a guide
+looks like is the provider's; building `Skill` objects lives in
 `adapters/adk/`.
+
+**A description too long for ADK is shortened.** `Frontmatter` refuses more
+than 1024 characters, and some listed descriptions run to 1800. It is cut at a
+word boundary with an ellipsis rather than the guide being dropped.
 
 **Rename a guide to a name ADK accepts.** `Frontmatter` requires kebab-case. A
 Datadog name that is not (for example `datadog/metrics`) is turned into one
@@ -97,8 +121,11 @@ as a fallback was rejected: it brings back browsing.
   instruction tells it to load a relevant skill first. Record loads on the live
   run.
 - [Startup reads every guide, even on runs with no incidents] → One call per
-  guide and reference per run. Accepted in exchange for a fetch outside the
-  investigation's bounds.
+  guide (59 on the account read) plus the offered guides' references, per run:
+  about ten seconds with the pauses a burst refusal costs. Accepted in exchange
+  for a fetch outside the investigation's bounds.
+- [A guide's headings change shape] → The live suite asserts each specialist is
+  offered at least one guide.
 - [`SkillToolset` changes shape in a later ADK 2.x] → It is used in one place,
   `adapters/adk/`, and covered by unit tests against the installed version.
 
@@ -108,8 +135,18 @@ One commit per behaviour, test first. The grammar in `METRIC_QUERY_DIALECT`
 stays until a live run shows the metrics guide covers it. Rollback is reverting
 the change: the Datadog skill tools come back into the toolsets.
 
-## Open Questions
+## What the platform publishes
 
-- What the listing gives for a guide's name and description, and how a guide
-  names a further reference. Settled by reading one real listing and guide; the
-  design holds either way.
+Settled by reading the real listing and guides (task 2.1):
+
+- `list_datadog_skills` with `include_header: true` returns one text block, a
+  line per guide: `- **datadog/metrics**: <description> (related: …)`,
+  optionally followed by `  Resources: references/a.md, references/b.md`.
+- Names are `datadog/<name>`, sometimes nested (`datadog/dbm-mysql/investigate`),
+  sometimes snake_case, and one is `generic`.
+- `load_datadog_skill` takes `skill_name`, optionally `resource_path`, and
+  requires `telemetry: {intent}` on every call, as does the listing. It returns
+  markdown text; an unknown name or a refused burst comes back as an error
+  result, not an exception.
+- A guide documents its tools under a `## Tools` section, one `### <tool>`
+  heading each.

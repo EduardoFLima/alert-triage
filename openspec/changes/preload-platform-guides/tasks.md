@@ -5,11 +5,13 @@
 - [x] 1.3 Red/green: matching is whole-word, so a tool name inside a longer one does not match
 - [x] 1.4 Red/green: a specialist with two toolsets is matched on tools from either
 - [x] 1.5 Red/green: a Datadog guide name that is not kebab-case becomes one ADK accepts
+- [x] 1.6 Red/green: a guide that mentions a permitted tool without documenting it under a heading is not matched (revised by 2.1: mention-matching offered every specialist 9–23 guides)
 
 ## 2. Fetching guides at startup
 
-- [ ] 2.1 Read one real listing and guide (by hand, with the user) to settle names, descriptions, and how a guide names a further reference
+- [x] 2.1 Read one real listing and guide (by hand, with the user) to settle names, descriptions, and how a guide names a further reference — findings in design.md, "What the platform publishes"
 - [ ] 2.2 Red/green against a fake MCP server: every listed guide is fetched with its description, and its references one level deep
+- [ ] 2.2a Red/green: a load the server refuses is retried after a pause, and a guide still refused is left out with a warning
 - [ ] 2.3 Red/green: fetched guides become ADK `Skill` objects, references in `Resources.references`
 - [ ] 2.4 Red/green: an unreachable server yields no guides and a single warning, not an exception
 - [ ] 2.5 Red/green: the fetch is bounded by `mcp_call_timeout_seconds`
