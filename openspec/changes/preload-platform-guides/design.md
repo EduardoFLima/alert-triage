@@ -8,9 +8,11 @@ before any alert is fetched. A run is one process (`app/main.py`). See
 proposal.md for why.
 
 ADK 2.7.1's `SkillToolset` (`google/adk/tools/skill_toolset.py`) takes
-in-memory `Skill` objects. With `list_skills` filtered out, it adds their names
-and descriptions to the prompt itself, and `load_skill` returns a skill's text
-or `SKILL_NOT_FOUND` for a name it does not hold.
+in-memory `Skill` objects, and `load_skill` returns a skill's text or
+`SKILL_NOT_FOUND` for a name it does not hold. It adds their names and
+descriptions to the prompt only when it has no `list_skills` tool — and it
+checks the tools it was built with, not those its `tool_filter` leaves, so
+filtering `list_skills` out does not bring the menu in.
 
 ## Goals / Non-Goals
 
@@ -48,8 +50,11 @@ refused is left out with a warning naming it. References are loaded only for
 guides some specialist is offered, and guides offered to nobody are dropped.
 
 **Serve guides with `SkillToolset`, filtered to `load_skill` and
-`load_skill_resource`.** It gives the menu, the on-demand load, and refusal of
-an unheld name without code of ours. It is not in any declaration, so
+`load_skill_resource`.** It gives the on-demand load and refusal of an
+unheld name without code of ours. The menu takes a small subclass in
+`adapters/adk/skills.py` that appends it in `process_llm_request`, using ADK's
+own `format_skills_as_xml`, because the filter hides `list_skills` without the
+toolset noticing (see Context). It is not in any declaration, so
 `log_tool_call` and `keep_evidence_callback` already pass it through untouched:
 no budget, no evidence, no failed retrieval. The alternatives were our own menu
 and local load tool (more code for the same result), or keeping

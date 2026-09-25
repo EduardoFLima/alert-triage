@@ -19,7 +19,7 @@
 
 ## 3. Offering guides to agents
 
-- [ ] 3.1 Red/green: `build_agent` gives a specialist a `SkillToolset` holding only its matched guides, filtered to `load_skill` and `load_skill_resource`
+- [x] 3.1 Red/green: `build_agent` gives a specialist a `SkillToolset` holding only its matched guides, filtered to `load_skill` and `load_skill_resource`
 - [ ] 3.2 Red/green: the declaration's instruction is passed unchanged; no guide text is in it
 - [ ] 3.3 Red/green: loading an unheld guide returns `SKILL_NOT_FOUND`
 - [ ] 3.4 Red/green: a load neither uses the specialist's tool budget nor becomes evidence

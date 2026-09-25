@@ -5,7 +5,7 @@ kebab-case, its description at most 1024 characters and never empty, and a
 reference is looked up by its path beneath ``references/``.
 """
 
-from alert_triage.investigation.adapters.adk.guides import skill_from
+from alert_triage.investigation.adapters.adk.skills import skill_from
 from alert_triage.investigation.adapters.datadog.guides import DatadogGuide
 
 KUBERNETES = DatadogGuide(
