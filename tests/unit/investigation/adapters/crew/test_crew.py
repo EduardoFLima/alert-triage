@@ -184,7 +184,7 @@ def _consulting_everyone(
     """A stand-in manager that happens to want every signal this incident has."""
     for specialist in crew:
         offered = retrieved.retain_evidence(
-            {"logs": [{"message": f"{specialist.name} saw this"}]}
+            "search_logs", {"logs": [{"message": f"{specialist.name} saw this"}]}
         )
         consulted.record(
             specialist,

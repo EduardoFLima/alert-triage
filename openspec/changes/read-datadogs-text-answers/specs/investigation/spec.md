@@ -14,6 +14,13 @@ it; a finding about something with no discrete items — an aggregate, a
 dependency map, a waterfall — cites the retrieval. A finding citing neither
 SHALL be discarded.
 
+The grain evidence is cited at SHALL be decided by what was retrieved and not
+by how the platform chose to encode it. A platform may answer with structured
+data or with a block of text carrying a table of rows; a result that holds
+discrete things SHALL yield them either way. A retrieval that does hold
+discrete things and is cited only as a whole is a loss of precision the system
+SHALL NOT accept as the platform's answer being an aggregate.
+
 Every retrieved item SHALL be rendered into a report through one common
 normalisation — an identifier, the instant it concerns, a human-readable
 summary, and an address at which a human can open the thing itself on the
@@ -32,28 +39,18 @@ as such.
 
 An address SHALL be available at both grains at which evidence is identified.
 An individual item SHALL be addressed as that item where the retrieved result
-identifies it, and a retrieval SHALL be addressed as whatever produced it —
-the search, the query, or the view it came from — over the window it ran over,
-so that evidence with no discrete items is still something a reader can go and
-look at.
+identifies it, and a retrieval SHALL be addressed as the query that produced
+it over the window it ran over, so that evidence with no discrete items is
+still something a reader can go and look at.
 
-An address SHALL open the retrieval it was built for. What produced a
-retrieval depends on which tool was called, so the address SHALL be derived
-from the tool as well as from what the tool was asked, and the system SHALL
-NOT address a retrieval as a kind of thing it did not come from. Where the
-platform's address for a retrieval of that kind is not known, the evidence
-SHALL carry no address: absence is alre, and anady a complete answer here
-address that opens the wrong view is worse than none, because a reader cannot
-tell it from a view that is genuinely empty.
-
-A finding MAY name which section of an address it concerns, chosen from a set
-the system enumerates. This is the only part of an address the reasoning
-contributes, and it is admissible where a written address is not because a
-choice from a closed set can be checked against that set, and a choice outside
-it is rejected rather than followed. The system SHALL compose the address
-itself — its host, its path, the service and the window it scopes to — and
-SHALL treat an absent or unrecognised section as no section, landing a reader
-on the address without it.
+Where the platform returns an address alongside what it retrieved, that
+address SHALL be preferred to one the system composed. The platform ran the
+view and can name it exactly; the system can only infer it from which tool was
+called and what it was called with, and an inferred address that opens a
+different view of the same subject is the failure the system is trying to
+avoid. An address the platform returns SHALL be subject to the same rule as
+any other: it is part of what was retrieved, never part of what a specialist
+reported.
 
 A finding whose evidence cannot be traced back to what was retrieved SHALL be
 discarded, and the system SHALL record that it was discarded and why, so that
@@ -103,6 +100,17 @@ examples travel with it for a human to check it against.
   per-tool handling for
 - **THEN** that evidence is identified, checked, and rendered like any other
 
+#### Scenario: A retrieval answered as a table of text
+- **WHEN** the platform answers a retrieval with text carrying a header row
+  and rows beneath it, rather than with structured data
+- **THEN** each row is identified as an item within that retrieval, and is
+  summarised from the row rather than from any preamble describing the answer
+
+#### Scenario: An answer in text that holds no table
+- **WHEN** the platform answers a retrieval with text that carries no rows
+- **THEN** the retrieval is citable as a whole and carries no items, as any
+  result with nothing discrete in it does
+
 #### Scenario: Evidence carries where to go and see it
 - **WHEN** a retrieved item is presented to a human and the platform can
   address it
@@ -123,28 +131,16 @@ examples travel with it for a human to check it against.
 
 #### Scenario: An aggregate is addressable
 - **WHEN** a finding cites a retrieval that produced no discrete items
-- **THEN** the address a reader is given opens whatever produced that
-  retrieval, over the window it ran over
+- **THEN** the address a reader is given opens the query that produced it over
+  the window it ran over
 
-#### Scenario: Two retrievals from different kinds of tool
-- **WHEN** one finding cites a retrieval of the service's logs and another
-  cites a retrieval of its resource metrics
-- **THEN** each address opens the view its own retrieval came from, and
-  neither opens the other's
+#### Scenario: The platform addressed its own answer
+- **WHEN** a retrieval comes back carrying an address the platform composed for
+  the view it ran
+- **THEN** that address is the one a reader is given, in place of the one the
+  system would have composed from the tool and its arguments
 
-#### Scenario: A finding names the section it concerns
-- **WHEN** a finding names a section from the enumerated set
-- **THEN** the address a reader is given opens on that section of the page the
-  system composed, and no part of that address but the section came from the
-  finding
-
-#### Scenario: A finding names a section that is not one of them
-- **WHEN** a finding names a section outside the enumerated set
-- **THEN** it is ignored, and the reader is given the same address without a
-  section rather than one built around a section that does not exist
-
-#### Scenario: A retrieval the platform's address form is unknown for
-- **WHEN** a specialist retrieves evidence from a tool the system has no
-  address form for
-- **THEN** the evidence carries no address, and is reported with its
-  identifier, instant, and summary as evidence the platform cannot be opened at
+#### Scenario: The platform addressed nothing
+- **WHEN** a retrieval comes back with no address of the platform's own
+- **THEN** the address a reader is given is the one the system composes, as
+  before

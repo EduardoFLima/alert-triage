@@ -18,6 +18,7 @@ from alert_triage.investigation.adapters.adk.agent import (
     build_agent,
     connection_for,
 )
+from alert_triage.investigation.adapters.adk.bounds import Bounds
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
 from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
@@ -289,6 +290,56 @@ def test_changing_the_call_timeout_leaves_the_other_breakers_alone() -> None:
     assert breakers.max_tool_calls_per_agent == 12
     assert breakers.max_agent_hops == 8
     assert breakers.max_investigation_duration_seconds == 300
+
+
+def _calls(agent: Any, tool: str = "search_logs") -> Any:
+    """One tool call, driven the way the framework drives one."""
+    before: Any = agent.before_tool_callback
+    return before(
+        tool=_NamedTool(tool), args={"query": "status:error"}, tool_context=None
+    )
+
+
+def test_a_specialist_is_bounded_by_the_breakers_of_the_deployment_it_runs_in() -> None:
+    """The deployment already carries the bound; building an agent must honour it.
+
+    A caller that holds a deployment holds everything the bound needs. Falling
+    back to the documented default while holding a deployment that says
+    otherwise is how a run silently ignores what an operator configured, and it
+    is silent precisely because a default is a plausible number.
+    """
+    deployment = _deployment(breakers=CircuitBreakers(max_tool_calls_per_agent=2))
+
+    agent = build_agent(_specialist(), deployment, Retrieved())
+
+    assert [_calls(agent) for _ in range(2)] == [None, None]
+    assert _calls(agent) is not None
+
+
+def test_a_deployment_that_states_no_bound_still_gets_the_documented_default() -> None:
+    deployment = _deployment()
+
+    agent = build_agent(_specialist(), deployment, Retrieved())
+    for _ in range(CircuitBreakers.DEFAULT_MAX_TOOL_CALLS_PER_AGENT):
+        assert _calls(agent) is None
+
+    assert _calls(agent) is not None
+
+
+def test_bounds_passed_in_beat_the_deployments_own() -> None:
+    """One investigation's bounds are shared across its specialists and stateful.
+
+    The manager builds every specialist over a single ``Bounds`` so that the
+    hops they spend are counted once. That instance has to win, or each
+    specialist would get a fresh budget from the deployment.
+    """
+    deployment = _deployment(breakers=CircuitBreakers(max_tool_calls_per_agent=9))
+    shared = Bounds(CircuitBreakers(max_tool_calls_per_agent=1))
+
+    agent = build_agent(_specialist(), deployment, Retrieved(), shared)
+
+    assert _calls(agent) is None
+    assert _calls(agent) is not None
 
 
 def test_every_specialist_carries_the_evidence_callbacks() -> None:

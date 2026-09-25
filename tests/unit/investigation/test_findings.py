@@ -7,6 +7,7 @@ from alert_triage.investigation.contract import (
     EvidenceItem,
     Finding,
     Findings,
+    Section,
     Signal,
 )
 
@@ -223,3 +224,33 @@ def test_a_finding_names_the_signal_it_was_drawn_from() -> None:
         )
 
         assert finding.signal is signal
+
+
+def test_a_finding_names_no_section_unless_it_is_given_one() -> None:
+    """Defaulted, so every finding built before sections existed still builds."""
+    finding = Finding(
+        signal=Signal.INFRASTRUCTURE,
+        observation="checkout was rolled out",
+        occurrences=1,
+        examples=(_item(),),
+    )
+
+    assert finding.section is None
+
+
+def test_a_finding_may_name_the_section_of_the_service_it_concerns() -> None:
+    finding = Finding(
+        signal=Signal.INFRASTRUCTURE,
+        observation="checkout was rolled out",
+        occurrences=1,
+        examples=(_item(),),
+        section=Section.INFRASTRUCTURE,
+    )
+
+    assert finding.section is Section.INFRASTRUCTURE
+
+
+def test_a_section_is_drawn_from_a_closed_set() -> None:
+    """A choice from a closed set can be checked; a written one cannot."""
+    with pytest.raises(ValueError):
+        Section("the bit with the graphs")

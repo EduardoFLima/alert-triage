@@ -389,5 +389,7 @@ def test_the_investigator_addresses_evidence_on_the_site_it_gathers_it_from(
         Investigation(),
     )
 
-    address = built["links"].to_retrieval({"query": "service:checkout"})
+    address = built["links"].to_retrieval(
+        "search_datadog_logs", {"query": "service:checkout"}
+    )
     assert address.startswith("https://app.datadoghq.eu/")

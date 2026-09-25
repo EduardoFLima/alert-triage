@@ -54,7 +54,7 @@ def _finds(consults: tuple[str, ...] = ("logs_specialist",)) -> Any:
     def _run(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         for name in consults:
             specialist = consulted.named(name)
             assert specialist is not None
@@ -171,7 +171,7 @@ def test_an_investigation_that_spent_its_questions_still_concludes() -> None:
     def _keeps_asking(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         bound = bound_consultations_callback(consulted)
         for _ in range(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS + 2):
             refused = bound(
@@ -212,7 +212,7 @@ def test_an_investigation_cut_short_is_reported_as_cut_short() -> None:
     def _keeps_asking(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         bound = bound_consultations_callback(consulted)
         for _ in range(CircuitBreakers.DEFAULT_MAX_AGENT_HOPS + 1):
             if (

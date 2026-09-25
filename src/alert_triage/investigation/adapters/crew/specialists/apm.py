@@ -23,6 +23,9 @@ grain.
 
 from pydantic import BaseModel, Field
 
+from alert_triage.investigation.adapters.crew.specialists.section import (
+    SECTION_DESCRIPTION,
+)
 from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
     METRIC_QUERY_DIALECT,
@@ -44,7 +47,11 @@ from alert_triage.investigation.adapters.datadog.tools import (
     described,
     toolsets,
 )
-from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
+from alert_triage.investigation.contract import (
+    MAX_EXAMPLES_PER_FINDING,
+    Section,
+    Signal,
+)
 from alert_triage.investigation.domain.specialist import Specialist
 
 _METRIC_TOOLS = (SEARCH_METRICS, GET_METRIC_CONTEXT, GET_METRIC)
@@ -203,6 +210,7 @@ class ApmFinding(BaseModel):
             f"At most {MAX_EXAMPLES_PER_FINDING} of them."
         )
     )
+    section: Section | None = Field(default=None, description=SECTION_DESCRIPTION)
 
 
 class ReportedFindings(BaseModel):

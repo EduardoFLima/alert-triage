@@ -22,6 +22,7 @@ from alert_triage.investigation.adapters.adk.investigator import AdkInvestigator
 from alert_triage.investigation.contract import (
     Confidence,
     InvestigationTarget,
+    Section,
     Signal,
 )
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
@@ -85,7 +86,7 @@ def _manager(
             retrieved.refuse_evidence("the platform could not be reached")
         if retrieves:
             retrieved.retain_evidence(
-                {"logs": [{"message": message} for message in retrieves]}
+                "search_logs", {"logs": [{"message": message} for message in retrieves]}
             )
         for name in consults:
             specialist = consulted.named(name)
@@ -104,12 +105,55 @@ def _words(headline: str = "checkout is out of memory") -> Any:
     return _run
 
 
-def _investigator(**manager: Any) -> AdkInvestigator:
+def _investigator(links: Any = None, **manager: Any) -> AdkInvestigator:
     return AdkInvestigator(
         crew=(LOGS, APM, TRACE),
         run_diagnostician=_manager(**manager),
         run_report=_words(),
+        links=links,
     )
+
+
+class _ServicePages:
+    """A platform's addresses, recording what each service page was asked for."""
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, Window, Section | None]] = []
+
+    def to_retrieval(self, tool: str, args: Any, service: str) -> str | None:
+        return None
+
+    def to_item(
+        self, tool: str, payload: Any, within: str | None, service: str
+    ) -> str | None:
+        return None
+
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        self.asked.append((service, window, section))
+        anchor = "" if section is None else f"#{section.value}"
+        return f"https://platform/service/{service}{anchor}"
+
+
+def test_each_finding_points_at_the_service_on_the_section_it_named() -> None:
+    pages = _ServicePages()
+    reported = _cites(["call-1/item-1"]) | {"section": "logs"}
+
+    diagnosis = _investigator(
+        links=pages, reports={"logs_specialist": [reported]}
+    ).investigate(_target())
+
+    assert pages.asked == [("checkout", _target().window, Section.LOGS)]
+    assert "https://platform/service/checkout#logs" in diagnosis.account
+
+
+def test_an_investigation_with_no_platform_addresses_points_nowhere() -> None:
+    diagnosis = _investigator(
+        reports={"logs_specialist": [_cites(["call-1/item-1"])]}
+    ).investigate(_target())
+
+    assert "https://" not in diagnosis.account
 
 
 def test_what_an_investigation_came_to_is_written_down_where_it_ends(
@@ -279,7 +323,7 @@ def test_a_manager_that_never_concluded_still_reports_what_it_found(
     def _stops_early(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         specialist = consulted.named("apm_specialist")
         assert specialist is not None
         consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})
@@ -305,7 +349,7 @@ def test_reaching_no_conclusion_is_distinguishable_from_answering_with_none(
     def _answers_emptily(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
-        retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+        retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
         specialist = consulted.named("apm_specialist")
         assert specialist is not None
         consulted.record(specialist, {"findings": [_cites(["call-1/item-1"])]})

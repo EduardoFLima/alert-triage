@@ -27,9 +27,10 @@ from alert_triage.investigation.adapters.adk.normalisation import (
     readable,
     summarise,
 )
-from alert_triage.investigation.contract import EvidenceItem
+from alert_triage.investigation.contract import EvidenceItem, Section
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED
 from alert_triage.shared import journal
+from alert_triage.shared.window import Window
 
 _log = logging.getLogger(__name__)
 
@@ -80,18 +81,42 @@ class Links(Protocol):
     knowledge. A deployment that supplies none gets evidence with no addresses,
     which is what evidence has always been here.
 
-    The two grains are the two a citation has. ``to_retrieval`` addresses the
-    search a retrieval came from, which is what a finding about an aggregate
+    The two grains are the two a citation has. ``to_retrieval`` addresses
+    whatever a retrieval came from, which is what a finding about an aggregate
     cites; ``to_item`` addresses one thing within it, which is what a finding
     about a pattern cites. Both answer with an address, never with evidence.
+
+    Both are told the tool, because what produced a retrieval depends on which
+    tool was called and its arguments cannot say: a query over a window is a
+    log search or a metric or an audit trail. ``None`` is a complete answer,
+    and the right one for a tool the platform has no known address for.
+
+    ``to_service`` is the third address, and not a grain of evidence: where a
+    reader goes to look at the service a finding concerns, on the section the
+    finding named. It is built around a member of a closed set rather than
+    around anything the reasoning wrote.
+
+    Both are told the service too, because a service-scoped page is addressed
+    to the service the investigation holds rather than to whatever the query
+    happened to name, and how a service is named to a tool differs by tool.
     """
 
-    def to_retrieval(self, args: Mapping[str, Any]) -> str | None:
-        """Where the search that produced this retrieval is opened."""
+    def to_retrieval(
+        self, tool: str, args: Mapping[str, Any], service: str
+    ) -> str | None:
+        """Where whatever produced this retrieval is opened, if it can be."""
         ...
 
-    def to_item(self, payload: Any, within: str | None) -> str | None:
+    def to_item(
+        self, tool: str, payload: Any, within: str | None, service: str
+    ) -> str | None:
         """Where this item is opened, or ``within`` when it names no item."""
+        ...
+
+    def to_service(
+        self, service: str, window: Window, section: Section | None
+    ) -> str | None:
+        """Where a reader looks at a service, opened on a section it names."""
         ...
 
 
@@ -103,17 +128,22 @@ class Retrieved:
     a stale identifier from an earlier incident cannot resolve.
     """
 
-    def __init__(self, link: Links | None = None) -> None:
+    def __init__(self, link: Links | None = None, service: str = "") -> None:
         """Start with nothing retrieved, nothing citable, and nothing failed.
 
         Args:
             link: How this deployment's platform addresses what it returns.
                 Absent, every piece of evidence is kept without an address.
+            service: The service under investigation, which the platform's
+                service-scoped addresses are pinned to. Passed from the target
+                rather than read from a tool's arguments, because how a service
+                is named to a tool differs by tool.
         """
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
         self._link = link
+        self._service = service
 
     @property
     def retrievals(self) -> int:
@@ -131,11 +161,13 @@ class Retrieved:
         return tuple(self._failures)
 
     def retain_evidence(
-        self, result: Any, args: Mapping[str, Any] | None = None
+        self, tool: str, result: Any, args: Mapping[str, Any] | None = None
     ) -> dict[str, Any]:
         """Keep what a tool returned and describe it in the terms it may be cited in.
 
         Args:
+            tool: The tool that returned it, which is what decides the kind of
+                page its address opens, if it has one.
             result: What the tool returned, as ADK handed it over.
             args: What the tool was called with. The query is in here, which is
                 what a retrieval with no discrete items is addressed by.
@@ -146,8 +178,8 @@ class Retrieved:
         """
         self._retrievals += 1
         call = f"{_CALL_PREFIX}{self._retrievals}"
-        address = self._address_of(args or {})
-        items = items_from(result, call, self._item_addresses(address))
+        address = self._address_of(tool, args or {})
+        items = items_from(result, call, self._item_addresses(tool, address))
         self._evidence[call] = EvidenceItem(
             id=call,
             instant=None,
@@ -201,16 +233,18 @@ class Retrieved:
         """The evidence behind a citation, or ``None`` if there is none."""
         return self._evidence.get(citation)
 
-    def _address_of(self, args: Mapping[str, Any]) -> str | None:
-        """Where the search this retrieval came from is opened."""
-        return None if self._link is None else self._link.to_retrieval(args)
+    def _address_of(self, tool: str, args: Mapping[str, Any]) -> str | None:
+        """Where whatever this retrieval came from is opened."""
+        if self._link is None:
+            return None
+        return self._link.to_retrieval(tool, args, self._service)
 
-    def _item_addresses(self, within: str | None) -> Linker | None:
+    def _item_addresses(self, tool: str, within: str | None) -> Linker | None:
         """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None
-        return lambda payload: link.to_item(payload, within)
+        return lambda payload: link.to_item(tool, payload, within, self._service)
 
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any
@@ -276,7 +310,7 @@ def keep_evidence_callback(
         failure = _failure_in(tool_response)
         if failure is not None:
             return retrieved.refuse_evidence(f"{name} failed: {failure}")
-        offered = retrieved.retain_evidence(tool_response, args)
+        offered = retrieved.retain_evidence(name, tool_response, args)
         _tool_log.info(
             journal.event(
                 f"{caller} ← {name}",

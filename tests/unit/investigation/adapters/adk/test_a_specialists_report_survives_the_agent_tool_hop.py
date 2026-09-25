@@ -46,7 +46,7 @@ class _Tool:
 
 def _consulted(*crew: Specialist) -> tuple[Consulted, Retrieved]:
     retrieved = Retrieved()
-    retrieved.retain_evidence({"logs": [{"message": "OOMKilled"}]})
+    retrieved.retain_evidence("search_logs", {"logs": [{"message": "OOMKilled"}]})
     return Consulted(offered=crew or (_specialist(),), retrieved=retrieved), retrieved
 
 
