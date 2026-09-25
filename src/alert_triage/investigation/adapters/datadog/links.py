@@ -92,8 +92,6 @@ UNADDRESSED = frozenset(
         tools.SEARCH_CHANGE_STORIES,
         tools.QUERY_TRACE,
         tools.DISCOVER_SPAN_TAGS,
-        tools.LIST_SKILLS,
-        tools.LOAD_SKILL,
     )
 )
 """Every tool the crew reaches that deliberately has no address template yet.
@@ -103,9 +101,7 @@ later fails a unit test until someone decides which of these two it belongs
 in, instead of quietly reporting its evidence without an address. A tool here
 is linkless because no template for it has been confirmed against a real
 account, and an unconfirmed template is how a reader gets sent to a page that
-looks like an answer and is not. The skill tools are here for a different
-reason: what they return is the platform's guidance on its own grammar, not
-evidence of anything.
+looks like an answer and is not.
 """
 
 ITEM_KEYS = ("id", "log_id", "event_id")
