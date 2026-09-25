@@ -1,9 +1,10 @@
 """The guides Datadog publishes to how its own tools are queried, and who gets which.
 
-A guide concerns a specialist when it names a tool that specialist may call.
-That rule is the whole of the matching: no list of guide names is kept here or
-anywhere, so a guide the platform renames is still found, and a declaration
-widened to a new tool brings that tool's guide with it.
+A guide concerns a specialist when it documents a tool that specialist may
+call, under a heading of its own. That rule is the whole of the matching: no
+list of guide names is kept here or anywhere, so a guide the platform renames is
+still found, and a declaration widened to a new tool brings that tool's guide
+with it.
 """
 
 import re
@@ -31,28 +32,34 @@ class DatadogGuide:
 def guides_for(
     specialist: Specialist, guides: Iterable[DatadogGuide]
 ) -> tuple[DatadogGuide, ...]:
-    """The guides that concern a tool this specialist's declaration permits.
+    """The guides documenting a tool this specialist's declaration permits.
 
     Args:
         specialist: Whose tools decide.
         guides: Every guide the platform published.
 
     Returns:
-        Those naming at least one permitted tool, in the order given.
+        Those with a heading for at least one permitted tool, in the order
+        given.
     """
     permitted = {tool for toolset in specialist.toolsets for tool in toolset.tools}
-    return tuple(guide for guide in guides if _names_any(guide.text, permitted))
+    return tuple(guide for guide in guides if _documents_any(guide.text, permitted))
 
 
-def _names_any(text: str, tools: Iterable[str]) -> bool:
-    """Whether the text names one of the tools as a whole word.
+def _documents_any(text: str, tools: Iterable[str]) -> bool:
+    """Whether the text has a heading for one of the tools, as a whole word.
 
-    Whole-word because tool names nest: ``get_datadog_metric`` is a prefix of
-    ``get_datadog_metric_context``, and a guide to the second is not one to the
-    first. A name is bounded by anything that could not continue it.
+    A heading rather than any mention, because playbooks for other products
+    name common tools in passing — offered on a mention, every specialist was
+    handed dozens of guides it had no use for. Whole-word because tool names
+    nest: ``get_datadog_metric`` is a prefix of ``get_datadog_metric_context``,
+    and a guide to the second is not one to the first.
     """
     return any(
-        re.search(rf"(?<![\w-]){re.escape(tool)}(?![\w-])", text) for tool in tools
+        re.search(
+            rf"^#+[ \t][^\n]*(?<![\w-]){re.escape(tool)}(?![\w-])", text, re.MULTILINE
+        )
+        for tool in tools
     )
 
 
