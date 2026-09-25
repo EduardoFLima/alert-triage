@@ -8,8 +8,8 @@ with it.
 """
 
 import re
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 
 from alert_triage.investigation.domain.specialist import Specialist
 
@@ -22,11 +22,89 @@ class DatadogGuide:
         name: What the platform calls it.
         description: What the listing says it covers.
         text: The guide itself.
+        references: The further documents it bundles, by the path the listing
+            gave each.
     """
 
     name: str
     description: str
     text: str
+    references: Mapping[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ListedGuide:
+    """One guide as the listing names it, before its text is loaded.
+
+    Attributes:
+        name: What the platform calls it.
+        description: What the listing says it covers, without the related
+            guides it points to.
+        references: The paths of the further documents it bundles, as the
+            platform names them.
+    """
+
+    name: str
+    description: str
+    references: tuple[str, ...]
+
+
+TELEMETRY = {
+    "intent": (
+        "Reading the platform's guides once at startup, to offer each "
+        "investigating agent those documenting its own tools."
+    )
+}
+"""What every call to the guide tools must say it is for; the server refuses one
+without it."""
+
+
+def listing_arguments() -> dict[str, object]:
+    """What to ask the listing tool, so that it names descriptions and references."""
+    return {"include_header": True, "telemetry": TELEMETRY}
+
+
+def guide_arguments(name: str) -> dict[str, object]:
+    """What to ask the load tool for one guide's text."""
+    return {"skill_name": name, "telemetry": TELEMETRY}
+
+
+def reference_arguments(name: str, path: str) -> dict[str, object]:
+    """What to ask the load tool for one document a guide bundles."""
+    return {"skill_name": name, "resource_path": path, "telemetry": TELEMETRY}
+
+
+_LISTED = re.compile(
+    r"^- \*\*(?P<name>[^*]+)\*\*: (?P<description>.*?)(?: \(related: [^)]*\))?$"
+    r"(?:\n  Resources: (?P<references>.*)$)?",
+    re.MULTILINE,
+)
+
+
+def listed_guides(listing: str) -> tuple[ListedGuide, ...]:
+    """The guides a listing names, read from the text the platform returns.
+
+    The related guides a line points to are dropped: one guide is never
+    followed to another, so naming them would offer what cannot be loaded.
+
+    Args:
+        listing: What the listing tool returned, asked for with its headers.
+
+    Returns:
+        One entry per guide, in the order listed.
+    """
+    return tuple(
+        ListedGuide(
+            name=match["name"],
+            description=match["description"].strip().strip('"'),
+            references=tuple(
+                path.strip()
+                for path in (match["references"] or "").split(",")
+                if path.strip()
+            ),
+        )
+        for match in _LISTED.finditer(listing)
+    )
 
 
 def guides_for(

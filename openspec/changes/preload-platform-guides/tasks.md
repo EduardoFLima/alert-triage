@@ -10,11 +10,11 @@
 ## 2. Fetching guides at startup
 
 - [x] 2.1 Read one real listing and guide (by hand, with the user) to settle names, descriptions, and how a guide names a further reference — findings in design.md, "What the platform publishes"
-- [ ] 2.2 Red/green against a fake MCP server: every listed guide is fetched with its description, and its references one level deep
-- [ ] 2.2a Red/green: a load the server refuses is retried after a pause, and a guide still refused is left out with a warning
+- [x] 2.2 Red/green against a fake MCP server: every listed guide is fetched with its description, and its references one level deep
+- [x] 2.2a Red/green: a load the server refuses is retried after a pause, and a guide still refused is left out with a warning
 - [ ] 2.3 Red/green: fetched guides become ADK `Skill` objects, references in `Resources.references`
-- [ ] 2.4 Red/green: an unreachable server yields no guides and a single warning, not an exception
-- [ ] 2.5 Red/green: the fetch is bounded by `mcp_call_timeout_seconds`
+- [x] 2.4 Red/green: an unreachable server yields no guides and a single warning, not an exception
+- [x] 2.5 Red/green: the fetch is bounded by `mcp_call_timeout_seconds`
 - [ ] 2.6 Red/green: `build_investigator` fetches once and hands the guides to the deployment; nothing is written to disk
 
 ## 3. Offering guides to agents

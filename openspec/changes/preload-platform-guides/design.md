@@ -122,8 +122,9 @@ as a fallback was rejected: it brings back browsing.
   run.
 - [Startup reads every guide, even on runs with no incidents] → One call per
   guide (59 on the account read) plus the offered guides' references, per run:
-  about ten seconds with the pauses a burst refusal costs. Accepted in exchange
-  for a fetch outside the investigation's bounds.
+  about twenty seconds on the account read, one pause for a refused burst
+  included. Accepted in exchange for a fetch outside the investigation's
+  bounds.
 - [A guide's headings change shape] → The live suite asserts each specialist is
   offered at least one guide.
 - [`SkillToolset` changes shape in a later ADK 2.x] → It is used in one place,
