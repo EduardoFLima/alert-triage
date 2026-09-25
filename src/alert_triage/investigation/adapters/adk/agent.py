@@ -171,7 +171,13 @@ def build_agent(
         retrieved: This investigation's evidence, which the callbacks close
             over so that citations are scoped to this incident.
         bounds: What this investigation may still do, which the seat before
-            each call reads. Absent, the documented defaults.
+            each call reads. One instance is shared across the specialists of
+            an investigation, so that what they spend is counted once. Absent,
+            this deployment's own breakers bound the agent on their own: a
+            caller holding a deployment holds everything the bound needs, and
+            falling back to the documented defaults while holding a deployment
+            that states otherwise is how a run silently ignores what an
+            operator configured.
 
     Returns:
         The agent, reaching the tools its declaration named and no others, and
@@ -191,6 +197,7 @@ def build_agent(
     guidance = guidance_for(specialist, deployment.guides)
     if guidance is not None:
         tools.append(guidance)
+    within = bounds if bounds is not None else Bounds(deployment.breakers)
     return LlmAgent(
         name=specialist.name,
         model=deployment.model_for(specialist.model),
@@ -198,7 +205,7 @@ def build_agent(
         output_schema=specialist.output_schema,
         tools=tools,
         before_tool_callback=log_tool_call(
-            specialist.name, _permitted_tools(specialist), retrieved, bounds
+            specialist.name, _permitted_tools(specialist), retrieved, within
         ),
         after_tool_callback=keep_evidence_callback(
             retrieved, _permitted_tools(specialist), specialist.name
