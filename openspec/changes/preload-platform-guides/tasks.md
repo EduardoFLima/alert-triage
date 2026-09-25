@@ -30,7 +30,7 @@
 
 - [x] 4.1 Invert `test_every_specialist_can_consult_the_platforms_guidance`: no specialist permits either Datadog skill tool
 - [x] 4.2 In one commit, remove both skill tools from every toolset and remove `CONSULT_THE_PLATFORM` from every instruction, test first. Removing the text before the toolsets fails `test_a_declaration_and_its_instruction_agree`, because the skill tools would be permitted but no longer named
-- [ ] 4.3 Update the query-dialect bullet under "A Datadog integration that holds up" in `docs/vision.md`
+- [x] 4.3 Update the query-dialect bullet under "A Datadog integration that holds up" in `docs/vision.md`
 
 ## 5. Verification
 
