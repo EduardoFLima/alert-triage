@@ -37,4 +37,4 @@
 - [ ] 5.1 Live suite: each specialist is offered at least one guide (credential-gated; the user runs it)
 - [ ] 5.2 Record which guides each specialist is offered and loads, and the size of ADK's added instruction, from that run
 - [ ] 5.3 If the metrics guide covers the grammar rules in `METRIC_QUERY_DIALECT`, delete those rules and their assertions in a separate commit. Keep the refused-aggregation rule and `AN_EMPTY_ANSWER`
-- [ ] 5.4 Run ruff check, ruff format --check, mypy and pytest
+- [x] 5.4 Run ruff check, ruff format --check, mypy and pytest
