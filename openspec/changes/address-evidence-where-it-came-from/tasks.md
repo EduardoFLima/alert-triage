@@ -114,7 +114,7 @@ design.md.
   through the linker but left the live wrapper constructing `Retrieved()`
   service-less, so every service-scoped address resolves against an empty
   `service:` until this does.
-- [ ] 6.3 Run `uv run --env-file .env pytest
+- [x] 6.3 Run `uv run --env-file .env pytest
   tests/integration/investigation/adapters/datadog -rs` and record the outcome
   here: which templates were confirmed to open, which specialists ship
   linkless, and which templates were written and then dropped.
@@ -124,16 +124,70 @@ design.md.
   shape given in its task — `…/infrastructure?filter=service:{service}`, and
   windowless because the inventory is a live view — so it is the likeliest of
   the four to be confirmed-or-dropped here.
-- [ ] 6.4 Say plainly in that record that `to_item` was not exercised live.
+
+  **The record.** One run, against an account on `datadoghq.eu` with
+  `ALERT_TRIAGE_LIVE_SERVICE` left at `checkout`: 17 passed, 4 failed, 1
+  skipped, in 4m37s.
+
+  *Every template was confirmed to open. None was dropped.* The five are the
+  Log Explorer search, the APM service page, the Trace Explorer scoped to the
+  service, the infrastructure inventory, and the Event Explorer. The
+  infrastructure template the task told us to watch is among them: it answers
+  as written, windowless, and survives.
+
+  Three of the four specialists established that through
+  `test_each_retrieval_address_opens_rather_than_404s_or_is_absent` — logs, APM
+  and trace each retrieved, and every retrieval either opened or was `None` for
+  a tool in `UNADDRESSED`. The fourth could not: the
+  `infrastructure_specialist` never reaches the platform at all, because the
+  model refuses its tool schema before any call is made —
+  `400 INVALID_ARGUMENT … the specified schema produces a constraint that has
+  too much branching for serving`. That is the Kubernetes tools' own schemas
+  and it fails the older
+  `test_a_real_model_given_the_instruction_calls_them[infrastructure_specialist]`
+  identically, so it predates this change and is not about addressing. Its
+  template was therefore confirmed by following the composed address directly
+  against the account rather than through a specialist that cannot run — the
+  same question the `answers` check asks, minus the model. That it opens is
+  established; that *this specialist* emits it is not, and stays unestablished
+  until the schema problem is taken on as its own change.
+
+  The anchored service page opens for all six sections and for none, which is
+  task 6.2 confirmed live rather than asserted. What that cannot establish
+  stands as written in the test: a browser resolves the fragment and the server
+  never sees one.
+
+  *Linkless.* No specialist ships wholly linkless. What ships linkless is the
+  tools in `UNADDRESSED`: the two skill tools every specialist reaches, whose
+  results are the platform's guidance on its own grammar rather than evidence,
+  plus the Watchdog, change-story, rollout-analysis, latency-bottleneck,
+  trace-query and span-tag tools. The run confirmed these are addressed as
+  `None` rather than inheriting a neighbour's page, which is task 1's gate
+  holding under a real model's tool choices.
+
+  *Two failures that are not about addressing*, recorded because the run is
+  only honest whole: the APM specialist tripped Datadog's burst rate limit
+  mid-consultation, and the trace specialist's `load_datadog_skill` was refused
+  with `Unknown skill "Search Datadog Spans"`. Both are retrieval failures in a
+  test this change did not touch.
+- [x] 6.4 Say plainly in that record that `to_item` was not exercised live.
   Per-item citations do not resolve against the real server while the MCP
   envelope stays unwrapped, so every live address is a retrieval address and
   the item templates are unit-tested only.
 
+  **Said plainly: `to_item` was not exercised live.** Every address followed
+  above is a retrieval address. The one test that would have reached an item,
+  `test_what_key_a_live_log_payload_identifies_an_item_by`, skipped — *the logs
+  of 'checkout' were quiet, so no item was returned* — so this run did not even
+  get as far as the unwrapped-envelope problem. The open question that test
+  exists to answer, which of `ITEM_KEYS` a live payload uses, is still open.
+  The item templates are unit-tested only.
+
 ## 7. Close the change
 
-- [ ] 7.1 Run the full gate: `uv run ruff check src tests`,
+- [x] 7.1 Run the full gate: `uv run ruff check src tests`,
   `uv run ruff format --check src tests`, `uv run mypy`, `uv run pytest`.
-- [ ] 7.2 `openspec validate address-evidence-where-it-came-from --strict`.
+- [x] 7.2 `openspec validate address-evidence-where-it-came-from --strict`.
 - [x] 7.3 Update `links.py`'s module docstring, which currently describes every
   address as a Log Explorer search. It is the file's own account of what it
   does and it stops being true in task 1.
