@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
-    CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
 )
 from alert_triage.investigation.adapters.datadog.tools import (
@@ -25,8 +24,6 @@ from alert_triage.investigation.adapters.datadog.tools import (
     DESCRIBE_K8S_RESOURCE,
     GET_METRIC,
     GET_METRIC_CONTEXT,
-    LIST_SKILLS,
-    LOAD_SKILL,
     SEARCH_HOSTS,
     SEARCH_K8S_RESOURCES,
     SEARCH_METRICS,
@@ -72,8 +69,6 @@ Search before you analyse. A rollout is analysed for a workload by its
 cluster, its namespace and its name, and the search is where those come from:
 analyse the rollout of a workload the search named, never of one you named
 yourself.
-
-{CONSULT_THE_PLATFORM}
 
 Ask `{SEARCH_METRICS.name}` which metrics are reported before you query one,
 and read the name you query out of what it answers. Do not guess a metric
@@ -167,6 +162,6 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     signal=Signal.INFRASTRUCTURE,
     instruction=INFRASTRUCTURE_INSTRUCTION,
     output_schema=ReportedFindings,
-    toolsets=toolsets(*INFRASTRUCTURE_TOOLS, LIST_SKILLS, LOAD_SKILL),
+    toolsets=toolsets(*INFRASTRUCTURE_TOOLS),
 )
 """The infrastructure specialist as the crew sees it: one declaration, nothing else."""

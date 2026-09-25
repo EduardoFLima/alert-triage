@@ -25,7 +25,6 @@ from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
-    CONSULT_THE_PLATFORM,
     METRIC_QUERY_DIALECT,
 )
 from alert_triage.investigation.adapters.datadog.preview import (
@@ -36,8 +35,6 @@ from alert_triage.investigation.adapters.datadog.tools import (
     GET_METRIC,
     GET_METRIC_CONTEXT,
     LATENCY_BOTTLENECK_SUMMARY,
-    LIST_SKILLS,
-    LOAD_SKILL,
     SEARCH_CHANGE_STORIES,
     SEARCH_ENTITIES,
     SEARCH_EVENTS,
@@ -149,8 +146,6 @@ The tools you have are Datadog's:
 
 {_CATALOGUE_ASK}
 
-{CONSULT_THE_PLATFORM}
-
 Ask `{SEARCH_METRICS.name}` which metrics the service reports before you query
 one, and read the name you query out of what it answers. Do not guess a metric
 name: a name this service does not report comes back empty.
@@ -234,7 +229,7 @@ def apm_specialist(*, preview: bool) -> Specialist:
         signal=Signal.APM,
         instruction=_instruction(preview),
         output_schema=ReportedFindings,
-        toolsets=toolsets(*_tools(preview), LIST_SKILLS, LOAD_SKILL),
+        toolsets=toolsets(*_tools(preview)),
     )
 
 

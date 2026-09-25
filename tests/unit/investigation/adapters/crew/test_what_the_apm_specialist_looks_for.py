@@ -49,8 +49,6 @@ def test_without_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
         "search_datadog_metrics",
         "search_datadog_entities",
         "search_datadog_events",
-        "list_datadog_skills",
-        "load_datadog_skill",
     }
 
 
@@ -82,9 +80,10 @@ def test_the_instruction_says_what_to_ask_the_catalogue_for() -> None:
     catalogue has to be asked, so the line describing it names the ask.
     """
     for preview in (False, True):
-        flowed = " ".join(apm_specialist(preview=preview).instruction.split())
-        described = flowed[flowed.index("`search_datadog_entities`") :]
-        line = described[: described.index(" - `")]
+        instruction = apm_specialist(preview=preview).instruction
+        described = instruction[instruction.index("`search_datadog_entities`") :]
+        bullet_and_what_follows = "\n\n".join(described.split("\n\n")[:2])
+        line = " ".join(bullet_and_what_follows.split())
 
         assert "ask it for" in line.lower()
         assert "upstream and downstream" in line.lower()
@@ -120,8 +119,6 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
             "get_datadog_metric_context",
             "search_datadog_metrics",
             "search_datadog_entities",
-            "list_datadog_skills",
-            "load_datadog_skill",
         }
         | PREVIEW_TOOLS
     )

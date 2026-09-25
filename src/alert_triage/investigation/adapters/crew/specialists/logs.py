@@ -17,13 +17,8 @@ either grain.
 
 from pydantic import BaseModel, Field
 
-from alert_triage.investigation.adapters.datadog.dialect import (
-    CONSULT_THE_PLATFORM,
-)
 from alert_triage.investigation.adapters.datadog.tools import (
     ANALYZE_LOGS,
-    LIST_SKILLS,
-    LOAD_SKILL,
     SEARCH_LOGS,
     described,
     toolsets,
@@ -53,8 +48,6 @@ The tools you have are Datadog's:
 
 `use_log_patterns` is usually the quickest way to the answer you are being
 asked for.
-
-{CONSULT_THE_PLATFORM}
 
 A Datadog log query is `service:checkout status:error` — facets joined by
 spaces, `-` to negate, `*` to wildcard, `@` for attributes from structured logs
@@ -131,6 +124,6 @@ LOGS_SPECIALIST = Specialist(
     signal=Signal.LOGS,
     instruction=LOGS_INSTRUCTION,
     output_schema=ReportedFindings,
-    toolsets=toolsets(*LOG_TOOLS, LIST_SKILLS, LOAD_SKILL),
+    toolsets=toolsets(*LOG_TOOLS),
 )
 """The Logs specialist as the crew sees it: one declaration, nothing else."""
