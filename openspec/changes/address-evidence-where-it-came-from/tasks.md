@@ -175,10 +175,15 @@ design.md.
   `None` rather than inheriting a neighbour's page, which is task 1's gate
   holding under a real model's tool choices.
 
-  *The third failure is not about addressing*, recorded because the run is only
-  honest whole: the APM specialist spent the 12 calls its circuit breaker
-  allows before it was done. A configured bound doing its job, in a test this
-  change did not touch.
+  *The third failure was not about addressing, and was not the bound doing its
+  job either.* The APM specialist stopped after 12 calls while this deployment
+  is configured for 30. `build_agent` took its bounds as a separate argument
+  and fell back to the documented defaults when given none, so an agent built
+  straight from a deployment ignored that deployment's own breakers — which is
+  exactly what the live suite's `_deployment` docstring says must not happen.
+  Fixed under its own commit, with the unit tests that were missing; recorded
+  here because the run is only honest whole, and because a default is a
+  plausible enough number to have gone unquestioned.
 - [x] 6.4 Say plainly in that record that `to_item` was not exercised live.
   Per-item citations do not resolve against the real server while the MCP
   envelope stays unwrapped, so every live address is a retrieval address and
