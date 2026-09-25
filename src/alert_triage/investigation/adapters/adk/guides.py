@@ -22,6 +22,7 @@ from alert_triage.investigation.adapters.datadog.guides import (
     ListedGuide,
     guide_arguments,
     guides_for,
+    kebab_name,
     listed_guides,
     listing_arguments,
     reference_arguments,
@@ -31,6 +32,7 @@ from alert_triage.investigation.adapters.datadog.tools import LIST_SKILLS, LOAD_
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
 if TYPE_CHECKING:
+    from google.adk.skills.models import Skill
     from mcp import ClientSession
 
 _log = logging.getLogger(__name__)
@@ -46,6 +48,16 @@ The server refuses a burst — on the account first read, about forty-five loads
 in quick succession — with an error result rather than a delay, and a pause of
 seconds is enough for it to answer again.
 """
+
+
+DESCRIPTION_LIMIT = 1024
+"""The longest description the framework accepts for a skill.
+
+Some the platform lists run longer — keyword lists for search, mostly — and a
+guide is better offered with its description cut than not offered at all.
+"""
+REFERENCES = "references/"
+"""Where the framework looks a reference up, and the prefix it strips to do so."""
 
 
 class _RefusedError(Exception):
@@ -209,3 +221,37 @@ async def _call(
     if result.isError:
         raise _RefusedError(text[:200])
     return text
+
+
+def skill_from(guide: DatadogGuide) -> "Skill":
+    """The skill the framework serves a guide as.
+
+    Args:
+        guide: The guide as the platform published it.
+
+    Returns:
+        A skill under the kebab-case form of the guide's name, holding its text
+        and its references, each under its path beneath ``references/``.
+    """
+    from google.adk.skills.models import Frontmatter, Resources, Skill
+
+    return Skill(
+        frontmatter=Frontmatter(
+            name=kebab_name(guide.name), description=_described(guide)
+        ),
+        instructions=guide.text,
+        resources=Resources(
+            references={
+                path.removeprefix(REFERENCES): text
+                for path, text in guide.references.items()
+            }
+        ),
+    )
+
+
+def _described(guide: DatadogGuide) -> str:
+    """The guide's description, within the framework's limit and never empty."""
+    description = guide.description.strip() or f"Datadog's guide {guide.name}."
+    if len(description) <= DESCRIPTION_LIMIT:
+        return description
+    return description[: DESCRIPTION_LIMIT - 1].rsplit(" ", 1)[0] + "…"
