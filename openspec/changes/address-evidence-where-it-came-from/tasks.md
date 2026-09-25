@@ -125,9 +125,12 @@ design.md.
   windowless because the inventory is a live view — so it is the likeliest of
   the four to be confirmed-or-dropped here.
 
-  **The record.** One run, against an account on `datadoghq.eu` with
-  `ALERT_TRIAGE_LIVE_SERVICE` left at `checkout`: 17 passed, 4 failed, 1
-  skipped, in 4m37s.
+  **The record.** Run against an account on `datadoghq.eu`, with
+  `ALERT_TRIAGE_LIVE_SERVICE` set to `msam.planning.sam-activity-service` — a
+  service that exists and is busy. An earlier run against the default
+  `checkout` is not reported here: no such service exists in this account, and
+  a template cannot be said to have been confirmed against nothing. Result: 18
+  passed, 3 failed, 1 skipped, in 4m54s.
 
   *Every template was confirmed to open. None was dropped.* The five are the
   Log Explorer search, the APM service page, the Trace Explorer scoped to the
@@ -135,14 +138,21 @@ design.md.
   infrastructure template the task told us to watch is among them: it answers
   as written, windowless, and survives.
 
-  Three of the four specialists established that through
+  The log template earned a second, better confirmation than a status code.
+  Datadog's own answer to `search_datadog_logs` carries a `logs_explorer_url`
+  it composed itself, and the address this project composed for the same
+  retrieval agrees with it on query, on both ends of the window as millisecond
+  timestamps, and on `live=false`. Task 4.5 asserted that shape against a unit
+  test; the platform has now written it back to us unprompted.
+
+  Three of the four specialists established their addresses through
   `test_each_retrieval_address_opens_rather_than_404s_or_is_absent` — logs, APM
   and trace each retrieved, and every retrieval either opened or was `None` for
   a tool in `UNADDRESSED`. The fourth could not: the
   `infrastructure_specialist` never reaches the platform at all, because the
   model refuses its tool schema before any call is made —
   `400 INVALID_ARGUMENT … the specified schema produces a constraint that has
-  too much branching for serving`. That is the Kubernetes tools' own schemas
+  too much branching for serving`. That is the Kubernetes tools' own schemas,
   and it fails the older
   `test_a_real_model_given_the_instruction_calls_them[infrastructure_specialist]`
   identically, so it predates this change and is not about addressing. Its
@@ -165,23 +175,42 @@ design.md.
   `None` rather than inheriting a neighbour's page, which is task 1's gate
   holding under a real model's tool choices.
 
-  *Two failures that are not about addressing*, recorded because the run is
-  only honest whole: the APM specialist tripped Datadog's burst rate limit
-  mid-consultation, and the trace specialist's `load_datadog_skill` was refused
-  with `Unknown skill "Search Datadog Spans"`. Both are retrieval failures in a
-  test this change did not touch.
+  *The third failure is not about addressing*, recorded because the run is only
+  honest whole: the APM specialist spent the 12 calls its circuit breaker
+  allows before it was done. A configured bound doing its job, in a test this
+  change did not touch.
 - [x] 6.4 Say plainly in that record that `to_item` was not exercised live.
   Per-item citations do not resolve against the real server while the MCP
   envelope stays unwrapped, so every live address is a retrieval address and
   the item templates are unit-tested only.
 
-  **Said plainly: `to_item` was not exercised live.** Every address followed
-  above is a retrieval address. The one test that would have reached an item,
-  `test_what_key_a_live_log_payload_identifies_an_item_by`, skipped — *the logs
-  of 'checkout' were quiet, so no item was returned* — so this run did not even
-  get as far as the unwrapped-envelope problem. The open question that test
-  exists to answer, which of `ITEM_KEYS` a live payload uses, is still open.
-  The item templates are unit-tested only.
+  **Said plainly: `to_item` was not exercised live, and the reason is worse
+  than the one this task anticipated.** Every address followed above is a
+  retrieval address. The item templates are unit-tested only.
+
+  The task assumed the obstacle was an MCP envelope left unwrapped. Against a
+  real account it is not an envelope at all. `search_datadog_logs` does not
+  answer with JSON: it answers with a block of text holding a `<METADATA>`
+  header and a `<TSV_DATA>` table. `readable()` hands that back as a `str`,
+  `_items()` reads items only out of a list or a list under one of
+  `ENVELOPE_KEYS`, and a string is neither — so the retrieval yields **zero
+  items**, no `call-N/item-M` is ever minted, and `to_item` is never called.
+  Widening `ENVELOPE_KEYS` would not reach it; there is no key.
+
+  This was masked. The live item test skips with *the logs of … were quiet, so
+  no item was returned*, and that reading is wrong: the logs were not quiet.
+  The retrieval came back with two patterns covering 60 error-level lines,
+  including a `RollingFileAppender … RolloverFailure` recurring 58 times. The
+  test infers a quiet service from an absence of items, and the absence has a
+  different cause. So the design's open question — which of `ITEM_KEYS` a live
+  payload uses — is not merely still open; it cannot be answered by this test
+  while the payload is TSV, whatever service it is pointed at.
+
+  None of this weakens the change. A retrieval with no items is citable whole,
+  which is the degradation `normalisation` was built for, and its retrieval
+  address opens. But two follow-ups are owed, and neither belongs here:
+  reading Datadog's `METADATA`/`TSV_DATA` answers into items, and a skip
+  message that says what was actually absent.
 
 ## 7. Close the change
 
