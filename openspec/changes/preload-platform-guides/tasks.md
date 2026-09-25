@@ -20,11 +20,11 @@
 ## 3. Offering guides to agents
 
 - [x] 3.1 Red/green: `build_agent` gives a specialist a `SkillToolset` holding only its matched guides, filtered to `load_skill` and `load_skill_resource`
-- [ ] 3.2 Red/green: the declaration's instruction is passed unchanged; no guide text is in it
-- [ ] 3.3 Red/green: loading an unheld guide returns `SKILL_NOT_FOUND`
-- [ ] 3.4 Red/green: a load neither uses the specialist's tool budget nor becomes evidence
-- [ ] 3.5 Red/green: a specialist with no matched guides gets no `SkillToolset`
-- [ ] 3.6 Red/green: an investigation run without guides is not marked incomplete for that reason
+- [x] 3.2 Red/green: the declaration's instruction is passed unchanged; no guide text is in it
+- [x] 3.3 Red/green: loading an unheld guide returns `SKILL_NOT_FOUND`
+- [x] 3.4 Red/green: a load neither uses the specialist's tool budget nor becomes evidence
+- [x] 3.5 Red/green: a specialist with no matched guides gets no `SkillToolset`
+- [x] 3.6 Red/green: an investigation run without guides is not marked incomplete for that reason
 
 ## 4. Taking browsing away
 
