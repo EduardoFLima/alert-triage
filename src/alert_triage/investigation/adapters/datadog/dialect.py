@@ -12,37 +12,6 @@ query — they look alike and are not — and each paragraph below is one 400 it
 came back with.
 """
 
-from alert_triage.investigation.adapters.datadog.tools import (
-    LIST_SKILLS,
-    LOAD_SKILL,
-    described,
-)
-
-CONSULT_THE_PLATFORM = f"""
-This platform documents how its own tools are queried, and that documentation
-is the authority on syntax — not your recollection of it, and not the shape of
-a query you wrote for a different tool.
-
-{described(LIST_SKILLS, LOAD_SKILL)}
-
-A guide may point you at a further reference of its own; load that one the
-same way, passing the path it named you.
-
-Load the guide covering a tool before you write your first query with it. The
-tools here take several different query languages — one takes SQL over a
-virtual table, another a tag filter, another a metric expression — and they
-look enough alike that a query written in the wrong one is accepted by you and
-refused by the platform. A refusal costs a retrieval; loading a guide costs a
-call.
-""".strip()
-"""Where a specialist is told to find the grammar rather than be given it.
-
-Shared by every specialist that queries anything, which is all of them. What
-each one then loads is the model's to decide from the listing: naming a guide
-here would be the transcription this replaced, one indirection out, and stale
-the day the platform renames it.
-"""
-
 AN_EMPTY_ANSWER = """
 An empty answer is about what you asked, not about the service. It means what
 you asked for is not reported, which is not the same as healthy: a query naming

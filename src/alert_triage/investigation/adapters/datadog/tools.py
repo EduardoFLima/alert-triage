@@ -61,11 +61,12 @@ LOAD_SKILL = DatadogTool(
     toolset=CORE,
     description="loads one guide, by the name the listing gave it.",
 )
-"""How the platform publishes the grammars its own tools are queried in.
+"""How the platform publishes the guides to how its own tools are queried.
 
-Every specialist that queries anything reaches both. They are rendered where
-the crew is told to consult the platform, in ``dialect``, rather than in each
-specialist's own list of tools.
+No specialist reaches either. Both are called once, as a run starts, to read
+the guides each specialist is then offered through the framework — so they are
+stated here, beside the rest of the platform's tools, but kept out of the
+crew's catalogue below.
 """
 
 SEARCH_LOGS = DatadogTool(
@@ -248,8 +249,6 @@ QUERY_TRACE = DatadogTool(
 )
 
 EVERY_TOOL = (
-    LIST_SKILLS,
-    LOAD_SKILL,
     SEARCH_LOGS,
     ANALYZE_LOGS,
     GET_METRIC,

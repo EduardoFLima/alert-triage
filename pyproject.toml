@@ -86,7 +86,13 @@ explicit_package_bases = true
 # untyped call is still an error, and only the Datadog adapter imports this.
 # mypy rejects `untyped_calls_exclude` in a per-module section, which is why
 # it sits here rather than beside the adapter's module path.
-untyped_calls_exclude = ["datadog_api_client"]
+#
+# ADK's MCP session manager leaves `close` unannotated. Naming that one module
+# keeps every other ADK call checked; only the guide fetch calls it directly.
+untyped_calls_exclude = [
+    "datadog_api_client",
+    "google.adk.tools.mcp_tool.mcp_session_manager",
+]
 
 # The MCP SDK re-exports its HTTP client factory from the transport module
 # without an explicit `__all__`, which `no_implicit_reexport` rejects. This

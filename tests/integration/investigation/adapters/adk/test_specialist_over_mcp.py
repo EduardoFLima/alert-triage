@@ -28,18 +28,22 @@ from google.genai import types
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
+from alert_triage.configuration.settings import CircuitBreakers
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
     PlatformAccess,
     build_agent,
     connection_for,
 )
+from alert_triage.investigation.adapters.adk.bounds import Bounds
 from alert_triage.investigation.adapters.adk.consultation import Consulted
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
+from alert_triage.investigation.adapters.adk.guides import fetch_guides
 from alert_triage.investigation.adapters.adk.investigator import run_agent
 from alert_triage.investigation.adapters.crew.specialists.logs import (
     ReportedFindings,
 )
+from alert_triage.investigation.adapters.datadog.guides import DatadogGuide
 from alert_triage.investigation.contract import (
     Findings,
     InvestigationTarget,
@@ -158,7 +162,16 @@ def _reports(cites: list[str]) -> types.Content:
     )
 
 
-def _deployment(platform: str, model: BaseLlm) -> Deployment:
+LOGS_GUIDE = DatadogGuide(
+    name="datadog/logs",
+    description="How a log query is written.",
+    text=f"# Logs\n\n## Tools\n\n### {SEARCH}\n\nFacets start with @.",
+)
+
+
+def _deployment(
+    platform: str, model: BaseLlm, guides: tuple[DatadogGuide, ...] = ()
+) -> Deployment:
     return Deployment(
         platforms={
             "datadog": PlatformAccess(
@@ -167,10 +180,16 @@ def _deployment(platform: str, model: BaseLlm) -> Deployment:
             )
         },
         model_for=lambda named: model,
+        guides=guides,
     )
 
 
-def _investigate(platform: str, model: _ScriptedModel) -> Any:
+def _investigate(
+    platform: str,
+    model: _ScriptedModel,
+    guides: tuple[DatadogGuide, ...] = (),
+    breakers: CircuitBreakers | None = None,
+) -> Any:
     """One specialist over one platform, driven the way a consultation drives it.
 
     The manager is not the subject here — the specialist's reach into a real MCP
@@ -178,10 +197,16 @@ def _investigate(platform: str, model: _ScriptedModel) -> Any:
     rather than paying for a manager to decide to.
     """
     retrieved = Retrieved()
-    consulted = Consulted(offered=(_specialist(),), retrieved=retrieved)
+    bounds = Bounds(breakers or CircuitBreakers())
+    consulted = Consulted(offered=(_specialist(),), retrieved=retrieved, bounds=bounds)
     reported = asyncio.run(
         run_agent(
-            build_agent(_specialist(), _deployment(platform, model), retrieved),
+            build_agent(
+                _specialist(),
+                _deployment(platform, model, guides),
+                retrieved,
+                bounds,
+            ),
             _target().describe(),
         )
     )
@@ -281,3 +306,51 @@ def test_a_tool_outside_the_declaration_is_not_reachable(platform: str) -> None:
     }
     assert SEARCH in offered
     assert FORBIDDEN not in offered
+
+
+def test_a_platform_publishing_no_guides_is_investigated_unguided_and_whole(
+    platform: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """This platform serves no guide tools, so reading its guides fails."""
+    guides = fetch_guides(
+        (_specialist(),), _deployment(platform, _ScriptedModel(model="scripted"))
+    )
+    model = _ScriptedModel(
+        model="scripted",
+        turns=[
+            _calls(SEARCH, query="service:checkout status:error"),
+            _reports(["call-1/item-1"]),
+        ],
+    )
+
+    findings = _investigate(platform, model, guides)
+
+    assert guides == ()
+    assert "guides could not be read" in caplog.text
+    assert findings.complete
+    assert findings.retrieval_failures == ()
+
+
+def test_a_guide_is_read_mid_run_without_spending_a_retrieval(platform: str) -> None:
+    """Through the real runner: the load is a framework tool, not the platform's."""
+    model = _ScriptedModel(
+        model="scripted",
+        turns=[
+            _calls("load_skill", skill_name="datadog-logs"),
+            _calls(SEARCH, query="service:checkout status:error"),
+            _reports(["call-1/item-1"]),
+        ],
+    )
+
+    findings = _investigate(
+        platform,
+        model,
+        (LOGS_GUIDE,),
+        CircuitBreakers(max_tool_calls_per_agent=1),
+    )
+
+    assert "Facets start with @." in str(model.seen[1].contents)
+    assert "datadog-logs" in str(model.seen[0].config.system_instruction)
+    (finding,) = findings.findings
+    assert finding.examples[0].summary == "container OOMKilled"
+    assert findings.complete

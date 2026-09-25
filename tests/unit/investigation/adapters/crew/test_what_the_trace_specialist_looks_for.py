@@ -41,8 +41,6 @@ def test_without_preview_it_reaches_the_core_toolset_alone() -> None:
     assert _tools(without) == {
         "search_datadog_spans",
         "get_datadog_trace",
-        "list_datadog_skills",
-        "load_datadog_skill",
     }
 
 
@@ -70,8 +68,6 @@ def test_with_preview_it_reaches_both_the_core_and_apm_toolsets() -> None:
         "get_datadog_trace",
         "apm_query_trace",
         "apm_discover_span_tags",
-        "list_datadog_skills",
-        "load_datadog_skill",
     }
 
 

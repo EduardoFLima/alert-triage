@@ -30,7 +30,6 @@ from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
-    CONSULT_THE_PLATFORM,
 )
 from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
@@ -38,8 +37,6 @@ from alert_triage.investigation.adapters.datadog.preview import (
 from alert_triage.investigation.adapters.datadog.tools import (
     DISCOVER_SPAN_TAGS,
     GET_TRACE,
-    LIST_SKILLS,
-    LOAD_SKILL,
     QUERY_TRACE,
     SEARCH_SPANS,
     DatadogTool,
@@ -74,8 +71,6 @@ The tools you have are Datadog's:
 {TOOLS}
 
 {ORDERING}
-
-{CONSULT_THE_PLATFORM}
 
 A span query is facets joined by spaces —
 `service:checkout status:error`, `service:checkout @duration:>2s` for the slow
@@ -158,7 +153,6 @@ def _instruction(preview: bool) -> str:
     """What this specialist is asked, given whether it can rank within a trace."""
     return _INSTRUCTION_TEMPLATE.format(
         TOOLS=described(*_tools(preview)),
-        CONSULT_THE_PLATFORM=CONSULT_THE_PLATFORM,
         AN_EMPTY_ANSWER=AN_EMPTY_ANSWER,
         MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
         ORDERING=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
@@ -212,7 +206,7 @@ def trace_specialist(*, preview: bool) -> Specialist:
         signal=Signal.TRACE,
         instruction=_instruction(preview),
         output_schema=ReportedFindings,
-        toolsets=toolsets(*_tools(preview), LIST_SKILLS, LOAD_SKILL),
+        toolsets=toolsets(*_tools(preview)),
     )
 
 

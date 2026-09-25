@@ -21,9 +21,9 @@ under "A Datadog integration that holds up".
   with the references it points to. They are held in memory for the run and
   never written anywhere.
 - **Each specialist is offered the guides that concern its own tools.** A guide
-  concerns a specialist when it names at least one tool that specialist's
-  declaration permits. No list of guide names is kept by hand: the tool list
-  each declaration already holds decides.
+  concerns a specialist when it documents, under a heading of its own, at least
+  one tool that specialist's declaration permits. No list of guide names is kept
+  by hand: the tool list each declaration already holds decides.
 - **ADK's `SkillToolset` serves them.** Each specialist gets one holding only
   its matched guides. ADK puts a menu of their names and descriptions in the
   prompt, and the specialist loads a guide's text when it needs it. A name not

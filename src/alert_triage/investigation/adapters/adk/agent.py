@@ -30,9 +30,11 @@ from alert_triage.investigation.adapters.adk.evidence import (
     log_tool_call,
 )
 from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
+from alert_triage.investigation.adapters.adk.skills import guidance_for
 from alert_triage.investigation.adapters.crew.reasoners.diagnostician import (
     diagnostician,
 )
+from alert_triage.investigation.adapters.datadog.guides import DatadogGuide
 from alert_triage.investigation.domain.reasoner import Reasoner
 from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
@@ -91,11 +93,16 @@ class Deployment:
             than passed to each builder because they are a deployment fact
             travelling with the other deployment facts, and three signatures
             would otherwise grow to say so.
+        guides: The platform's guides, read once as the run started, from
+            which each specialist is offered those documenting its own tools.
+            A deployment fact rather than a declared one: what the platform
+            publishes changes without any declaration changing.
     """
 
     platforms: Mapping[str, PlatformAccess]
     model_for: ModelFor
     breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
+    guides: tuple[DatadogGuide, ...] = ()
 
 
 def connection_for(
@@ -167,23 +174,29 @@ def build_agent(
             each call reads. Absent, the documented defaults.
 
     Returns:
-        The agent, reaching the tools its declaration named and no others.
+        The agent, reaching the tools its declaration named and no others, and
+        offered the platform's guides to those tools where there are any.
     """
     from google.adk.agents import LlmAgent
+    from google.adk.agents.llm_agent import ToolUnion
     from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 
+    tools: list[ToolUnion] = [
+        McpToolset(
+            connection_params=connection_for(toolset, deployment),
+            tool_filter=list(toolset.tools),
+        )
+        for toolset in specialist.toolsets
+    ]
+    guidance = guidance_for(specialist, deployment.guides)
+    if guidance is not None:
+        tools.append(guidance)
     return LlmAgent(
         name=specialist.name,
         model=deployment.model_for(specialist.model),
         instruction=specialist.instruction,
         output_schema=specialist.output_schema,
-        tools=[
-            McpToolset(
-                connection_params=connection_for(toolset, deployment),
-                tool_filter=list(toolset.tools),
-            )
-            for toolset in specialist.toolsets
-        ],
+        tools=tools,
         before_tool_callback=log_tool_call(
             specialist.name, _permitted_tools(specialist), retrieved, bounds
         ),

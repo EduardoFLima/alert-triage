@@ -914,7 +914,13 @@ Live runs fail intermittently, and the causes sit in how we talk to Datadog's
 MCP server rather than in the design:
 
 - **The query dialect.** A specialist writes queries in Datadog's own syntax,
-  and the server rejects some of what the model writes.
+  and the server rejects some of what the model writes. Datadog publishes a
+  guide to each of its query grammars, and the guides are now read once as a
+  run starts. Each specialist is offered the ones documenting its own tools, and
+  reads one only when it asks for it; it can no longer browse the whole library.
+  Whether the model actually loads a guide before writing its first query, and
+  whether that is enough to retire the grammar still hand-written in
+  `METRIC_QUERY_DIALECT`, is for a live run to show.
 - **Tool versions.** Tool names and argument shapes change between server
   versions, so a declaration that worked last month can quietly stop working.
 - **Tools in Preview.** Some of the most useful tools live in Datadog's
