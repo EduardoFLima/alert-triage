@@ -41,6 +41,7 @@ flowchart LR
     target["Target<br/>service · window · volume"] --> diag["Diagnostician<br/>(manager)"]
 
     subgraph crew["Specialists"]
+        direction TB
         logs["Logs"]
         apm["APM"]
         trace["Trace"]
