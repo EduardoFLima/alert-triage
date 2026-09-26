@@ -47,12 +47,10 @@ flowchart LR
         infra["Infrastructure"]
     end
 
-    diag -- "consults as needed" --> crew
+    diag <-- "consults as needed ·<br/>checked findings" --> crew
+    crew <-- "own filtered toolset ·<br/>retrieved items" --> mcp(["Datadog MCP"])
     diag -- "hypothesis + confidence" --> writer["Report writer"]
     writer --> diagnosis["Diagnosis<br/>prose + real evidence"]
-    crew -- "own filtered toolset" --> mcp(["Datadog MCP"])
-    mcp -- "retrieved items" --> crew
-    crew -- "checked findings" --> diag
 
     classDef step fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
     classDef ext fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
