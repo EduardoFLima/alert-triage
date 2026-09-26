@@ -37,7 +37,7 @@ recently enough to skip.
 How an investigation works:
 
 ```mermaid
-flowchart LR
+flowchart TB
     target["Target<br/>service · window · volume"] --> diag["Diagnostician<br/>(manager)"]
 
     subgraph crew["Specialists"]
