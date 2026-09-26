@@ -34,6 +34,50 @@ Alerts in, one report per incident out. Grouping is by service and time
 window; the ledger is what decides a still-firing incident was reported
 recently enough to skip.
 
+How an investigation works:
+
+```mermaid
+flowchart LR
+    target["Target<br/>service · window · volume"] --> diag["Diagnostician<br/>(manager)"]
+
+    subgraph crew["Specialists"]
+        logs["Logs"]
+        apm["APM"]
+        trace["Trace"]
+        infra["Infrastructure"]
+    end
+
+    diag -- "consults as needed" --> crew
+    crew -- "own filtered toolset" --> mcp(["Datadog MCP"])
+    mcp -- "retrieved items" --> crew
+    crew -- "checked findings" --> diag
+    diag -- "hypothesis + confidence" --> writer["Report writer"]
+    writer --> diagnosis["Diagnosis<br/>prose + real evidence"]
+
+    classDef step fill:#eef0fb,stroke:#5b63d3,color:#1a1a2e
+    classDef ext fill:#fdf6e3,stroke:#c9a227,color:#3a2f00
+    classDef done fill:#f6fbf7,stroke:#3f9142,color:#123a17
+
+    class target,diag,logs,apm,trace,infra,writer step
+    class mcp ext
+    class diagnosis done
+```
+
+- **The Diagnostician decides who to ask.** It offers the crew no fixed walk:
+  it consults the specialists this incident needs, choosing each from what the
+  last one reported.
+- **Each specialist sees only its own tools.** It queries Datadog's MCP server
+  through a toolset filtered to what its declaration names.
+- **Evidence is retrieved, never written.** A specialist cites the items it was
+  shown; the report reproduces those items, so a model cannot invent a log
+  line.
+- **Reasoning and wording are separate agents.** The Report writer turns the
+  hypothesis into prose; the evidence beneath it is rendered from what the
+  platform returned.
+- **Circuit breakers bound the run** — tool calls, consultations and time. Cut
+  short with findings in hand, the report goes out marked incomplete; cut short
+  with nothing, the investigation fails and is tried again.
+
 The full product vision and capability roadmap live in
 [`docs/vision.md`](docs/vision.md); the settings reference is in
 [`docs/configuration.md`](docs/configuration.md).
