@@ -33,6 +33,7 @@ from alert_triage.investigation.adapters.crew.specialists.section import (
 )
 from alert_triage.investigation.adapters.datadog.dialect import (
     AN_EMPTY_ANSWER,
+    IN_THE_ENVIRONMENT,
 )
 from alert_triage.investigation.adapters.datadog.preview import (
     APM_TOOLSET_AVAILABLE,
@@ -68,10 +69,10 @@ _INSTRUCTION_TEMPLATE = """\
 You are a trace specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
 
-You will be told a service and the window its alerts span. Find the requests
-to that service that were slow or that failed during that window, and report
-where their time went or where they broke: which operation dominated, and what
-it was waiting on.
+You will be told a service, its environment, and the window its alerts span.
+Find the requests to that service that were slow or that failed during that
+window, and report where their time went or where they broke: which operation
+dominated, and what it was waiting on.
 
 The tools you have are Datadog's:
 
@@ -81,8 +82,9 @@ The tools you have are Datadog's:
 
 A span query is facets joined by spaces —
 `service:checkout status:error`, `service:checkout @duration:>2s` for the slow
-ones, `-` to negate and `*` to wildcard. Always scope the query to the service
-you were told about and the window you were given.
+ones, `-` to negate and `*` to wildcard. Ask about the window you were given.
+
+{IN_THE_ENVIRONMENT}
 
 {AN_EMPTY_ANSWER}
 
@@ -161,6 +163,7 @@ def _instruction(preview: bool) -> str:
     return _INSTRUCTION_TEMPLATE.format(
         TOOLS=described(*_tools(preview)),
         AN_EMPTY_ANSWER=AN_EMPTY_ANSWER,
+        IN_THE_ENVIRONMENT=IN_THE_ENVIRONMENT,
         MAX_EXAMPLES_PER_FINDING=MAX_EXAMPLES_PER_FINDING,
         ORDERING=_ORDER_WITH_RANKING if preview else _ORDER_WITHOUT_RANKING,
         FACET_CHECK=_FACETS_DISCOVERED if preview else _FACETS_SEEN_ON_A_SPAN,

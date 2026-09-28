@@ -172,12 +172,14 @@ def _ids() -> Callable[[], str]:
     return lambda: f"incident-{next(counter)}"
 
 
-def _build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
+def _build_report(
+    incident: Incident, diagnosis: Diagnosis | None, env: str
+) -> TriageReport:
     """A builder standing in for the one the composition root injects."""
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
-        subject=f"{incident.service}: {len(incident.alerts)} alert(s)",
+        subject=f"[{env}] {incident.service}: {len(incident.alerts)} alert(s)",
         body=NOT_INVESTIGATED if diagnosis is None else diagnosis.account,
     )
 
@@ -365,3 +367,17 @@ def _diagnosed(findings: Findings) -> Diagnosis:
         confidence=Confidence.MEDIUM if findings.findings else None,
         findings=findings,
     )
+
+
+def test_a_report_is_built_for_the_environment_the_run_watches() -> None:
+    notifier = FakeNotifier()
+
+    _run(
+        FakeAlertSource([_alert("a")]),
+        FakeLedger(),
+        notifier,
+        SuppliedConfig(scope=Scope(owner="sre", env="staging")),
+    )
+
+    (report,) = notifier.delivered
+    assert report.subject.startswith("[staging] ")

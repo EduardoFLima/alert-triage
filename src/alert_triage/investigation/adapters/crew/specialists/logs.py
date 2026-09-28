@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from alert_triage.investigation.adapters.crew.specialists.section import (
     SECTION_DESCRIPTION,
 )
+from alert_triage.investigation.adapters.datadog.dialect import IN_THE_ENVIRONMENT
 from alert_triage.investigation.adapters.datadog.tools import (
     ANALYZE_LOGS,
     SEARCH_LOGS,
@@ -45,9 +46,10 @@ LOGS_INSTRUCTION = f"""
 You are a logs specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
 
-You will be told a service and the window its alerts span. Search that
-service's logs over that window and report the error and warning patterns you
-find: what recurs, how often, and when it started relative to the alerts.
+You will be told a service, its environment, and the window its alerts span.
+Search that service's logs over that window and report the error and warning
+patterns you find: what recurs, how often, and when it started relative to the
+alerts.
 
 The tools you have are Datadog's:
 
@@ -58,9 +60,10 @@ asked for.
 
 A Datadog log query is `service:checkout status:error` — facets joined by
 spaces, `-` to negate, `*` to wildcard, `@` for attributes from structured logs
-(`@http.status_code:503`), and `AND`/`OR` where you need them explicit. Always
-scope the query to the service you were told about and the window you were
-given.
+(`@http.status_code:503`), and `AND`/`OR` where you need them explicit. Ask
+about the window you were given.
+
+{IN_THE_ENVIRONMENT}
 
 The window you are given may be a single instant: a one-alert incident has an
 identical start and end. Treat it as the moment the trouble is centred on and

@@ -158,6 +158,7 @@ def _section[SectionT](
 
 _OWNER = "owner"
 _SERVICES = "services"
+_ENV = "env"
 
 
 def _env_name(path: tuple[str, ...]) -> str:
@@ -166,6 +167,7 @@ def _env_name(path: tuple[str, ...]) -> str:
 
 
 OWNER_VARIABLE = _env_name(("scope", _OWNER))
+ENV_VARIABLE = _env_name(("scope", _ENV))
 SERVICES_VARIABLE = _env_name(("scope", _SERVICES))
 """The one variable that declares a whole section rather than adjusting a key."""
 
@@ -173,16 +175,19 @@ SERVICES_VARIABLE = _env_name(("scope", _SERVICES))
 def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
     """Resolve the one section that has no default and no fallback.
 
-    Its two keys are read one each rather than through ``_supplied``: neither
-    is a scalar with a default, which is the only thing that function knows how
-    to resolve.
+    Owner and services are read one each rather than through ``_supplied``:
+    neither is a scalar with a default, which is the only thing that function
+    knows how to resolve. The environment is one, so it goes through there.
 
     "At least one" is enforced here rather than in ``Scope`` itself so that a
     deployment configured with neither meets a ``ConfigError`` -- the failure
     the application already refuses to start on, carrying the message that says
     what to set.
     """
-    _reject_unknown([one.name for one in fields(Scope)], ("scope",), data)
+    environment = _supplied(
+        Scope, ("scope",), data, env, except_for=(_OWNER, _SERVICES)
+    )
+    _reject_blank_environment(environment)
     owner = _owner(data, env)
     services = _services(data.get(_SERVICES), env)
     if owner is None and not services:
@@ -191,7 +196,21 @@ def _scope(data: Mapping[str, Any], env: Mapping[str, str]) -> Scope:
             "set scope.owner (SCOPE_OWNER) or scope.services (SCOPE_SERVICES) "
             "in config.yaml or the environment"
         )
-    return Scope(owner=owner, services=services)
+    return Scope(owner=owner, services=services, **environment)
+
+
+def _reject_blank_environment(supplied: Mapping[str, Any]) -> None:
+    """Refuse an environment that names none, rather than reading it as "any".
+
+    Clearing the value is far likelier to be a mistake than a request to watch
+    every environment at once, and taking it as the latter would silently widen
+    the run.
+    """
+    if _ENV in supplied and not str(supplied[_ENV]).strip():
+        raise ConfigError(
+            f"scope.env ({ENV_VARIABLE}) must name an environment; leave it "
+            f"unset to watch {Scope.DEFAULT_ENV}"
+        )
 
 
 def _owner(data: Mapping[str, Any], env: Mapping[str, str]) -> str | None:

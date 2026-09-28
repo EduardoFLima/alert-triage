@@ -203,24 +203,29 @@ def test_an_incident_opened_by_a_run_is_named_with_a_uuid(
 def test_the_alert_source_is_built_over_the_whole_resolved_scope(
     monkeypatch: pytest.MonkeyPatch, source: FakeAlertSource, no_config_file: Path
 ) -> None:
-    """Both filters reach the adapter: the owner, and the services beside it."""
-    scoped: list[tuple[object, ...]] = []
+    """Every filter reaches the adapter: owner, services, and the environment."""
+    scoped: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def _record(*args: object, **kwargs: object) -> FakeAlertSource:
-        scoped.append(args)
+        scoped.append((args, kwargs))
         return source
 
     monkeypatch.setattr(composition, "build_alert_source", _record)
 
     composition.execute(
         now=NOON,
-        env={**ENVIRONMENT, "SCOPE_SERVICES": "checkout,payments"},
+        env={
+            **ENVIRONMENT,
+            "SCOPE_SERVICES": "checkout,payments",
+            "SCOPE_ENV": "staging",
+        },
         config_path=no_config_file,
     )
 
-    (_, _, owner, services) = scoped[0]
+    ((_, _, owner, services), keywords) = scoped[0]
     assert owner == "sre"
     assert services == ("checkout", "payments")
+    assert keywords["env"] == "staging"
 
 
 @pytest.mark.usefixtures("substituted_adapters")

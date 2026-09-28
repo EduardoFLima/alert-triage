@@ -21,7 +21,10 @@ from alert_triage.investigation.adapters.crew.specialists.infrastructure import 
 from alert_triage.investigation.adapters.crew.specialists.trace import (
     TRACE_SPECIALIST,
 )
-from alert_triage.investigation.adapters.datadog.dialect import AN_EMPTY_ANSWER
+from alert_triage.investigation.adapters.datadog.dialect import (
+    AN_EMPTY_ANSWER,
+    IN_THE_ENVIRONMENT,
+)
 from alert_triage.investigation.domain.specialist import Specialist
 
 QUOTED_IDENTIFIER = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+")
@@ -106,3 +109,11 @@ def test_an_empty_answer_is_explained_in_the_same_words_everywhere(
 ) -> None:
     """One account of it, so a correction reaches every specialist at once."""
     assert AN_EMPTY_ANSWER in specialist.instruction
+
+
+@CREWED
+def test_every_specialist_is_told_to_stay_inside_the_environment(
+    specialist: Specialist,
+) -> None:
+    """One account of it, so evidence is never drawn from a sibling environment."""
+    assert IN_THE_ENVIRONMENT in specialist.instruction

@@ -492,13 +492,18 @@ it (or an environment variable) provides is not:
     than merging with it, so a deployment with no file at all can still scope
     by service.
 
+  - `scope.env` — the one environment whose alerts are watched, defaulting to
+    `prod` (`SCOPE_ENV`). It narrows whichever of the two keys above resolved
+    and never satisfies `scope` on its own; a second environment is a second
+    deployment.
+
   Each entry under `scope.services` carries an optional `critical` flag,
   defaulting to false, which says how urgently an incident on that service is
   investigated and reported and never what is watched.
 
-  Both names are deliberately platform-neutral: turning the owner into a
-  `team:` term and the services into a `service:` term in a Datadog query is
-  the alert source adapter's job, so a second platform reads the same keys
+  All three are deliberately platform-neutral: turning the owner into a
+  `team:` term, the services into a `service:` term and the environment into
+  an `env:` term in a Datadog query is the alert source adapter's job, so a second platform reads the same keys
   without them lying about where the values came from. Widening scope beyond a
   team and a set of service names (multiple teams, tag expressions, wildcards)
   is a future extension, not v1.

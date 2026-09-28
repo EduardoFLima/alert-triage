@@ -12,6 +12,7 @@ from alert_triage.investigation.adapters.crew.specialists.infrastructure import 
     INFRASTRUCTURE_INSTRUCTION,
 )
 from alert_triage.investigation.adapters.datadog.dialect import (
+    IN_THE_ENVIRONMENT,
     METRIC_QUERY_DIALECT,
 )
 
@@ -58,3 +59,16 @@ def test_the_dialect_explains_a_rejected_aggregation() -> None:
 def test_a_refused_query_is_never_read_as_a_healthy_service() -> None:
     """The same gate as a failed retrieval, in the one place it is easiest to lose."""
     assert "never report the service as healthy" in METRIC_QUERY_DIALECT.lower()
+
+
+def test_a_query_is_scoped_to_the_service_and_the_environment() -> None:
+    """Evidence from staging is not evidence about an incident in production."""
+    lowered = IN_THE_ENVIRONMENT.lower()
+
+    assert "service" in lowered
+    assert "environment" in lowered
+    assert "`env`" in IN_THE_ENVIRONMENT
+
+
+def test_a_target_with_no_environment_is_scoped_by_the_service_alone() -> None:
+    assert "service alone" in " ".join(IN_THE_ENVIRONMENT.lower().split())

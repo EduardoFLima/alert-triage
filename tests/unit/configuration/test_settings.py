@@ -173,3 +173,7 @@ def test_a_config_carries_its_investigation_settings() -> None:
 
 def test_a_config_defaults_its_investigation_settings() -> None:
     assert _config().investigation.max_attempts == 3
+
+
+def test_a_scope_watches_production_when_nothing_names_an_environment() -> None:
+    assert Scope(owner="sre").env == "prod"

@@ -26,6 +26,13 @@ present. An item the payload identifies is addressed as its retrieval with the
 item named on it, so an address that cannot open the item still opens the view
 the item is in. A link that degrades to the right page is the whole point.
 
+A composed address carries the investigation's environment where its form can
+express one — ``env=`` on the APM page, an ``env:`` term in an explorer's query
+— so a reader is not shown every environment of the service at once. The Log
+Explorer's is not rewritten: it has to open what was retrieved, and a query that
+ran without an environment is shown as it ran. The infrastructure inventory's
+filter is left as confirmed, since an environment term on it has not been.
+
 "Item" throughout, never "entry": it is the word the citation format
 ``call-N/item-M`` already commits this project to, and one thing retrieved
 deserves one name.
@@ -135,6 +142,12 @@ reasoning choose a section admissible at all.
 SERVICE_TAG_PREFIX = "service:"
 """How a service is named to an explorer's query, the same tag ``triage`` uses."""
 
+ENV_TAG_PREFIX = "env:"
+"""How an environment is named to an explorer's query, the same tag ``triage`` uses."""
+
+ENV_PARAMETER = "env"
+"""How an environment is named to a service's APM page, which takes no query."""
+
 FROM_KEYS = ("from", "from_ts", "start", "filter_from")
 TO_KEYS = ("to", "to_ts", "end", "filter_to")
 """What the tool called the ends of the window it searched."""
@@ -163,7 +176,7 @@ class DatadogLinks:
         self._web_host = web_host
 
         self._service_templates: Mapping[
-            str, Callable[[Mapping[str, Any], str], str]
+            str, Callable[[Mapping[str, Any], str, str | None], str]
         ] = {
             **dict.fromkeys(APM_SERVICE_TOOLS, self._service_page),
             **dict.fromkeys(TRACE_TOOLS, self._trace_explorer),
@@ -172,7 +185,11 @@ class DatadogLinks:
         }
 
     def to_retrieval(
-        self, tool: str, args: Mapping[str, Any], service: str = ""
+        self,
+        tool: str,
+        args: Mapping[str, Any],
+        service: str = "",
+        env: str | None = None,
     ) -> str | None:
         """Where whatever produced one retrieval is opened.
 
@@ -186,6 +203,9 @@ class DatadogLinks:
                 read out of ``args``, because how a service is named in a query
                 differs by tool and a page scoped to the wrong one is a page to
                 the wrong thing.
+            env: The environment the investigation's target states, which the
+                composed pages are confined to. ``None`` composes them across
+                every environment of the service, as they always were.
 
         Returns:
             The address of the view that retrieval came from, or ``None`` where
@@ -199,7 +219,7 @@ class DatadogLinks:
         template = self._service_templates.get(tool)
         if template is None or not service.strip():
             return None
-        return template(args, service)
+        return template(args, service, env)
 
     def _log_search(self, args: Mapping[str, Any]) -> str:
         """The Log Explorer search a log retrieval came from, pinned to its window.
@@ -216,7 +236,11 @@ class DatadogLinks:
         return f"https://{self._web_host}/{LOG_EXPLORER_PATH}?{urlencode(parameters)}"
 
     def to_service(
-        self, service: str, window: Window, section: Section | None
+        self,
+        service: str,
+        window: Window,
+        section: Section | None,
+        env: str | None = None,
     ) -> str | None:
         """Where a reader looks at the service a finding concerns.
 
@@ -225,6 +249,8 @@ class DatadogLinks:
             window: The period the investigation gathered evidence over.
             section: Which part of the service the finding named, which opens
                 the page on that section. ``None`` opens it at the top.
+            env: The environment the page is confined to, or ``None`` for
+                every environment of the service.
 
         Returns:
             The service's own APM page over that window, or ``None`` where
@@ -234,37 +260,47 @@ class DatadogLinks:
             return None
         page = self._apm_entity(
             service,
+            env,
             {"start": _epoch_ms(window.start), "end": _epoch_ms(window.end)},
         )
         return page if section is None else f"{page}#{SERVICE_PAGE_ANCHORS[section]}"
 
-    def _service_page(self, args: Mapping[str, Any], service: str) -> str:
+    def _service_page(
+        self, args: Mapping[str, Any], service: str, env: str | None
+    ) -> str:
         """The service's own APM page, over the window the retrieval ran across.
 
         Where a metric, a metric search, a metric's context and the catalogue
         all point: the entity whose resources they describe, not the query that
         described them.
         """
-        return self._apm_entity(service, _apm_window(args))
+        return self._apm_entity(service, env, _apm_window(args))
 
-    def _apm_entity(self, service: str, window: Mapping[str, str]) -> str:
-        """A service's APM page, pinned to a window where one is given."""
+    def _apm_entity(
+        self, service: str, env: str | None, window: Mapping[str, str]
+    ) -> str:
+        """A service's APM page, confined and pinned where it is given how to be."""
         page = (
             f"https://{self._web_host}/apm/entity/service%3A{quote(service, safe='')}"
         )
-        return f"{page}?{urlencode(window)}" if window else page
+        parameters = {**({ENV_PARAMETER: env} if env else {}), **window}
+        return f"{page}?{urlencode(parameters)}" if parameters else page
 
-    def _trace_explorer(self, args: Mapping[str, Any], service: str) -> str:
+    def _trace_explorer(
+        self, args: Mapping[str, Any], service: str, env: str | None
+    ) -> str:
         """The Trace Explorer scoped to the service, over the retrieval's window.
 
         Scoped by the service and not by the retrieval's query: a span-level
         query resolves differently on a view that lists the traces containing a
         matching span, and a service scope means the same thing on either.
         """
-        parameters = {"query": f"{SERVICE_TAG_PREFIX}{service}", **_apm_window(args)}
+        parameters = {"query": _explorer_scope(service, env), **_apm_window(args)}
         return f"https://{self._web_host}/apm/traces?{urlencode(parameters)}"
 
-    def _infrastructure(self, args: Mapping[str, Any], service: str) -> str:
+    def _infrastructure(
+        self, args: Mapping[str, Any], service: str, env: str | None
+    ) -> str:
         """The infrastructure inventory filtered to what the service runs on.
 
         The one service-scoped address with no window: the inventory is a live
@@ -273,9 +309,11 @@ class DatadogLinks:
         scope = urlencode({"filter": f"{SERVICE_TAG_PREFIX}{service}"})
         return f"https://{self._web_host}/infrastructure?{scope}"
 
-    def _event_explorer(self, args: Mapping[str, Any], service: str) -> str:
+    def _event_explorer(
+        self, args: Mapping[str, Any], service: str, env: str | None
+    ) -> str:
         """The Event Explorer over the service, pinned to the retrieval's window."""
-        parameters: dict[str, str] = {"query": f"{SERVICE_TAG_PREFIX}{service}"}
+        parameters: dict[str, str] = {"query": _explorer_scope(service, env)}
         window = _window(args)
         if window is not None:
             parameters["from_ts"], parameters["to_ts"] = window
@@ -283,7 +321,12 @@ class DatadogLinks:
         return f"https://{self._web_host}/event/explorer?{urlencode(parameters)}"
 
     def to_item(
-        self, tool: str, payload: Any, within: str | None, service: str = ""
+        self,
+        tool: str,
+        payload: Any,
+        within: str | None,
+        service: str = "",
+        env: str | None = None,
     ) -> str | None:
         """Where one retrieved item is opened.
 
@@ -298,6 +341,8 @@ class DatadogLinks:
             service: The service under investigation. Unused by any template an
                 item can be named on today, and part of the protocol because a
                 platform's item addresses may be scoped as its retrievals are.
+            env: The environment under investigation, unused for the same
+                reason as ``service`` and present for the same reason.
 
         Returns:
             The address of that item, of the retrieval it came from, or
@@ -310,6 +355,12 @@ class DatadogLinks:
             return within
         search = within or self._log_search({})
         return f"{search}&{urlencode({'event': item})}"
+
+
+def _explorer_scope(service: str, env: str | None) -> str:
+    """The service, and its environment where one is given, as an explorer query."""
+    scope = f"{SERVICE_TAG_PREFIX}{service}"
+    return f"{scope} {ENV_TAG_PREFIX}{env}" if env else scope
 
 
 def _first(source: Any, keys: tuple[str, ...]) -> str | None:

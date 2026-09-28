@@ -31,7 +31,7 @@ from alert_triage.configuration.adapters.yaml.loader import (
     load_config,
 )
 from alert_triage.configuration.port import ConfigError
-from alert_triage.configuration.settings import Investigation
+from alert_triage.configuration.settings import Investigation, Scope
 from alert_triage.investigation.adapters.adk.agent import (
     Deployment,
     PlatformAccess,
@@ -110,6 +110,9 @@ pytestmark = pytest.mark.skipif(
 SERVICE = os.environ.get("ALERT_TRIAGE_LIVE_SERVICE", "checkout")
 """A service in the account under test. A quiet one is a valid answer."""
 
+ENVIRONMENT = os.environ.get("ALERT_TRIAGE_LIVE_ENV", Scope.DEFAULT_ENV)
+"""The environment that service runs in, which every query is confined to."""
+
 DECLARED_TOOLSETS = [
     (specialist.name, toolset) for specialist in CREW for toolset in specialist.toolsets
 ]
@@ -173,6 +176,7 @@ def _target() -> InvestigationTarget:
         service=SERVICE,
         window=Window(start=fired_at, end=fired_at),
         alert_count=1,
+        env=ENVIRONMENT,
     )
 
 
@@ -248,27 +252,40 @@ class _Recorded:
         self.addressed: list[tuple[str, str | None]] = []
 
     def to_retrieval(
-        self, tool: str, args: Mapping[str, Any], service: str = ""
+        self,
+        tool: str,
+        args: Mapping[str, Any],
+        service: str = "",
+        env: str | None = None,
     ) -> str | None:
-        address = self._links.to_retrieval(tool, args, service)
+        address = self._links.to_retrieval(tool, args, service, env)
         self.addressed.append((tool, address))
         return address
 
     def to_item(
-        self, tool: str, payload: Any, within: str | None, service: str = ""
+        self,
+        tool: str,
+        payload: Any,
+        within: str | None,
+        service: str = "",
+        env: str | None = None,
     ) -> str | None:
-        return self._links.to_item(tool, payload, within, service)
+        return self._links.to_item(tool, payload, within, service, env)
 
     def to_service(
-        self, service: str, window: Window, section: Section | None
+        self,
+        service: str,
+        window: Window,
+        section: Section | None,
+        env: str | None = None,
     ) -> str | None:
-        return self._links.to_service(service, window, section)
+        return self._links.to_service(service, window, section, env)
 
 
 def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:
     """One real consultation, kept with this account's addresses attached."""
     links = _Recorded(DatadogLinks(resolve_connection().web_host))
-    retrieved = Retrieved(link=links, service=SERVICE)
+    retrieved = Retrieved(link=links, service=SERVICE, env=ENVIRONMENT)
     asyncio.run(
         run_agent(
             build_agent(specialist, _deployment(), retrieved),
@@ -316,7 +333,7 @@ def test_a_findings_service_page_opens_rather_than_404s(
     """
     links = DatadogLinks(resolve_connection().web_host)
 
-    address = links.to_service(SERVICE, _target().window, section)
+    address = links.to_service(SERVICE, _target().window, section, ENVIRONMENT)
 
     assert address is not None
     assert answers(address), f"the platform serves nothing at {address}"

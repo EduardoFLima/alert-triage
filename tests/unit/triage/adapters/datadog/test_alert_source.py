@@ -83,7 +83,7 @@ def _page(*events: EventResponse, after: str | None = None) -> EventsListRespons
 
 def _source(*pages: EventsListResponse | Exception) -> DatadogAlertSource:
     return DatadogAlertSource(
-        events=FakeEvents(*pages), owner="sre", web_host="app.datadoghq.com"
+        events=FakeEvents(*pages), owner="sre", web_host="app.datadoghq.com", env="prod"
     )
 
 
@@ -131,6 +131,7 @@ def test_the_link_points_at_the_configured_site() -> None:
         events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
         owner="sre",
         web_host="app.datadoghq.eu",
+        env="prod",
     )
 
     (alert,) = source.fetch_since(SINCE)
@@ -144,6 +145,7 @@ def test_an_organisation_on_its_own_subdomain_is_linked_there() -> None:
         events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
         owner="sre",
         web_host="foobar.datadoghq.eu",
+        env="prod",
     )
 
     (alert,) = source.fetch_since(SINCE)
@@ -228,7 +230,10 @@ def test_a_naive_fire_time_is_read_as_utc() -> None:
 def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events,
+        owner="sre",
+        web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -244,6 +249,7 @@ def test_the_request_scopes_to_the_named_services_in_datadogs_own_terms() -> Non
         owner=None,
         services=("checkout", "payments"),
         web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -257,7 +263,11 @@ def test_one_named_service_is_asked_for_by_name() -> None:
     """A group of one is noise in a query a human reads in the platform's UI."""
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner=None, services=("checkout",), web_host="app.datadoghq.com"
+        events=events,
+        owner=None,
+        services=("checkout",),
+        web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -274,6 +284,7 @@ def test_both_filters_narrow_the_same_request() -> None:
         owner="sre",
         services=("checkout",),
         web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -291,6 +302,7 @@ def test_a_criticality_never_reaches_the_request() -> None:
         owner="sre",
         services=("checkout", "payments"),
         web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -302,7 +314,10 @@ def test_a_criticality_never_reaches_the_request() -> None:
 def test_an_owner_alone_asks_for_no_service_at_all() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events,
+        owner="sre",
+        web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -320,6 +335,7 @@ def test_a_fetch_bounded_by_services_alone_announces_them(
         owner=None,
         services=("checkout",),
         web_host="app.datadoghq.com",
+        env="prod",
     )
 
     with caplog.at_level(logging.INFO):
@@ -336,16 +352,75 @@ def test_a_failure_of_a_service_bounded_fetch_still_says_what_it_was_for() -> No
         owner=None,
         services=("checkout",),
         web_host="app.datadoghq.com",
+        env="prod",
     )
 
     with pytest.raises(AlertSourceError, match="checkout"):
         source.fetch_since(SINCE)
 
 
+def test_the_request_scopes_to_the_environment_beside_owner_and_services() -> None:
+    """The environment narrows the other filters; it is never asked for alone."""
+    events = FakeEvents(_page())
+    source = DatadogAlertSource(
+        events=events,
+        owner="sre",
+        services=("checkout",),
+        web_host="app.datadoghq.com",
+        env="staging",
+    )
+
+    source.fetch_since(SINCE)
+
+    (request,) = events.requests
+    assert request.filter.query.split() == [
+        "source:alert",
+        "team:sre",
+        "service:checkout",
+        "env:staging",
+    ]
+
+
+def test_the_fetch_announces_the_environment_it_watches(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO):
+        _source(_page()).fetch_since(SINCE)
+
+    assert "env prod" in " ".join(caplog.text.split())
+
+
+def test_a_failed_fetch_names_the_environment_it_was_for() -> None:
+    with pytest.raises(AlertSourceError, match="environment 'prod'"):
+        _source(ApiException(status=500)).fetch_since(SINCE)
+
+
+def test_a_services_own_events_are_shown_inside_the_environment() -> None:
+    """Without it a reader sees every environment's alerts beside the one that fired."""
+    source = _source(_page(_event("evt-1", tags=["service:checkout"], monitor_id=None)))
+
+    (alert,) = source.fetch_since(SINCE)
+
+    (query,) = parse_qs(urlparse(alert.link).query)["query"]
+    assert query.split() == ["source:alert", "service:checkout", "env:prod"]
+
+
+def test_a_monitor_link_is_left_as_the_platform_addresses_it() -> None:
+    """The monitor page is the monitor's own, not a view the system scopes."""
+    source = _source(_page(_event("evt-1", tags=["service:checkout"])))
+
+    (alert,) = source.fetch_since(SINCE)
+
+    assert "env" not in alert.link
+
+
 def test_the_request_asks_only_for_monitor_alerts() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events,
+        owner="sre",
+        web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -357,7 +432,10 @@ def test_the_request_asks_only_for_monitor_alerts() -> None:
 def test_the_request_carries_the_requested_time_bound() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events,
+        owner="sre",
+        web_host="app.datadoghq.com",
+        env="prod",
     )
 
     source.fetch_since(SINCE)
@@ -374,7 +452,10 @@ def test_alerts_from_every_cursor_page_are_returned() -> None:
         _page(_event("evt-3", tags=["service:payments"])),
     )
     source = DatadogAlertSource(
-        events=events, owner="sre", web_host="app.datadoghq.com"
+        events=events,
+        owner="sre",
+        web_host="app.datadoghq.com",
+        env="prod",
     )
 
     alerts = source.fetch_since(SINCE)

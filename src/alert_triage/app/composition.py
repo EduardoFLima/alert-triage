@@ -95,6 +95,7 @@ def execute(
         config.ingestion,
         config.scope.owner,
         tuple(config.scope.services),
+        env=config.scope.env,
     )
     investigator = build_investigator(
         env, datadog_connection, config.investigation, config.circuit_breakers

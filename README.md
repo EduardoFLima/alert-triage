@@ -167,8 +167,9 @@ python -m alert_triage   # the same job, without the console script
 
 A run reads what it needs from its environment:
 
-- **Scope** (`SCOPE_OWNER`, `SCOPE_SERVICES`) — whose alerts, and which
-  services'. At least one is mandatory.
+- **Scope** (`SCOPE_OWNER`, `SCOPE_SERVICES`, `SCOPE_ENV`) — whose alerts,
+  which services', and in which environment, `prod` unless set. At least one of
+  the first two is mandatory.
 - **Datadog credentials** (`DD_API_KEY`, `DD_APP_KEY`) — what the fetch
   authenticates with.
 - **A model credential** (`GOOGLE_API_KEY`) — what an investigation reasons on.

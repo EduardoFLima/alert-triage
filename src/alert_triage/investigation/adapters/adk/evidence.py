@@ -99,22 +99,34 @@ class Links(Protocol):
     Both are told the service too, because a service-scoped page is addressed
     to the service the investigation holds rather than to whatever the query
     happened to name, and how a service is named to a tool differs by tool.
+    All three are told the environment the target states, or ``None``, so that
+    a page composed from the target is confined to it rather than showing every
+    environment of the service at once.
     """
 
     def to_retrieval(
-        self, tool: str, args: Mapping[str, Any], service: str
+        self, tool: str, args: Mapping[str, Any], service: str, env: str | None
     ) -> str | None:
         """Where whatever produced this retrieval is opened, if it can be."""
         ...
 
     def to_item(
-        self, tool: str, payload: Any, within: str | None, service: str
+        self,
+        tool: str,
+        payload: Any,
+        within: str | None,
+        service: str,
+        env: str | None,
     ) -> str | None:
         """Where this item is opened, or ``within`` when it names no item."""
         ...
 
     def to_service(
-        self, service: str, window: Window, section: Section | None
+        self,
+        service: str,
+        window: Window,
+        section: Section | None,
+        env: str | None,
     ) -> str | None:
         """Where a reader looks at a service, opened on a section it names."""
         ...
@@ -128,7 +140,9 @@ class Retrieved:
     a stale identifier from an earlier incident cannot resolve.
     """
 
-    def __init__(self, link: Links | None = None, service: str = "") -> None:
+    def __init__(
+        self, link: Links | None = None, service: str = "", env: str | None = None
+    ) -> None:
         """Start with nothing retrieved, nothing citable, and nothing failed.
 
         Args:
@@ -138,12 +152,15 @@ class Retrieved:
                 service-scoped addresses are pinned to. Passed from the target
                 rather than read from a tool's arguments, because how a service
                 is named to a tool differs by tool.
+            env: The environment the target states, which the same addresses
+                are confined to, or ``None`` where it states none.
         """
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
         self._link = link
         self._service = service
+        self._env = env
 
     @property
     def retrievals(self) -> int:
@@ -237,14 +254,16 @@ class Retrieved:
         """Where whatever this retrieval came from is opened."""
         if self._link is None:
             return None
-        return self._link.to_retrieval(tool, args, self._service)
+        return self._link.to_retrieval(tool, args, self._service, self._env)
 
     def _item_addresses(self, tool: str, within: str | None) -> Linker | None:
         """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None
-        return lambda payload: link.to_item(tool, payload, within, self._service)
+        return lambda payload: link.to_item(
+            tool, payload, within, self._service, self._env
+        )
 
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any

@@ -1,7 +1,7 @@
 """Fetching alerts from Datadog's Events API and translating them to Alerts.
 
-Everything Datadog-shaped stops here: the ``team:`` and ``service:`` tag
-encodings, the cursor pagination, the SDK's exceptions and payload models. What
+Everything Datadog-shaped stops here: the ``team:``, ``service:`` and ``env:``
+tag encodings, the cursor pagination, the SDK's exceptions and payload models. What
 leaves is a list of ``Alert``.
 """
 
@@ -29,6 +29,9 @@ from alert_triage.triage.ports.alert_source import AlertSourceError
 
 SERVICE_TAG_PREFIX = "service:"
 OWNER_TAG_PREFIX = "team:"
+# Unified service tagging reserves ``env``, so a deployment on another
+# convention is out of reach until the tag is configurable.
+ENV_TAG_PREFIX = "env:"
 
 # Datadog files a monitor's firing events under this source; without it the
 # search also returns deploys, comments, and everything else on the event feed.
@@ -69,6 +72,8 @@ class DatadogAlertSource:
         owner: str | None = None,
         web_host: str = "",
         services: Sequence[str] = (),
+        *,
+        env: str,
     ) -> None:
         """Bind the adapter to an endpoint, a scope, and a web host.
 
@@ -84,11 +89,14 @@ class DatadogAlertSource:
                 terms. Empty where the owner alone bounds the fetch. Which of
                 them a deployment declared critical is deliberately not here:
                 a critical service is fetched on the same terms as any other.
+            env: The one environment whose alerts are in scope. Always spent,
+                narrowing whichever of owner and services resolved.
         """
         self._events = events
         self._owner = owner
         self._web_host = web_host
         self._services = tuple(services)
+        self._env = env
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
         """Fetch the in-scope alerts that fired at or after ``since``."""
@@ -97,6 +105,7 @@ class DatadogAlertSource:
                 "FETCHING ALERTS",
                 owner=self._owner,
                 services=", ".join(self._services) or None,
+                env=self._env,
                 since=since.isoformat(),
             )
         )
@@ -165,12 +174,14 @@ class DatadogAlertSource:
         Datadog query are conjunctive — so naming services within an owner asks
         for those services *of* that owner, which is what a narrowing scope
         means. At least one always resolved, so this never asks for everything.
+        The environment is always spent, and only ever narrows them further.
         """
         terms = [MONITOR_ALERT_QUERY]
         if self._owner is not None:
             terms.append(f"{OWNER_TAG_PREFIX}{self._owner}")
         if self._services:
             terms.append(f"{SERVICE_TAG_PREFIX}{_any_of(self._services)}")
+        terms.append(f"{ENV_TAG_PREFIX}{self._env}")
         return " ".join(terms)
 
     @property
@@ -182,7 +193,9 @@ class DatadogAlertSource:
             if self._services
             else "",
         ]
-        return " and ".join(one for one in named if one)
+        return " and ".join(one for one in named if one) + (
+            f" in environment {self._env!r}"
+        )
 
     def _to_alert(self, event: EventResponse) -> Alert | None:
         """Translate one event, or ``None`` when it carries no service tag.
@@ -210,6 +223,10 @@ class DatadogAlertSource:
         service's own events where it does not. Never the event itself: the v2
         identifier this API returns has no page of its own, and a link built
         from one reads as working until a human follows it.
+
+        Only the service's events are confined to the environment: that view is
+        one this system scopes, while the monitor page is the monitor's own and
+        a group filter on it is not a documented address form.
         """
         window = _window_around(fired_at)
         monitor = getattr(getattr(attributes, "attributes", None), "monitor_id", None)
@@ -218,7 +235,10 @@ class DatadogAlertSource:
         if not service:
             return ""
         over_the_service = {
-            "query": f"{MONITOR_ALERT_QUERY} {SERVICE_TAG_PREFIX}{service}",
+            "query": (
+                f"{MONITOR_ALERT_QUERY} {SERVICE_TAG_PREFIX}{service} "
+                f"{ENV_TAG_PREFIX}{self._env}"
+            ),
             **window,
         }
         return f"https://{self._web_host}/event/explorer?{urlencode(over_the_service)}"
@@ -259,6 +279,8 @@ def build_alert_source(
     ingestion: Ingestion,
     owner: str | None,
     services: Sequence[str] = (),
+    *,
+    env: str,
 ) -> DatadogAlertSource:
     """Assemble the adapter and the client it queries through.
 
@@ -272,6 +294,7 @@ def build_alert_source(
             alone bound the fetch.
         services: Services whose alerts are in scope. Empty where the owner
             alone bounds the fetch.
+        env: The one environment whose alerts are in scope.
 
     Returns:
         An ``AlertSource`` backed by Datadog.
@@ -282,6 +305,7 @@ def build_alert_source(
         owner=owner,
         web_host=connection.web_host,
         services=services,
+        env=env,
     )
 
 

@@ -273,6 +273,63 @@ def test_environment_wins_over_the_file_for_scope(tmp_path: Path) -> None:
     assert config.scope.owner == "platform"
 
 
+def test_a_run_watches_production_when_nothing_names_an_environment(
+    tmp_path: Path,
+) -> None:
+    config = load_config(_write(tmp_path, SCOPED), env={})
+
+    assert config.scope.env == "prod"
+
+
+def test_the_environment_a_run_watches_is_read_from_the_file(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, SCOPED + "  env: staging\n"), env={})
+
+    assert config.scope.env == "staging"
+
+
+def test_the_environment_a_run_watches_is_read_from_scope_env(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, SCOPED), env={"SCOPE_ENV": "staging"})
+
+    assert config.scope.env == "staging"
+
+
+def test_scope_env_wins_over_the_file(tmp_path: Path) -> None:
+    path = _write(tmp_path, SCOPED + "  env: staging\n")
+
+    config = load_config(path, env={"SCOPE_ENV": "prod"})
+
+    assert config.scope.env == "prod"
+
+
+def test_an_environment_alone_does_not_satisfy_scope(tmp_path: Path) -> None:
+    """Defaulted to production, env would otherwise watch all of production."""
+    path = _write(tmp_path, "scope:\n  env: prod\n")
+
+    with pytest.raises(ConfigError, match="requires an owner, services, or both"):
+        load_config(path, env={})
+
+
+def test_scope_env_alone_does_not_satisfy_scope(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="requires an owner, services, or both"):
+        load_config(tmp_path / "absent.yaml", env={"SCOPE_ENV": "prod"})
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_a_blank_environment_in_the_file_is_refused_by_name(
+    tmp_path: Path, blank: str
+) -> None:
+    path = _write(tmp_path, SCOPED + f"  env: '{blank}'\n")
+
+    with pytest.raises(ConfigError, match=r"scope\.env"):
+        load_config(path, env={})
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_a_blank_scope_env_is_refused_by_name(tmp_path: Path, blank: str) -> None:
+    with pytest.raises(ConfigError, match="SCOPE_ENV"):
+        load_config(_write(tmp_path, SCOPED), env={"SCOPE_ENV": blank})
+
+
 def test_environment_wins_over_the_file_for_any_other_value(tmp_path: Path) -> None:
     path = _write(
         tmp_path,

@@ -37,7 +37,9 @@ fact about the run and not about what was found.
 """
 
 
-def build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
+def build_report(
+    incident: Incident, diagnosis: Diagnosis | None, env: str
+) -> TriageReport:
     """Build the report an incident has earned, given what was learned about it.
 
     The presence of a diagnosis is the whole decision. ``None`` means no
@@ -47,20 +49,28 @@ def build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageRepor
     failed, and how many attempts it took to give up, are the run's business and
     never change what a report says.
 
+    The environment is written by this function into the subject, after the
+    prefix, and into the body's first sentence, on both reports. Not asked of
+    the headline, whose wording an agent owns: there it would be a hope rather
+    than a guarantee. In the subject rather than a field of its own, so every
+    channel shows it without the notification context learning the word.
+
     Args:
         incident: The incident to report.
         diagnosis: What the investigation came back with, or ``None`` when none
             completed.
+        env: The environment the run watches, which is the one every alert of
+            the incident was raised in.
 
     Returns:
         The report to deliver.
     """
     if diagnosis is None:
-        return _build_pass_through_report(incident)
-    return _build_investigated_report(incident, diagnosis)
+        return _build_pass_through_report(incident, env)
+    return _build_investigated_report(incident, diagnosis, env)
 
 
-def _build_pass_through_report(incident: Incident) -> TriageReport:
+def _build_pass_through_report(incident: Incident, env: str) -> TriageReport:
     """Build the report an incident gets when nothing could look at it.
 
     It carries the incident's own alerts and no conclusion of any kind, which is
@@ -69,6 +79,7 @@ def _build_pass_through_report(incident: Incident) -> TriageReport:
 
     Args:
         incident: The incident to report, with the alerts absorbed so far.
+        env: The environment the incident was observed in.
 
     Returns:
         A report naming the service and listing every alert on record for it.
@@ -76,13 +87,13 @@ def _build_pass_through_report(incident: Incident) -> TriageReport:
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
-        subject=_subject(incident),
-        body=_body(incident),
+        subject=_subject(incident, env),
+        body=_body(incident, env),
     )
 
 
 def _build_investigated_report(
-    incident: Incident, diagnosis: Diagnosis
+    incident: Incident, diagnosis: Diagnosis, env: str
 ) -> TriageReport:
     """Build the report for an incident an investigation actually looked at.
 
@@ -100,6 +111,7 @@ def _build_investigated_report(
     Args:
         incident: The incident to report, with the alerts absorbed so far.
         diagnosis: What the investigation found and concluded.
+        env: The environment the incident was observed in.
 
     Returns:
         A report announcing the incident in the investigation's own words and
@@ -108,16 +120,15 @@ def _build_investigated_report(
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
-        subject=f"{SUBJECT_PREFIX} {diagnosis.headline}",
-        body=_investigated_body(incident, diagnosis),
+        subject=f"{_prefix(env)} {diagnosis.headline}",
+        body=_investigated_body(incident, diagnosis, env),
     )
 
 
-def _investigated_body(incident: Incident, diagnosis: Diagnosis) -> str:
+def _investigated_body(incident: Incident, diagnosis: Diagnosis, env: str) -> str:
     """Lead with what the investigation said, then the alerts that prompted it."""
     lines = [
-        f"{_alert_count(len(incident.alerts))} fired for service "
-        f"{incident.service} since {incident.window.start.isoformat()}.",
+        _what_fired(incident, env),
         "",
         diagnosis.account,
         "",
@@ -127,19 +138,31 @@ def _investigated_body(incident: Incident, diagnosis: Diagnosis) -> str:
     return "\n".join(lines)
 
 
-def _subject(incident: Incident) -> str:
+def _prefix(env: str) -> str:
+    """Who sent the report and which environment it is about, before anything else."""
+    return f"{SUBJECT_PREFIX} [{_one_line(env)}]"
+
+
+def _subject(incident: Incident, env: str) -> str:
     """Announce the incident in the one line every channel can carry."""
     return (
-        f"{SUBJECT_PREFIX} {_one_line(incident.service)}: "
+        f"{_prefix(env)} {_one_line(incident.service)}: "
         f"{_alert_count(len(incident.alerts))} awaiting triage"
     )
 
 
-def _body(incident: Incident) -> str:
+def _what_fired(incident: Incident, env: str) -> str:
+    """The first sentence of either report: how much fired, where, and since when."""
+    return (
+        f"{_alert_count(len(incident.alerts))} fired for service "
+        f"{incident.service} in {env} since {incident.window.start.isoformat()}."
+    )
+
+
+def _body(incident: Incident, env: str) -> str:
     """Say what fired, when, and where to look — and that nobody has looked."""
     lines = [
-        f"{_alert_count(len(incident.alerts))} fired for service "
-        f"{incident.service} since {incident.window.start.isoformat()}.",
+        _what_fired(incident, env),
         "",
         NOT_INVESTIGATED,
         "",
