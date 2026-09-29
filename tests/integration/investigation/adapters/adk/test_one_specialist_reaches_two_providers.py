@@ -212,36 +212,18 @@ def _investigation(observability: str, deploy_history: str) -> Any:
     ), retrieved
 
 
-def test_a_specialist_gathers_evidence_from_both_providers_it_named(
-    observability: str, deploy_history: str
-) -> None:
-    findings, _ = _investigation(observability, deploy_history)
-
-    summaries = [
-        item.summary for finding in findings.findings for item in finding.examples
-    ]
-    assert any("OOMKilled" in one for one in summaries)
-    assert any("v4.2 released" in one for one in summaries)
-
-
-def test_evidence_from_two_providers_is_citable_in_one_investigation(
-    observability: str, deploy_history: str
-) -> None:
-    """Both retrievals land in the same record, so one finding may cite both."""
-    _, retrieved = _investigation(observability, deploy_history)
-
-    assert retrieved.resolve("call-1/item-1") is not None
-    assert retrieved.resolve("call-2/item-1") is not None
-
-
-def test_the_two_providers_are_reached_at_their_own_addresses(
+def test_a_specialist_reaches_both_providers_and_cites_their_evidence(
     observability: str, deploy_history: str
 ) -> None:
     """Two sockets, not one: the second toolset is not served by the first server."""
     assert observability != deploy_history
 
-    findings, _ = _investigation(observability, deploy_history)
+    findings, retrieved = _investigation(observability, deploy_history)
 
     gathered = [item for finding in findings.findings for item in finding.examples]
     assert len(gathered) == 2
+    assert any("OOMKilled" in item.summary for item in gathered)
+    assert any("v4.2 released" in item.summary for item in gathered)
+    assert retrieved.resolve("call-1/item-1") is not None
+    assert retrieved.resolve("call-2/item-1") is not None
     assert findings.complete

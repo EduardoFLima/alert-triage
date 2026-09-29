@@ -67,17 +67,10 @@ def _source_pointed_at_nowhere() -> DatadogAlertSource:
     )
 
 
-def test_an_unreachable_platform_is_named_rather_than_escaping() -> None:
+def test_an_unreachable_platform_is_named_and_kept_as_the_cause() -> None:
     with pytest.raises(AlertSourceError) as raised:
         _source_pointed_at_nowhere().fetch_since(WHEN)
 
     assert OWNER in str(raised.value)
-
-
-def test_the_transport_failure_is_kept_as_the_cause() -> None:
-    """What a developer reads in the log to learn the host never resolved."""
-    with pytest.raises(AlertSourceError) as raised:
-        _source_pointed_at_nowhere().fetch_since(WHEN)
-
     assert isinstance(raised.value.__cause__, Exception)
     assert "datadog.invalid" in str(raised.value.__cause__)

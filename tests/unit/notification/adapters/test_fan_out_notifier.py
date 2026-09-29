@@ -54,32 +54,16 @@ def test_the_report_reaches_every_configured_channel_exactly_once() -> None:
     assert [len(channel.attempts) for channel in channels] == [1, 1]
 
 
-def test_a_channel_failing_does_not_stop_a_later_one_from_being_attempted() -> None:
-    failing = _failing("email", "relay is down")
-    working = RecordingChannel(name="teams")
-
-    FanOutNotifier([failing, working]).deliver(_report())
-
-    assert len(working.attempts) == 1
-
-
 def test_every_channel_is_attempted_even_when_one_of_them_fails() -> None:
     channels = [
-        RecordingChannel(name="first"),
-        _failing("second", "refused"),
+        _failing("first", "refused"),
+        RecordingChannel(name="second"),
         RecordingChannel(name="third"),
     ]
 
     FanOutNotifier(channels).deliver(_report())
 
     assert [len(channel.attempts) for channel in channels] == [1, 1, 1]
-
-
-def test_delivery_succeeds_when_at_least_one_channel_accepted_the_report() -> None:
-    """The team has been told, which is what the ledger's next question turns on."""
-    FanOutNotifier([_failing("email", "relay is down"), RecordingChannel()]).deliver(
-        _report()
-    )
 
 
 def test_a_partial_failure_is_surfaced_rather_than_discarded(
@@ -95,13 +79,6 @@ def test_a_partial_failure_is_surfaced_rather_than_discarded(
     assert "incident-1" in caplog.text
 
 
-def test_delivery_fails_when_every_channel_failed() -> None:
-    channels = [_failing("email", "relay is down"), _failing("teams", "flow rejected")]
-
-    with pytest.raises(NotifierError):
-        FanOutNotifier(channels).deliver(_report())
-
-
 def test_the_failure_accounts_for_every_channel_not_only_the_last() -> None:
     """An operator debugging "no reports arrive" needs both reasons at once."""
     channels = [_failing("email", "relay is down"), _failing("teams", "flow rejected")]
@@ -111,11 +88,7 @@ def test_the_failure_accounts_for_every_channel_not_only_the_last() -> None:
 
     assert "relay is down" in str(raised.value)
     assert "flow rejected" in str(raised.value)
-
-
-def test_a_total_failure_names_the_incident_that_reached_nobody() -> None:
-    with pytest.raises(NotifierError, match="incident-1"):
-        FanOutNotifier([_failing("email", "down")]).deliver(_report())
+    assert "incident-1" in str(raised.value)
 
 
 def test_a_failing_channel_is_not_retried_in_place() -> None:

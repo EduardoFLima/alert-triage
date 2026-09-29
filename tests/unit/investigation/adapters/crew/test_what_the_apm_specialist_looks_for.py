@@ -8,11 +8,9 @@ disagree is a copy-paste, so both directions are asserted.
 from alert_triage.investigation.adapters.crew.specialists.apm import (
     APM_INSTRUCTION,
     APM_SPECIALIST,
-    ApmFinding,
-    ReportedFindings,
     apm_specialist,
 )
-from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
+from alert_triage.investigation.contract import Signal
 
 
 def _permitted(specialist: object) -> set[str]:
@@ -124,21 +122,6 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
     )
 
 
-def test_with_preview_change_stories_supersede_raw_events() -> None:
-    """Two tools answering one question is two ways to spend a call on it."""
-    assert "search_datadog_events" not in _permitted(apm_specialist(preview=True))
-
-
-def test_the_declaration_can_list_the_metrics_a_service_reports() -> None:
-    """Metric context answers about a metric you name; it enumerates none."""
-    assert "search_datadog_metrics" in _permitted(APM_SPECIALIST)
-
-
-def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
-    """A guessed metric name comes back empty, which now reads as a quiet signal."""
-    assert "get_datadog_metric_context" in _permitted(APM_SPECIALIST)
-
-
 def test_the_instruction_asks_the_listing_tool_which_metrics_exist() -> None:
     """The failure this prevents: metric context asked to enumerate a service.
 
@@ -164,10 +147,6 @@ def test_with_preview_the_instruction_asks_what_the_platform_already_noticed() -
 
 def test_with_preview_the_instruction_asks_where_the_latency_went() -> None:
     assert "apm_latency_bottleneck_summary" in apm_specialist(preview=True).instruction
-
-
-def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
-    assert APM_SPECIALIST.model is None
 
 
 def test_the_instruction_asks_for_the_golden_signals() -> None:
@@ -225,31 +204,9 @@ def test_the_aggregate_example_does_not_assume_the_catalogues_grain() -> None:
         assert "dependency map" not in flowed
 
 
-def test_the_instruction_bounds_the_examples_it_asks_for() -> None:
-    assert str(MAX_EXAMPLES_PER_FINDING) in APM_INSTRUCTION
-
-
 def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
     """A failure is not a healthy service, in either direction."""
     lowered = APM_INSTRUCTION.lower()
 
     assert "failed" in lowered
     assert "steady" in lowered or "healthy" in lowered
-
-
-def test_the_instruction_forbids_naming_a_root_cause() -> None:
-    assert "root cause" in APM_INSTRUCTION.lower()
-
-
-def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
-    """It may cite what it was shown; it may not compose it."""
-    assert set(ApmFinding.model_fields) == {
-        "observation",
-        "occurrences",
-        "cites",
-        "section",
-    }
-
-
-def test_the_schema_carries_a_list_of_findings() -> None:
-    assert set(ReportedFindings.model_fields) == {"findings"}

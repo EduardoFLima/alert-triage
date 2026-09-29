@@ -1,13 +1,10 @@
 import importlib
 
 
-def test_package_imports() -> None:
+def test_package_and_context_packages_import() -> None:
     module = importlib.import_module("alert_triage")
 
     assert module.__doc__ is not None
-
-
-def test_every_context_package_imports() -> None:
     for context in (
         "shared",
         "configuration",

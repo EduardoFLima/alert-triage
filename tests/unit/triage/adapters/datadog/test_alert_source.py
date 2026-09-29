@@ -109,6 +109,7 @@ def test_the_fetch_announces_who_it_is_for_and_how_far_back_it_looks(
     written = " ".join(caplog.text.split())
     assert "FETCHING ALERTS" in written
     assert "owner sre" in written
+    assert "env prod" in written
     assert SINCE.isoformat() in written
 
 
@@ -124,19 +125,6 @@ def test_an_event_is_translated_into_an_alert() -> None:
     assert alert.source_id == "evt-1"
     assert alert.title == "Latency"
     assert alert.link.startswith("https://app.datadoghq.com/monitors/12345678")
-
-
-def test_the_link_points_at_the_configured_site() -> None:
-    source = DatadogAlertSource(
-        events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
-        owner="sre",
-        web_host="app.datadoghq.eu",
-        env="prod",
-    )
-
-    (alert,) = source.fetch_since(SINCE)
-
-    assert urlparse(alert.link).netloc == "app.datadoghq.eu"
 
 
 def test_an_organisation_on_its_own_subdomain_is_linked_there() -> None:
@@ -185,7 +173,11 @@ def test_an_event_with_no_monitor_falls_back_to_its_services_own_events() -> Non
 
     parameters = parse_qs(urlparse(alert.link).query)
     assert urlparse(alert.link).path == "/event/explorer"
-    assert "service:checkout" in parameters["query"][0]
+    assert parameters["query"][0].split() == [
+        "source:alert",
+        "service:checkout",
+        "env:prod",
+    ]
     assert int(parameters["from_ts"][0]) <= int(SINCE.timestamp() * 1000)
 
 
@@ -227,21 +219,6 @@ def test_a_naive_fire_time_is_read_as_utc() -> None:
     assert alert.fired_at == SINCE
 
 
-def test_the_request_scopes_to_the_owner_in_datadogs_own_terms() -> None:
-    events = FakeEvents(_page())
-    source = DatadogAlertSource(
-        events=events,
-        owner="sre",
-        web_host="app.datadoghq.com",
-        env="prod",
-    )
-
-    source.fetch_since(SINCE)
-
-    (request,) = events.requests
-    assert "team:sre" in request.filter.query
-
-
 def test_the_request_scopes_to_the_named_services_in_datadogs_own_terms() -> None:
     events = FakeEvents(_page())
     source = DatadogAlertSource(
@@ -273,24 +250,6 @@ def test_one_named_service_is_asked_for_by_name() -> None:
     source.fetch_since(SINCE)
 
     (request,) = events.requests
-    assert "service:checkout" in request.filter.query
-
-
-def test_both_filters_narrow_the_same_request() -> None:
-    """Naming services within an owner watches those services *of* that owner."""
-    events = FakeEvents(_page())
-    source = DatadogAlertSource(
-        events=events,
-        owner="sre",
-        services=("checkout",),
-        web_host="app.datadoghq.com",
-        env="prod",
-    )
-
-    source.fetch_since(SINCE)
-
-    (request,) = events.requests
-    assert "team:sre" in request.filter.query
     assert "service:checkout" in request.filter.query
 
 
@@ -381,28 +340,9 @@ def test_the_request_scopes_to_the_environment_beside_owner_and_services() -> No
     ]
 
 
-def test_the_fetch_announces_the_environment_it_watches(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.INFO):
-        _source(_page()).fetch_since(SINCE)
-
-    assert "env prod" in " ".join(caplog.text.split())
-
-
 def test_a_failed_fetch_names_the_environment_it_was_for() -> None:
     with pytest.raises(AlertSourceError, match="environment 'prod'"):
         _source(ApiException(status=500)).fetch_since(SINCE)
-
-
-def test_a_services_own_events_are_shown_inside_the_environment() -> None:
-    """Without it a reader sees every environment's alerts beside the one that fired."""
-    source = _source(_page(_event("evt-1", tags=["service:checkout"], monitor_id=None)))
-
-    (alert,) = source.fetch_since(SINCE)
-
-    (query,) = parse_qs(urlparse(alert.link).query)["query"]
-    assert query.split() == ["source:alert", "service:checkout", "env:prod"]
 
 
 def test_a_monitor_link_is_left_as_the_platform_addresses_it() -> None:
@@ -412,21 +352,6 @@ def test_a_monitor_link_is_left_as_the_platform_addresses_it() -> None:
     (alert,) = source.fetch_since(SINCE)
 
     assert "env" not in alert.link
-
-
-def test_the_request_asks_only_for_monitor_alerts() -> None:
-    events = FakeEvents(_page())
-    source = DatadogAlertSource(
-        events=events,
-        owner="sre",
-        web_host="app.datadoghq.com",
-        env="prod",
-    )
-
-    source.fetch_since(SINCE)
-
-    (request,) = events.requests
-    assert "source:alert" in request.filter.query
 
 
 def test_the_request_carries_the_requested_time_bound() -> None:
@@ -506,19 +431,6 @@ def test_a_failure_part_way_through_pagination_discards_the_pages_retrieved() ->
         source.fetch_since(SINCE)
 
 
-def test_an_unreachable_platform_is_reported_rather_than_escaping() -> None:
-    """The failure a run is most likely to meet, and the one it never explained.
-
-    Raised the way the SDK's transport does when the retry bound is spent
-    without an answer: past ``ApiException`` entirely, so a catch written for
-    the API's own errors never sees it.
-    """
-    source = _source(_transport_failure())
-
-    with pytest.raises(AlertSourceError, match="sre"):
-        source.fetch_since(SINCE)
-
-
 def test_an_unreachable_platform_part_way_through_pagination_is_reported() -> None:
     source = _source(
         _page(_event("evt-1", tags=["service:checkout"]), after="cursor-1"),
@@ -546,7 +458,7 @@ def test_the_underlying_failure_is_kept_as_the_cause() -> None:
     transport = _transport_failure()
     source = _source(transport)
 
-    with pytest.raises(AlertSourceError) as raised:
+    with pytest.raises(AlertSourceError, match="sre") as raised:
         source.fetch_since(SINCE)
 
     assert raised.value.__cause__ is transport

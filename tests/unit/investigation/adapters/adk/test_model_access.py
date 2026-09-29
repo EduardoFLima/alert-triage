@@ -116,15 +116,14 @@ def test_a_project_named_without_the_platform_is_not_carried() -> None:
     assert access == ApiKey("model-key")
 
 
-def test_a_deployment_configuring_neither_way_is_refused() -> None:
-    with pytest.raises(ConfigError, match=API_KEY_VARIABLE):
+def test_a_deployment_configuring_neither_way_is_refused_with_both_options_named() -> (
+    None
+):
+    with pytest.raises(ConfigError) as refused:
         resolve_model_access(env={})
 
-
-def test_the_refusal_names_both_ways_of_configuring_it() -> None:
-    """An operator on the enterprise platform is not told to go and find a key."""
-    with pytest.raises(ConfigError, match=ENTERPRISE_VARIABLE):
-        resolve_model_access(env={})
+    assert API_KEY_VARIABLE in str(refused.value)
+    assert ENTERPRISE_VARIABLE in str(refused.value)
 
 
 def test_an_empty_key_is_treated_as_absent() -> None:

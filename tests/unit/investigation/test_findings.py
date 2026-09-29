@@ -119,7 +119,7 @@ def test_a_finding_cannot_have_seen_less_than_it_shows() -> None:
         )
 
 
-def test_a_finding_keeps_a_bounded_number_of_examples() -> None:
+def test_a_finding_keeps_a_bounded_number_of_examples_but_counts_them_all() -> None:
     many = tuple(
         _item(timedelta(seconds=n)) for n in range(MAX_EXAMPLES_PER_FINDING + 5)
     )
@@ -127,24 +127,13 @@ def test_a_finding_keeps_a_bounded_number_of_examples() -> None:
     finding = Finding(
         signal=Signal.LOGS,
         observation="OOMKilled recurs",
-        occurrences=len(many),
+        occurrences=400,
         examples=many,
     )
 
     assert len(finding.examples) == MAX_EXAMPLES_PER_FINDING
     assert finding.examples == many[:MAX_EXAMPLES_PER_FINDING]
-
-
-def test_capping_the_examples_leaves_the_occurrence_count_alone() -> None:
-    """How often it happened and how much of it we show are different facts."""
-    many = tuple(_item(timedelta(seconds=n)) for n in range(400))
-
-    finding = Finding(
-        signal=Signal.LOGS, observation="OOMKilled", occurrences=400, examples=many
-    )
-
     assert finding.occurrences == 400
-    assert len(finding.examples) == MAX_EXAMPLES_PER_FINDING
 
 
 def _finding(observation: str = "OOMKilled recurs") -> Finding:
@@ -156,41 +145,38 @@ def _finding(observation: str = "OOMKilled recurs") -> Finding:
     )
 
 
-def test_findings_carry_what_was_found() -> None:
+def test_findings_with_something_in_them_are_notable_and_complete() -> None:
     found = _finding()
+    findings = Findings(findings=(found,))
 
-    assert Findings(findings=(found,)).findings == (found,)
+    assert findings.findings == (found,)
+    assert findings.anything_notable
+    assert findings.complete
 
 
-def test_findings_with_nothing_in_them_are_a_valid_result() -> None:
+def test_empty_findings_are_a_complete_result_with_nothing_notable() -> None:
     """An investigation that ran and found nothing notable is not a failure."""
-    nothing = Findings(findings=())
+    nothing = Findings()
+    explicit = Findings(findings=())
 
     assert nothing.findings == ()
+    assert explicit.findings == ()
+    assert nothing.retrieval_failures == ()
+    assert nothing.complete
     assert not nothing.anything_notable
 
 
-def test_findings_with_something_in_them_say_so() -> None:
-    assert Findings(findings=(_finding(),)).anything_notable
-
-
-def test_findings_default_to_empty() -> None:
-    assert Findings().findings == ()
-
-
-def test_findings_that_gathered_everything_are_complete() -> None:
-    assert Findings(findings=(_finding(),)).complete
-    assert Findings().complete
-
-
-def test_findings_carrying_a_retrieval_failure_are_incomplete() -> None:
+def test_retrieval_failures_make_findings_incomplete_without_hiding_them() -> None:
     """Could not see all of it is not the same news as looked and it was clean."""
+    found = _finding()
     findings = Findings(
-        findings=(_finding(),), retrieval_failures=("the metrics search was refused",)
+        findings=(found,), retrieval_failures=("the metrics search was refused",)
     )
 
     assert not findings.complete
     assert findings.retrieval_failures == ("the metrics search was refused",)
+    assert findings.findings == (found,)
+    assert findings.anything_notable
 
 
 def test_incompleteness_is_independent_of_whether_anything_was_found() -> None:
@@ -198,10 +184,6 @@ def test_incompleteness_is_independent_of_whether_anything_was_found() -> None:
 
     assert not incomplete.complete
     assert not incomplete.anything_notable
-
-
-def test_retrieval_failures_default_to_none_at_all() -> None:
-    assert Findings().retrieval_failures == ()
 
 
 def test_every_signal_a_specialist_reports_under_is_named() -> None:
@@ -228,18 +210,13 @@ def test_a_finding_names_the_signal_it_was_drawn_from() -> None:
 
 def test_a_finding_names_no_section_unless_it_is_given_one() -> None:
     """Defaulted, so every finding built before sections existed still builds."""
-    finding = Finding(
+    unsectioned = Finding(
         signal=Signal.INFRASTRUCTURE,
         observation="checkout was rolled out",
         occurrences=1,
         examples=(_item(),),
     )
-
-    assert finding.section is None
-
-
-def test_a_finding_may_name_the_section_of_the_service_it_concerns() -> None:
-    finding = Finding(
+    sectioned = Finding(
         signal=Signal.INFRASTRUCTURE,
         observation="checkout was rolled out",
         occurrences=1,
@@ -247,7 +224,8 @@ def test_a_finding_may_name_the_section_of_the_service_it_concerns() -> None:
         section=Section.INFRASTRUCTURE,
     )
 
-    assert finding.section is Section.INFRASTRUCTURE
+    assert unsectioned.section is None
+    assert sectioned.section is Section.INFRASTRUCTURE
 
 
 def test_a_section_is_drawn_from_a_closed_set() -> None:

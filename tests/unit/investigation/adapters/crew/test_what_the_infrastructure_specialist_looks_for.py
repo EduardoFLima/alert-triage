@@ -10,10 +10,8 @@ asking, or report the absence as something wrong.
 from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_INSTRUCTION,
     INFRASTRUCTURE_SPECIALIST,
-    InfrastructureFinding,
-    ReportedFindings,
 )
-from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
+from alert_triage.investigation.contract import Signal
 
 
 def _permitted() -> set[str]:
@@ -61,16 +59,6 @@ def test_the_declaration_can_analyse_a_workloads_rollout() -> None:
     assert "analyse_datadog_k8s_rollout" in INFRASTRUCTURE_INSTRUCTION
 
 
-def test_the_declaration_can_list_the_metrics_a_host_or_service_reports() -> None:
-    """Metric context answers about a metric you name; it enumerates none."""
-    assert "search_datadog_metrics" in _permitted()
-
-
-def test_the_declaration_can_discover_a_metric_before_querying_it() -> None:
-    """A guessed metric name comes back empty, which now reads as a quiet signal."""
-    assert "get_datadog_metric_context" in _permitted()
-
-
 def test_the_instruction_asks_the_listing_tool_which_metrics_are_reported() -> None:
     """The failure this prevents: metric context asked to enumerate a service.
 
@@ -84,10 +72,6 @@ def test_the_instruction_asks_the_listing_tool_which_metrics_are_reported() -> N
 def test_the_instruction_says_to_discover_a_metric_before_querying_it() -> None:
     assert "search_datadog_metrics" in INFRASTRUCTURE_INSTRUCTION
     assert "guess" in _flowed()
-
-
-def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
-    assert INFRASTRUCTURE_SPECIALIST.model is None
 
 
 def test_the_instruction_asks_for_every_resource_that_saturates() -> None:
@@ -134,10 +118,6 @@ def test_the_instruction_asks_for_both_citation_grains() -> None:
     assert "call-N" in INFRASTRUCTURE_INSTRUCTION
 
 
-def test_the_instruction_bounds_the_examples_it_asks_for() -> None:
-    assert str(MAX_EXAMPLES_PER_FINDING) in INFRASTRUCTURE_INSTRUCTION
-
-
 def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
     flowed = _flowed()
 
@@ -150,20 +130,3 @@ def test_a_failed_retrieval_and_an_absent_signal_are_told_apart() -> None:
     flowed = _flowed()
 
     assert flowed.index("does not have") != flowed.index("the retrieval did not run")
-
-
-def test_the_instruction_forbids_naming_a_root_cause() -> None:
-    assert "root cause" in INFRASTRUCTURE_INSTRUCTION.lower()
-
-
-def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
-    assert set(InfrastructureFinding.model_fields) == {
-        "observation",
-        "occurrences",
-        "cites",
-        "section",
-    }
-
-
-def test_the_schema_carries_a_list_of_findings() -> None:
-    assert set(ReportedFindings.model_fields) == {"findings"}

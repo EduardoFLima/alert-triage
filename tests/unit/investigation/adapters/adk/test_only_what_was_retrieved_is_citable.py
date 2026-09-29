@@ -179,22 +179,14 @@ class _Links:
         return None
 
 
-def test_the_linker_is_told_which_tool_each_address_is_for() -> None:
+def test_the_linker_is_told_which_tool_and_environment_each_address_is_for() -> None:
     """Arguments alone cannot say whether a query was a log search or a metric."""
-    links = _Links()
-    retrieved = Retrieved(link=links)
-
-    retrieved.retain_evidence("get_metric", _identified("series-a"))
-
-    assert links.asked_for == ["get_metric", "get_metric"]
-
-
-def test_the_linker_is_told_the_environment_under_investigation() -> None:
     links = _Links()
     retrieved = Retrieved(link=links, service="checkout", env="prod")
 
     retrieved.retain_evidence("get_metric", _identified("series-a"))
 
+    assert links.asked_for == ["get_metric", "get_metric"]
     assert links.environments == ["prod", "prod"]
 
 

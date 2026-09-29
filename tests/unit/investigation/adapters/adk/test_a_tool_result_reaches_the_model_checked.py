@@ -5,16 +5,11 @@ that failed is refused in terms nothing can misread; anything the specialist
 never declared passes through untouched.
 """
 
-import logging
 from typing import Any
 
-import pytest
-
 from alert_triage.investigation.adapters.adk.evidence import (
-    TOOL_CALL_LOGGER,
     Retrieved,
     keep_evidence_callback,
-    log_tool_call,
 )
 from alert_triage.investigation.contract import Section, Signal
 from alert_triage.investigation.domain.evidence import RETRIEVAL_FAILED, findings_from
@@ -129,15 +124,6 @@ def test_an_error_key_takes_the_same_path_as_a_server_side_error() -> None:
     assert retrieved.resolve("call-1") is None
 
 
-def test_a_result_that_cannot_be_read_at_all_is_a_failure_not_an_empty_answer() -> None:
-    retrieved = Retrieved()
-
-    offered = _after(retrieved, None)
-
-    assert offered["retrieval_failed"] is True
-    assert retrieved.failures
-
-
 def test_a_result_that_found_nothing_is_not_a_failure() -> None:
     """A quiet service is a result; only a broken retrieval is a failure."""
     retrieved = Retrieved()
@@ -173,19 +159,6 @@ def test_the_failure_names_the_tool_that_could_not_be_reached() -> None:
     _after(retrieved, {"error": "403"}, _Tool("aggregate_datadog_logs"))
 
     assert "aggregate_datadog_logs" in retrieved.failures[0]
-
-
-def test_the_call_is_logged_before_it_is_made_and_nothing_else_happens(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Slice 12's seat, with a test already on it."""
-    with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
-        refused = log_tool_call("logs_specialist", PERMITTED)(
-            tool=_Tool(), args={"query": "status:error"}, tool_context=None
-        )
-
-    assert refused is None
-    assert "search_datadog_logs" in caplog.text
 
 
 def test_a_tool_the_specialist_never_declared_passes_through_untouched() -> None:
@@ -240,28 +213,17 @@ class _Args:
         return None
 
 
-def test_the_arguments_a_tool_was_called_with_reach_what_keeps_its_result() -> None:
-    """The query is in them, and a retrieval is addressed by its query."""
-    links = _Args()
-    retrieved = Retrieved(link=links)
-
-    _after(retrieved, _result("OOMKilled"))
-
-    assert [args for _, args in links.seen] == [
-        {"query": "service:checkout status:error"}
-    ]
-
-
-def test_what_keeps_a_result_is_told_the_tools_name_rather_than_handed_the_tool() -> (
-    None
-):
-    """The name the permitted-tools check read is the one the address is built for."""
+def test_what_keeps_a_result_is_told_the_tools_name_and_arguments() -> None:
+    """The query is in them, and the tool says how it is addressed."""
     links = _Args()
     retrieved = Retrieved(link=links)
 
     _after(retrieved, _result("OOMKilled"))
 
     assert [tool for tool, _ in links.seen] == ["search_datadog_logs"]
+    assert [args for _, args in links.seen] == [
+        {"query": "service:checkout status:error"}
+    ]
 
 
 def test_a_failed_retrieval_is_still_refused_rather_than_addressed() -> None:

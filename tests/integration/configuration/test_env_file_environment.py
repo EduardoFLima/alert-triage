@@ -12,25 +12,14 @@ def _write(tmp_path: Path, body: str) -> Path:
     return path
 
 
-def test_a_variable_the_file_sets_reaches_the_environment(tmp_path: Path) -> None:
-    environment = resolve_environment(
-        _write(tmp_path, "DD_API_KEY=from-the-file\n"), {}
-    )
-
-    assert environment["DD_API_KEY"] == "from-the-file"
-
-
-def test_the_process_environment_wins_over_the_file(tmp_path: Path) -> None:
+def test_the_file_supplements_the_process_environment_without_overriding_it(
+    tmp_path: Path,
+) -> None:
     """A .env file is a convenience for a laptop, never an override of a deployment."""
-    path = _write(tmp_path, "SCOPE_OWNER=from-the-file\n")
-
-    environment = resolve_environment(path, {"SCOPE_OWNER": "from-the-process"})
-
-    assert environment["SCOPE_OWNER"] == "from-the-process"
-
-
-def test_the_file_supplements_what_the_process_already_exported(tmp_path: Path) -> None:
-    path = _write(tmp_path, "DD_APP_KEY=from-the-file\n")
+    path = _write(
+        tmp_path,
+        "DD_API_KEY=from-the-file\nDD_APP_KEY=from-the-file\n",
+    )
 
     environment = resolve_environment(path, {"DD_API_KEY": "from-the-process"})
 

@@ -3,6 +3,8 @@ from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from alert_triage.triage.adapters.sqlite.ledger import SqliteTriageLedger
 from alert_triage.triage.domain.alert import Alert
 from alert_triage.triage.domain.incident import Incident
@@ -50,30 +52,17 @@ def _incident(attempts: int) -> Incident:
     )
 
 
-def test_spent_attempts_survive_a_round_trip(tmp_path: Path) -> None:
+@pytest.mark.parametrize("attempts", [0, 2])
+def test_spent_attempts_survive_a_round_trip(tmp_path: Path, attempts: int) -> None:
     path = tmp_path / "ledger.db"
 
     with closing(sqlite3.connect(path)) as writing:
-        _ledger(writing).record(_incident(attempts=2), NOON)
+        _ledger(writing).record(_incident(attempts=attempts), NOON)
 
     with closing(sqlite3.connect(path)) as reading:
         (recovered,) = _ledger(reading).open_incidents("checkout", NOON)
 
-    assert recovered.investigation_attempts == 2
-
-
-def test_an_incident_with_no_attempts_spent_reads_back_as_none_spent(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "ledger.db"
-
-    with closing(sqlite3.connect(path)) as writing:
-        _ledger(writing).record(_incident(attempts=0), NOON)
-
-    with closing(sqlite3.connect(path)) as reading:
-        (recovered,) = _ledger(reading).open_incidents("checkout", NOON)
-
-    assert recovered.investigation_attempts == 0
+    assert recovered.investigation_attempts == attempts
 
 
 def test_a_ledger_written_before_attempts_were_tracked_still_opens(

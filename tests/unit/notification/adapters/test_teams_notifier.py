@@ -127,6 +127,7 @@ def test_a_rejected_post_is_a_delivery_failure_carrying_status_and_body() -> Non
     with pytest.raises(NotifierError) as raised:
         TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
+    assert "incident-1" in str(raised.value)
     assert "400" in str(raised.value)
     assert "Invalid card payload" in str(raised.value)
 
@@ -142,13 +143,6 @@ def test_an_unreachable_destination_is_a_delivery_failure_not_a_quiet_return() -
     post = FakePost(failure=urllib.error.URLError("name resolution failed"))
 
     with pytest.raises(NotifierError, match="name resolution failed"):
-        TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
-
-
-def test_a_delivery_failure_names_the_incident_it_concerns() -> None:
-    post = FakePost(failure=urllib.error.URLError("down"))
-
-    with pytest.raises(NotifierError, match="incident-1"):
         TeamsNotifier(WEBHOOK_URL, post=post).deliver(_report())
 
 

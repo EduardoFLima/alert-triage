@@ -37,20 +37,14 @@ def _findings(
 
 
 def test_findings_record_the_signals_that_were_consulted() -> None:
-    findings = _findings(_finding(), consulted=(Signal.LOGS, Signal.APM))
-
-    assert findings.consulted == (Signal.LOGS, Signal.APM)
-
-
-def test_findings_consulted_nothing_by_default() -> None:
     """Empty is not "every signal": it is the honest starting point."""
-    assert Findings().consulted == ()
-
-
-def test_consulting_nothing_is_distinguishable_from_consulting_everything() -> None:
+    findings = _findings(_finding(), consulted=(Signal.LOGS, Signal.APM))
+    empty = Findings()
     every = tuple(Signal)
 
-    assert Findings(consulted=()).consulted != Findings(consulted=every).consulted
+    assert findings.consulted == (Signal.LOGS, Signal.APM)
+    assert empty.consulted == ()
+    assert empty.consulted != Findings(consulted=every).consulted
 
 
 def test_a_declared_confidence_level_is_one_of_the_declared_set() -> None:

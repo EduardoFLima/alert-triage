@@ -238,7 +238,9 @@ def test_the_toolset_exposes_only_the_tools_the_declaration_named(
     assert [tool.name for tool in tools] == [SEARCH]
 
 
-def test_a_specialist_gathers_evidence_it_can_then_cite(platform: str) -> None:
+def test_a_specialist_gathers_citable_evidence_only_through_declared_tools(
+    platform: str,
+) -> None:
     model = _ScriptedModel(
         model="scripted",
         turns=[
@@ -252,6 +254,14 @@ def test_a_specialist_gathers_evidence_it_can_then_cite(platform: str) -> None:
     (finding,) = findings.findings
     assert finding.examples[0].summary == "container OOMKilled"
     assert findings.complete
+    offered = {
+        tool.name
+        for request in model.seen
+        for tool in (request.config.tools or [])
+        for tool in getattr(tool, "function_declarations", None) or []
+    }
+    assert SEARCH in offered
+    assert FORBIDDEN not in offered
 
 
 def test_a_failing_tool_reaches_the_model_as_a_refusal_not_an_empty_answer(
@@ -284,28 +294,6 @@ def test_an_investigation_that_could_reach_nothing_is_a_failure(
 
     with pytest.raises(InvestigatorError, match=AGGREGATE):
         _investigate(platform, model)
-
-
-def test_a_tool_outside_the_declaration_is_not_reachable(platform: str) -> None:
-    """The platform offers it; the specialist cannot see it, so it cannot call it."""
-    model = _ScriptedModel(
-        model="scripted",
-        turns=[
-            _calls(SEARCH, query="service:checkout"),
-            _reports(["call-1/item-1"]),
-        ],
-    )
-
-    _investigate(platform, model)
-
-    offered = {
-        tool.name
-        for request in model.seen
-        for tool in (request.config.tools or [])
-        for tool in getattr(tool, "function_declarations", None) or []
-    }
-    assert SEARCH in offered
-    assert FORBIDDEN not in offered
 
 
 def test_a_platform_publishing_no_guides_is_investigated_unguided_and_whole(

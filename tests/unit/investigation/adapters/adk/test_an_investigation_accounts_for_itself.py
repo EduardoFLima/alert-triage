@@ -140,12 +140,13 @@ def test_a_tool_call_is_written_down_with_the_specialist_making_it(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
-        log_tool_call("logs_specialist", PERMITTED)(
+        declined = log_tool_call("logs_specialist", PERMITTED)(
             tool=_Tool("search_datadog_logs"),
             args={"query": "service:checkout status:error"},
             tool_context=None,
         )
 
+    assert declined is None
     assert "logs_specialist" in caplog.text
     assert "search_datadog_logs" in caplog.text
     assert "service:checkout status:error" in caplog.text

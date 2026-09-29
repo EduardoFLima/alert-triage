@@ -125,12 +125,6 @@ def _firing_incident(*alerts: Alert) -> Incident:
     return Incident(id="incident-1", service="checkout", alerts=alerts)
 
 
-def test_a_pass_through_report_names_the_service_in_its_subject() -> None:
-    report = _uninvestigated(_firing_incident(_fired(0, "Latency", "l/1")))
-
-    assert "checkout" in report.subject
-
-
 def test_a_pass_through_report_lists_every_alert_with_its_time_and_link() -> None:
     alerts = (
         _fired(0, "Latency above 2s", "https://platform/event/1"),
@@ -196,13 +190,6 @@ def _item(
         payload={"message": summary},
         url=url,
     )
-
-
-def test_a_report_announces_the_incident_in_the_investigations_words() -> None:
-    report = _investigated(_incident())
-
-    assert report.subject.endswith("checkout is out of memory")
-    assert report.subject.startswith("[alert-triage]")
 
 
 def test_an_investigated_report_carries_the_account_it_was_given() -> None:

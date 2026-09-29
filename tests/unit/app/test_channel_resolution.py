@@ -37,16 +37,14 @@ def test_the_resolved_notifier_is_one_notifier_whatever_is_behind_it() -> None:
     assert isinstance(notifier, Notifier)
 
 
-def test_configuring_email_alone_activates_email_alone() -> None:
-    assert _channels(resolve_notifier(env=EMAIL_ENV)) == [EmailNotifier]
-
-
-def test_configuring_teams_alone_activates_teams_alone() -> None:
-    assert _channels(resolve_notifier(env=TEAMS_ENV)) == [TeamsNotifier]
-
-
-def test_the_absence_of_the_other_channel_is_not_an_error() -> None:
-    resolve_notifier(env=TEAMS_ENV)
+@pytest.mark.parametrize(
+    ("env", "channel"),
+    [(EMAIL_ENV, EmailNotifier), (TEAMS_ENV, TeamsNotifier)],
+)
+def test_configuring_one_channel_activates_that_channel_alone(
+    env: dict[str, str], channel: type[Notifier]
+) -> None:
+    assert _channels(resolve_notifier(env=env)) == [channel]
 
 
 def test_configuring_both_channels_delivers_through_both() -> None:
@@ -58,14 +56,6 @@ def test_configuring_both_channels_delivers_through_both() -> None:
 
 def test_configuring_no_channel_at_all_refuses_to_start() -> None:
     with pytest.raises(ConfigError, match="at least one notification channel"):
-        resolve_notifier(env={})
-
-
-def test_the_refusal_is_a_configuration_error_like_a_missing_scope_or_credential() -> (
-    None
-):
-    """Not a failure mode particular to notification: the same type, caught alike."""
-    with pytest.raises(ConfigError):
         resolve_notifier(env={})
 
 

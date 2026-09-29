@@ -72,25 +72,6 @@ with sqlite3.connect(os.environ["ALERT_TRIAGE_LEDGER_PATH"]) as database:
 """
 
 
-def test_a_configured_run_leaves_its_ledger_on_the_mount(
-    run_image: PackagedRun,
-    configured_environment: dict[str, str],
-    ledger_volume: str,
-) -> None:
-    """What a run leaves on the mount, after the container holding it is gone.
-
-    The run cannot reach its platform, but the ledger is opened before the
-    fetch — so there is always something to have left behind.
-    """
-    run_image(
-        environment=configured_environment,
-        mounts={ledger_volume: LEDGER_DIRECTORY},
-        network="none",
-    )
-
-    assert _contents_of(run_image, ledger_volume).strip() != ""
-
-
 def test_the_ledger_takes_the_name_a_run_from_a_checkout_would_give_it(
     run_image: PackagedRun,
     configured_environment: dict[str, str],

@@ -253,52 +253,39 @@ def test_the_files_services_stand_when_the_environment_declares_none(
     assert config.scope.services["checkout"].critical
 
 
-def test_scope_resolves_from_the_config_file_alone(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={})
-
-    assert config.scope.owner == "sre"
-
-
-def test_scope_resolves_from_the_environment_alone(tmp_path: Path) -> None:
-    path = _write(tmp_path, "circuit_breakers:\n  max_agent_hops: 4\n")
-
-    config = load_config(path, env={"SCOPE_OWNER": "platform"})
-
-    assert config.scope.owner == "platform"
-
-
-def test_environment_wins_over_the_file_for_scope(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={"SCOPE_OWNER": "platform"})
-
-    assert config.scope.owner == "platform"
-
-
-def test_a_run_watches_production_when_nothing_names_an_environment(
+def test_scope_owner_resolves_from_file_environment_and_environment_wins(
     tmp_path: Path,
 ) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={})
+    from_file = load_config(_write(tmp_path, SCOPED), env={})
+    from_environment = load_config(
+        _write(tmp_path, "circuit_breakers:\n  max_agent_hops: 4\n"),
+        env={"SCOPE_OWNER": "platform"},
+    )
+    environment_override = load_config(
+        _write(tmp_path, SCOPED), env={"SCOPE_OWNER": "platform"}
+    )
 
-    assert config.scope.env == "prod"
-
-
-def test_the_environment_a_run_watches_is_read_from_the_file(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, SCOPED + "  env: staging\n"), env={})
-
-    assert config.scope.env == "staging"
-
-
-def test_the_environment_a_run_watches_is_read_from_scope_env(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={"SCOPE_ENV": "staging"})
-
-    assert config.scope.env == "staging"
+    assert from_file.scope.owner == "sre"
+    assert from_environment.scope.owner == "platform"
+    assert environment_override.scope.owner == "platform"
 
 
-def test_scope_env_wins_over_the_file(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "  env: staging\n")
+def test_scope_environment_defaults_resolves_and_environment_wins(
+    tmp_path: Path,
+) -> None:
+    default = load_config(_write(tmp_path, SCOPED), env={})
+    from_file = load_config(_write(tmp_path, SCOPED + "  env: staging\n"), env={})
+    from_environment = load_config(
+        _write(tmp_path, SCOPED), env={"SCOPE_ENV": "staging"}
+    )
+    environment_override = load_config(
+        _write(tmp_path, SCOPED + "  env: staging\n"), env={"SCOPE_ENV": "prod"}
+    )
 
-    config = load_config(path, env={"SCOPE_ENV": "prod"})
-
-    assert config.scope.env == "prod"
+    assert default.scope.env == "prod"
+    assert from_file.scope.env == "staging"
+    assert from_environment.scope.env == "staging"
+    assert environment_override.scope.env == "prod"
 
 
 def test_an_environment_alone_does_not_satisfy_scope(tmp_path: Path) -> None:
@@ -355,42 +342,46 @@ def test_the_environment_is_read_from_the_process_by_default(
     assert config.scope.owner == "from-process"
 
 
-def test_grouping_window_defaults_and_is_configurable(tmp_path: Path) -> None:
-    default = load_config(_write(tmp_path, SCOPED), env={})
-
-    assert default.grouping.window == timedelta(minutes=30)
-
-    from_file = load_config(
-        _write(tmp_path, SCOPED + "\ngrouping:\n  window_seconds: 900\n"), env={}
+def test_duration_settings_default_resolve_from_file_and_environment(
+    tmp_path: Path,
+) -> None:
+    cases = (
+        (
+            "grouping",
+            "window",
+            "\ngrouping:\n  window_seconds: 900\n",
+            "GROUPING_WINDOW_SECONDS",
+            timedelta(minutes=30),
+            timedelta(minutes=15),
+            timedelta(minutes=1),
+        ),
+        (
+            "ingestion",
+            "lookback",
+            "\ningestion:\n  lookback_seconds: 900\n",
+            "INGESTION_LOOKBACK_SECONDS",
+            timedelta(hours=1),
+            timedelta(minutes=15),
+            timedelta(minutes=1),
+        ),
     )
 
-    assert from_file.grouping.window == timedelta(minutes=15)
+    for (
+        section,
+        attribute,
+        yaml,
+        variable,
+        expected_default,
+        expected_file,
+        expected_env,
+    ) in cases:
+        default = load_config(_write(tmp_path, SCOPED), env={})
+        from_file = load_config(_write(tmp_path, SCOPED + yaml), env={})
+        from_env = load_config(_write(tmp_path, SCOPED + yaml), env={variable: "60"})
 
-    from_env = load_config(
-        _write(tmp_path, SCOPED + "\ngrouping:\n  window_seconds: 900\n"),
-        env={"GROUPING_WINDOW_SECONDS": "60"},
-    )
-
-    assert from_env.grouping.window == timedelta(minutes=1)
-
-
-def test_ingestion_lookback_defaults_and_is_configurable(tmp_path: Path) -> None:
-    default = load_config(_write(tmp_path, SCOPED), env={})
-
-    assert default.ingestion.lookback == timedelta(hours=1)
-
-    from_file = load_config(
-        _write(tmp_path, SCOPED + "\ningestion:\n  lookback_seconds: 900\n"), env={}
-    )
-
-    assert from_file.ingestion.lookback == timedelta(minutes=15)
-
-    from_env = load_config(
-        _write(tmp_path, SCOPED + "\ningestion:\n  lookback_seconds: 900\n"),
-        env={"INGESTION_LOOKBACK_SECONDS": "60"},
-    )
-
-    assert from_env.ingestion.lookback == timedelta(minutes=1)
+        assert getattr(getattr(default, section), attribute) == expected_default
+        assert getattr(getattr(from_file, section), attribute) == expected_file
+        assert getattr(getattr(from_env, section), attribute) == expected_env
 
 
 def test_ingestion_request_bounds_fall_back_to_documented_defaults(
@@ -402,7 +393,7 @@ def test_ingestion_request_bounds_fall_back_to_documented_defaults(
     assert config.ingestion.max_retries == 3
 
 
-def test_changing_an_investigation_breaker_leaves_ingestion_unchanged(
+def test_ingestion_bounds_and_investigation_breakers_resolve_independently(
     tmp_path: Path,
 ) -> None:
     path = _write(
@@ -415,16 +406,9 @@ circuit_breakers:
 """,
     )
 
-    config = load_config(path, env={})
+    breakers_changed = load_config(path, env={})
 
-    assert config.ingestion.request_timeout_seconds == 30
-    assert config.ingestion.max_retries == 3
-
-
-def test_changing_an_ingestion_bound_leaves_the_breakers_unchanged(
-    tmp_path: Path,
-) -> None:
-    path = _write(
+    ingestion_path = _write(
         tmp_path,
         SCOPED
         + """
@@ -433,13 +417,14 @@ ingestion:
   max_retries: 9
 """,
     )
+    ingestion_changed = load_config(ingestion_path, env={"INGESTION_MAX_RETRIES": "5"})
 
-    config = load_config(path, env={"INGESTION_MAX_RETRIES": "5"})
-
-    assert config.ingestion.request_timeout_seconds == 90
-    assert config.ingestion.max_retries == 5
-    assert config.circuit_breakers.mcp_call_timeout_seconds == 30
-    assert config.circuit_breakers.max_tool_calls_per_agent == 12
+    assert breakers_changed.ingestion.request_timeout_seconds == 30
+    assert breakers_changed.ingestion.max_retries == 3
+    assert ingestion_changed.ingestion.request_timeout_seconds == 90
+    assert ingestion_changed.ingestion.max_retries == 5
+    assert ingestion_changed.circuit_breakers.mcp_call_timeout_seconds == 30
+    assert ingestion_changed.circuit_breakers.max_tool_calls_per_agent == 12
 
 
 CONNECTION_KEYS_IN_FILE = """
@@ -558,60 +543,63 @@ def test_a_non_numeric_override_names_the_offending_variable(tmp_path: Path) -> 
         load_config(path, env={"CIRCUIT_BREAKERS_MAX_AGENT_HOPS": "many"})
 
 
-def test_the_cooldown_falls_back_to_the_documented_default(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={})
-
-    assert config.re_notify.cooldown == timedelta(days=2)
-
-
-def test_the_cooldown_is_taken_from_the_file_when_only_the_file_sets_it(
+def test_notification_cooldown_and_ledger_retention_resolve_as_durations(
     tmp_path: Path,
 ) -> None:
-    path = _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 3600\n")
+    cases = (
+        (
+            "re_notify",
+            "cooldown",
+            "\nre_notify:\n  cooldown_seconds: 3600\n",
+            "RE_NOTIFY_COOLDOWN_SECONDS",
+            timedelta(days=2),
+            timedelta(hours=1),
+            "60",
+            timedelta(minutes=1),
+        ),
+        (
+            "ledger",
+            "retention",
+            "\nledger:\n  retention_seconds: 86400\n",
+            "LEDGER_RETENTION_SECONDS",
+            timedelta(days=30),
+            timedelta(days=1),
+            "3600",
+            timedelta(hours=1),
+        ),
+    )
 
-    config = load_config(path, env={})
+    for (
+        section,
+        attribute,
+        yaml,
+        variable,
+        expected_default,
+        expected_file,
+        env_value,
+        expected_env,
+    ) in cases:
+        default = load_config(_write(tmp_path, SCOPED), env={})
+        from_file = load_config(_write(tmp_path, SCOPED + yaml), env={})
+        from_env = load_config(
+            _write(tmp_path, SCOPED + yaml), env={variable: env_value}
+        )
 
-    assert config.re_notify.cooldown == timedelta(hours=1)
-
-
-def test_the_environment_wins_over_the_file_for_the_cooldown(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 3600\n")
-
-    config = load_config(path, env={"RE_NOTIFY_COOLDOWN_SECONDS": "60"})
-
-    assert config.re_notify.cooldown == timedelta(minutes=1)
-
-
-def test_retention_falls_back_to_the_documented_thirty_days(tmp_path: Path) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={})
-
-    assert config.ledger.retention == timedelta(days=30)
-
-
-def test_retention_is_taken_from_the_operator(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\nledger:\n  retention_seconds: 86400\n")
-
-    config = load_config(path, env={"LEDGER_RETENTION_SECONDS": "3600"})
-
-    assert config.ledger.retention == timedelta(hours=1)
+        assert getattr(getattr(default, section), attribute) == expected_default
+        assert getattr(getattr(from_file, section), attribute) == expected_file
+        assert getattr(getattr(from_env, section), attribute) == expected_env
 
 
-def test_setting_the_cooldown_leaves_the_resolved_retention_alone(
-    tmp_path: Path,
-) -> None:
-    path = _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 60\n")
+def test_cooldown_and_retention_do_not_change_each_other(tmp_path: Path) -> None:
+    cooldown_changed = load_config(
+        _write(tmp_path, SCOPED + "\nre_notify:\n  cooldown_seconds: 60\n"), env={}
+    )
+    retention_changed = load_config(
+        _write(tmp_path, SCOPED + "\nledger:\n  retention_seconds: 60\n"), env={}
+    )
 
-    config = load_config(path, env={})
-
-    assert config.ledger.retention == timedelta(days=30)
-
-
-def test_setting_retention_leaves_the_resolved_cooldown_alone(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\nledger:\n  retention_seconds: 60\n")
-
-    config = load_config(path, env={})
-
-    assert config.re_notify.cooldown == timedelta(days=2)
+    assert cooldown_changed.ledger.retention == timedelta(days=30)
+    assert retention_changed.re_notify.cooldown == timedelta(days=2)
 
 
 LEDGER_LOCATION_IN_FILE = """

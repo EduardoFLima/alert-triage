@@ -109,16 +109,8 @@ def test_an_empty_answer_is_retained_as_a_retrieval_that_found_nothing() -> None
         assert retrieved.retrievals == 1, shape
         assert retrieved.failures == (), shape
         assert offered.get("retrieval_failed") is None, shape
-
-
-def test_an_empty_answer_offers_the_model_no_items_to_cite() -> None:
-    """Nothing came back, so there is nothing in it to point at."""
-    retrieved = Retrieved()
-
-    offered = _after(retrieved, EMPTY_ANSWERS["no content at all"])
-
-    assert offered["call"] == "call-1"
-    assert offered["items"] == []
+        assert offered["call"] == "call-1", shape
+        assert offered["items"] == [], shape
 
 
 def test_a_signal_the_deployment_does_not_have_leaves_the_investigation_complete() -> (

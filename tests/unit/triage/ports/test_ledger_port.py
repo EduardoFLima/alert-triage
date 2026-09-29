@@ -38,12 +38,6 @@ def _incident(incident_id: str = "incident-1", service: str = "checkout") -> Inc
     )
 
 
-def test_an_in_memory_implementation_satisfies_the_port() -> None:
-    ledger: TriageLedger = InMemoryTriageLedger()
-
-    assert isinstance(ledger, TriageLedger)
-
-
 def test_the_port_hands_back_the_incidents_it_was_given() -> None:
     incident = _incident()
     ledger: TriageLedger = InMemoryTriageLedger()
@@ -51,6 +45,7 @@ def test_the_port_hands_back_the_incidents_it_was_given() -> None:
     ledger.record(incident, NOON)
 
     on_record = ledger.open_incidents("checkout", NOON)
+    assert isinstance(ledger, TriageLedger)
     assert on_record == [incident]
     assert all(isinstance(held, Incident) for held in on_record)
 

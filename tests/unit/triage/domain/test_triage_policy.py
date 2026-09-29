@@ -94,18 +94,8 @@ def test_alerts_further_off_than_the_window_open_a_new_incident() -> None:
     )
 
     assert resulting.id == "incident-1"
-    assert resulting.alerts == (separate,)
-
-
-def test_two_incidents_on_one_service_are_told_apart() -> None:
-    incident = _on_record(_alert("a"))
-    separate = _alert("b", WINDOW + timedelta(seconds=1))
-
-    resulting = continue_or_open(
-        _group(separate), [incident], window=WINDOW, new_id=_ids()
-    )
-
     assert resulting.id != incident.id
+    assert resulting.alerts == (separate,)
 
 
 def test_alerts_for_a_service_with_nothing_on_record_open_an_incident() -> None:
@@ -173,27 +163,18 @@ def test_a_continuation_within_the_cooldown_is_suppressed() -> None:
     assert resulting.last_reported_at == NOON, "suppressing does not restart it"
 
 
-def test_a_continuation_after_the_cooldown_is_reported_again() -> None:
+def test_an_incident_due_again_keeps_the_stamp_of_its_last_report() -> None:
+    """Nothing is lost by not stamping: a delivery that fails leaves this stamp."""
     seen = _alert("a")
     fresh = _alert("b", timedelta(minutes=5))
     incident = _on_record(seen)
-    at = NOON + COOLDOWN
-
-    resulting, should_report = _decide(_group(seen, fresh), [incident], at=at)
-
-    assert should_report
-    assert resulting.alerts == (seen, fresh)
-
-
-def test_an_incident_due_again_keeps_the_stamp_of_its_last_report() -> None:
-    """Nothing is lost by not stamping: a delivery that fails leaves this stamp."""
-    incident = _on_record(_alert("a"))
 
     resulting, should_report = _decide(
-        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON + COOLDOWN
+        _group(seen, fresh), [incident], at=NOON + COOLDOWN
     )
 
     assert should_report
+    assert resulting.alerts == (seen, fresh)
     assert resulting.last_reported_at == NOON, "the previous report is still the last"
 
 
@@ -234,16 +215,6 @@ def test_the_same_inputs_at_the_same_instant_decide_the_same_way() -> None:
     second = _decide(group, [incident], at=at)
 
     assert first == second
-
-
-def test_an_instant_past_the_cooldown_reports_without_waiting_for_one() -> None:
-    incident = _on_record(_alert("a"))
-
-    _, should_report = _decide(
-        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON + COOLDOWN
-    )
-
-    assert should_report
 
 
 def test_an_incident_past_both_the_window_and_the_cooldown_has_closed() -> None:
@@ -349,22 +320,6 @@ def test_an_incident_whose_investigation_failed_is_investigated_again() -> None:
     assert decision.should_investigate
 
 
-def test_an_incident_that_has_spent_its_attempts_is_not_investigated() -> None:
-    """The bound is on the incident, not on retries: an unreachable platform ends."""
-    incident = replace(
-        _on_record(_alert("a")),
-        last_reported_at=None,
-        investigation_attempts=MAX_ATTEMPTS,
-    )
-
-    decision = _investigate(
-        _group(_alert("b", timedelta(minutes=5))), [incident], at=NOON
-    )
-
-    assert decision.should_report
-    assert not decision.should_investigate
-
-
 def test_an_overdue_incident_with_attempts_spent_stays_uninvestigated() -> None:
     """However many runs handle it: the cost of a broken platform stays bounded."""
     incident = replace(
@@ -379,6 +334,7 @@ def test_an_overdue_incident_with_attempts_spent_stays_uninvestigated() -> None:
             [incident],
             at=NOON + timedelta(hours=run),
         )
+        assert decision.should_report
         assert not decision.should_investigate
 
 

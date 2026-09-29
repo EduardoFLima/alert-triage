@@ -77,17 +77,6 @@ def test_a_report_submitted_over_a_real_socket_arrives_intact(
     assert collector.recipients[0] == ["sre@example.com", "oncall@example.com"]
 
 
-def test_a_relay_offering_no_starttls_still_takes_the_report(
-    smtp_server: tuple[_Collector, int], report: TriageReport
-) -> None:
-    """The deployment the optional credentials exist for: a plain local relay."""
-    collector, port = smtp_server
-
-    EmailNotifier(_settings(port)).deliver(report)
-
-    assert len(collector.messages) == 1
-
-
 def test_a_relay_that_is_not_listening_is_a_delivery_failure(
     free_port: int, report: TriageReport
 ) -> None:

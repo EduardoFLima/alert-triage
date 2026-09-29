@@ -196,8 +196,11 @@ def test_a_refused_message_is_a_delivery_failure_naming_what_was_refused() -> No
         ),
     )
 
-    with pytest.raises(NotifierError, match=re.escape("sre@example.com")):
+    with pytest.raises(NotifierError) as raised:
         EmailNotifier(_settings(), smtp=smtp).deliver(_report())
+
+    assert "incident-1" in str(raised.value)
+    assert "sre@example.com" in str(raised.value)
 
 
 def test_an_unreachable_server_is_a_delivery_failure_not_a_quiet_return() -> None:
@@ -232,10 +235,3 @@ def test_a_password_is_never_sent_over_a_connection_that_stayed_in_the_clear() -
 
     assert smtp.logins == []
     assert smtp.sent == []
-
-
-def test_a_delivery_failure_names_the_incident_it_concerns() -> None:
-    smtp = FakeSmtp(fail_on="send_message")
-
-    with pytest.raises(NotifierError, match="incident-1"):
-        EmailNotifier(_settings(), smtp=smtp).deliver(_report())

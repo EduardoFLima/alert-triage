@@ -19,18 +19,13 @@ class InMemoryAlertSource:
         return [alert for alert in self.alerts if alert.fired_at >= since]
 
 
-def test_an_in_memory_implementation_satisfies_the_port() -> None:
-    source: AlertSource = InMemoryAlertSource()
-
-    assert isinstance(source, AlertSource)
-
-
 def test_the_port_yields_domain_alerts_from_the_requested_instant() -> None:
     recent = Alert(service="checkout", fired_at=SINCE)
     source: AlertSource = InMemoryAlertSource(alerts=[recent])
 
     fetched = source.fetch_since(SINCE)
 
+    assert isinstance(source, AlertSource)
     assert fetched == [recent]
     assert all(isinstance(alert, Alert) for alert in fetched)
 

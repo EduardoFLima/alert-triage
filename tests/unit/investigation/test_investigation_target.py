@@ -30,11 +30,6 @@ def test_a_target_tells_a_specialist_how_much_fired() -> None:
     assert "2" in _target(alert_count=2).describe()
 
 
-def test_a_target_is_not_critical_unless_it_was_told_so() -> None:
-    """A caller that knows nothing of criticality still builds a valid target."""
-    assert not _target().critical
-
-
 def test_a_critical_services_target_says_so_where_the_agents_read_it() -> None:
     target = InvestigationTarget(
         service="checkout",
@@ -49,8 +44,10 @@ def test_a_critical_services_target_says_so_where_the_agents_read_it() -> None:
 
 def test_a_target_that_is_not_critical_is_stated_plainly() -> None:
     """Silence is not the answer: a reader must be told which of the two it is."""
-    described = _target().describe()
+    target = _target()
+    described = target.describe()
 
+    assert not target.critical
     assert "critical" in described.lower()
     assert "not" in described.lower()
 
@@ -62,15 +59,6 @@ def test_a_single_alert_still_gives_the_platform_a_period_it_can_query() -> None
     )
 
     assert target.window.end > target.window.start
-
-
-def test_a_widened_window_still_covers_the_alerts_that_caused_it() -> None:
-    """Widening is for context around the problem, not instead of it."""
-    target = InvestigationTarget(
-        service="checkout", window=Window(start=NOON, end=NOON), alert_count=1
-    )
-
-    assert target.window.start <= NOON <= target.window.end
 
 
 def test_a_window_too_narrow_to_query_is_widened_to_the_minimum() -> None:
@@ -89,6 +77,7 @@ def test_a_window_is_widened_evenly_so_the_alerts_stay_centred() -> None:
         service="checkout", window=Window(start=NOON, end=NOON), alert_count=1
     )
 
+    assert target.window.start <= NOON <= target.window.end
     assert NOON - target.window.start == target.window.end - NOON
 
 
@@ -101,20 +90,15 @@ def test_a_window_already_wide_enough_is_left_alone() -> None:
 
 
 def test_a_target_states_the_environment_where_the_agents_read_it() -> None:
-    target = InvestigationTarget(
+    stated = InvestigationTarget(
         service="checkout",
         window=Window(start=NOON, end=NOON + timedelta(minutes=7)),
         alert_count=2,
         env="prod",
     )
+    missing = _target()
 
-    assert target.env == "prod"
-    assert "Environment: prod" in target.describe()
-
-
-def test_a_target_given_no_environment_says_so_rather_than_saying_nothing() -> None:
-    """A caller that knows nothing of environments still builds a valid target."""
-    target = _target()
-
-    assert target.env is None
-    assert "Environment: none given" in target.describe()
+    assert stated.env == "prod"
+    assert "Environment: prod" in stated.describe()
+    assert missing.env is None
+    assert "Environment: none given" in missing.describe()

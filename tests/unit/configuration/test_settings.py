@@ -42,30 +42,21 @@ def test_an_in_memory_implementation_satisfies_the_port() -> None:
 def test_circuit_breaker_defaults_match_the_documented_thresholds() -> None:
     breakers = CircuitBreakers()
 
-    assert breakers.max_tool_calls_per_agent == 12
-    assert breakers.max_agent_hops == 8
-    assert breakers.max_investigation_duration_seconds == 300
-    assert breakers.mcp_call_timeout_seconds == 30
-
-
-def test_every_breaker_default_is_stated_beside_its_field() -> None:
-    """The convention every other section follows, so a number has one home.
-
-    A default stated as a literal on the field is a number nothing else can
-    name: the instruction that must state the same budget, and the test that
-    must assert it, would each have to repeat it.
-    """
-    breakers = CircuitBreakers()
-
-    assert breakers.max_tool_calls_per_agent == (
-        CircuitBreakers.DEFAULT_MAX_TOOL_CALLS_PER_AGENT
+    assert (
+        breakers.max_tool_calls_per_agent
+        == CircuitBreakers.DEFAULT_MAX_TOOL_CALLS_PER_AGENT
+        == 12
     )
-    assert breakers.max_agent_hops == CircuitBreakers.DEFAULT_MAX_AGENT_HOPS
-    assert breakers.max_investigation_duration_seconds == (
-        CircuitBreakers.DEFAULT_MAX_INVESTIGATION_DURATION_SECONDS
+    assert breakers.max_agent_hops == CircuitBreakers.DEFAULT_MAX_AGENT_HOPS == 8
+    assert (
+        breakers.max_investigation_duration_seconds
+        == CircuitBreakers.DEFAULT_MAX_INVESTIGATION_DURATION_SECONDS
+        == 300
     )
-    assert breakers.mcp_call_timeout_seconds == (
-        CircuitBreakers.DEFAULT_MCP_CALL_TIMEOUT_SECONDS
+    assert (
+        breakers.mcp_call_timeout_seconds
+        == CircuitBreakers.DEFAULT_MCP_CALL_TIMEOUT_SECONDS
+        == 30
     )
 
 
@@ -143,11 +134,8 @@ def test_retuning_retention_leaves_how_often_a_report_repeats_alone() -> None:
     assert config.re_notify.cooldown == timedelta(days=2)
 
 
-def test_the_investigation_model_has_a_documented_default() -> None:
+def test_investigation_defaults_are_documented() -> None:
     assert Investigation().model == Investigation.DEFAULT_MODEL
-
-
-def test_an_investigation_gets_three_attempts_by_default() -> None:
     assert Investigation().max_attempts == Investigation.DEFAULT_MAX_ATTEMPTS
     assert Investigation.DEFAULT_MAX_ATTEMPTS == 3
 

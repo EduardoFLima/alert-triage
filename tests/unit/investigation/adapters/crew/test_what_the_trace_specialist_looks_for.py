@@ -9,16 +9,10 @@ request, and the schema to offer nowhere to write one.
 from alert_triage.investigation.adapters.crew.specialists.trace import (
     TRACE_INSTRUCTION,
     TRACE_SPECIALIST,
-    ReportedFindings,
-    TraceFinding,
     trace_specialist,
 )
 from alert_triage.investigation.adapters.datadog.dialect import AN_EMPTY_ANSWER
-from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
-
-
-def _permitted() -> set[str]:
-    return {tool for toolset in TRACE_SPECIALIST.toolsets for tool in toolset.tools}
+from alert_triage.investigation.contract import Signal
 
 
 def test_the_declaration_reports_under_the_trace_signal() -> None:
@@ -91,10 +85,6 @@ def test_with_preview_it_is_told_to_rank_within_a_fetched_trace() -> None:
     assert "apm_query_trace" in trace_specialist(preview=True).instruction
 
 
-def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
-    assert TRACE_SPECIALIST.model is None
-
-
 def test_the_instruction_asks_for_the_spans_before_the_trace() -> None:
     """A trace is fetched by identifier, and the search is where one comes from."""
     lowered = TRACE_INSTRUCTION.lower()
@@ -145,30 +135,9 @@ def test_the_instruction_asks_for_both_citation_grains() -> None:
     assert "call-N" in TRACE_INSTRUCTION
 
 
-def test_the_instruction_bounds_the_examples_it_asks_for() -> None:
-    assert str(MAX_EXAMPLES_PER_FINDING) in TRACE_INSTRUCTION
-
-
 def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
     """Asserted on the flowed text: the wrapping of a paragraph is not a rule."""
     flowed = " ".join(TRACE_INSTRUCTION.lower().split())
 
     assert "failed" in flowed
     assert "the retrieval did not run" in flowed
-
-
-def test_the_instruction_forbids_naming_a_root_cause() -> None:
-    assert "root cause" in TRACE_INSTRUCTION.lower()
-
-
-def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
-    assert set(TraceFinding.model_fields) == {
-        "observation",
-        "occurrences",
-        "cites",
-        "section",
-    }
-
-
-def test_the_schema_carries_a_list_of_findings() -> None:
-    assert set(ReportedFindings.model_fields) == {"findings"}

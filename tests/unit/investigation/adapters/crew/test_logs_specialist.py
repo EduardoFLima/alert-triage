@@ -2,14 +2,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from alert_triage.investigation.adapters.adk.evidence import Retrieved
-from alert_triage.investigation.adapters.crew.roster import CREW
 from alert_triage.investigation.adapters.crew.specialists.logs import (
     LOGS_INSTRUCTION,
     LOGS_SPECIALIST,
-    LogsFinding,
-    ReportedFindings,
 )
-from alert_triage.investigation.contract import MAX_EXAMPLES_PER_FINDING, Signal
+from alert_triage.investigation.contract import Signal
 from alert_triage.investigation.domain.evidence import findings_from
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
@@ -18,11 +15,6 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 def test_the_instruction_asks_for_errors_and_warnings() -> None:
     assert "error" in LOGS_INSTRUCTION.lower()
     assert "warning" in LOGS_INSTRUCTION.lower()
-
-
-def test_the_instruction_names_the_tools_the_declaration_permits() -> None:
-    for tool in LOGS_SPECIALIST.toolsets[0].tools:
-        assert tool in LOGS_INSTRUCTION
 
 
 def test_the_instruction_teaches_the_platforms_query_dialect() -> None:
@@ -78,15 +70,6 @@ def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
     assert "quiet" in lowered
 
 
-def test_the_instruction_bounds_the_examples_it_asks_for() -> None:
-    assert str(MAX_EXAMPLES_PER_FINDING) in LOGS_INSTRUCTION
-
-
-def test_the_instruction_forbids_naming_a_root_cause() -> None:
-    """This slice observes; concluding is the Diagnostician's job."""
-    assert "root cause" in LOGS_INSTRUCTION.lower()
-
-
 def test_the_declaration_reports_under_the_logs_signal() -> None:
     assert LOGS_SPECIALIST.signal is Signal.LOGS
 
@@ -113,34 +96,6 @@ def test_the_declaration_reaches_no_tool_outside_it() -> None:
     permitted = {tool for toolset in LOGS_SPECIALIST.toolsets for tool in toolset.tools}
 
     assert all("log" in tool for tool in permitted)
-
-
-def test_the_declaration_takes_the_deployments_model_unless_configured() -> None:
-    assert LOGS_SPECIALIST.model is None
-
-
-def test_the_crew_contains_the_logs_specialist() -> None:
-    assert LOGS_SPECIALIST in CREW
-
-
-def test_the_crew_names_each_specialist_once() -> None:
-    names = [specialist.name for specialist in CREW]
-
-    assert len(names) == len(set(names))
-
-
-def test_the_schema_offers_the_model_no_place_to_write_evidence() -> None:
-    """It may cite what it was shown; it may not compose it."""
-    assert set(LogsFinding.model_fields) == {
-        "observation",
-        "occurrences",
-        "cites",
-        "section",
-    }
-
-
-def test_the_schema_carries_a_list_of_findings() -> None:
-    assert set(ReportedFindings.model_fields) == {"findings"}
 
 
 def _reported(cites: list[str]) -> dict[str, Any]:

@@ -18,43 +18,39 @@ def _write(tmp_path: Path, body: str) -> Path:
     return path
 
 
-def test_investigation_settings_default_when_the_section_is_absent(
+def test_investigation_model_resolves_from_default_file_and_environment(
     tmp_path: Path,
 ) -> None:
-    config = load_config(_write(tmp_path, SCOPED), env={})
+    default = load_config(_write(tmp_path, SCOPED), env={})
+    from_file = load_config(
+        _write(tmp_path, SCOPED + "\ninvestigation:\n  model: some-other-model\n"),
+        env={},
+    )
+    from_environment = load_config(
+        _write(tmp_path, SCOPED + "\ninvestigation:\n  model: from-the-file\n"),
+        env={"INVESTIGATION_MODEL": "from-the-environment"},
+    )
 
-    assert config.investigation.model == Investigation.DEFAULT_MODEL
-    assert config.investigation.max_attempts == 3
-
-
-def test_the_operator_chooses_the_model_in_the_file(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\ninvestigation:\n  model: some-other-model\n")
-
-    config = load_config(path, env={})
-
-    assert config.investigation.model == "some-other-model"
-
-
-def test_the_environment_wins_over_the_file_for_investigation(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\ninvestigation:\n  model: from-the-file\n")
-
-    config = load_config(path, env={"INVESTIGATION_MODEL": "from-the-environment"})
-
-    assert config.investigation.model == "from-the-environment"
+    assert default.investigation.model == Investigation.DEFAULT_MODEL
+    assert from_file.investigation.model == "some-other-model"
+    assert from_environment.investigation.model == "from-the-environment"
 
 
-def test_the_attempt_bound_resolves_from_the_environment_alone(tmp_path: Path) -> None:
-    config = load_config(
+def test_investigation_attempts_resolve_from_default_file_and_environment(
+    tmp_path: Path,
+) -> None:
+    default = load_config(_write(tmp_path, SCOPED), env={})
+    from_file = load_config(
+        _write(tmp_path, SCOPED + "\ninvestigation:\n  max_attempts: 2\n"),
+        env={},
+    )
+    from_environment = load_config(
         _write(tmp_path, SCOPED), env={"INVESTIGATION_MAX_ATTEMPTS": "1"}
     )
 
-    assert config.investigation.max_attempts == 1
-
-
-def test_the_operator_bounds_the_attempts_in_the_file(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\ninvestigation:\n  max_attempts: 2\n")
-
-    assert load_config(path, env={}).investigation.max_attempts == 2
+    assert default.investigation.max_attempts == 3
+    assert from_file.investigation.max_attempts == 2
+    assert from_environment.investigation.max_attempts == 1
 
 
 def test_an_attempt_bound_below_one_is_refused(tmp_path: Path) -> None:
@@ -72,24 +68,22 @@ def test_a_credential_under_investigation_is_refused_by_name(tmp_path: Path) -> 
         load_config(path, env={})
 
 
-def test_the_attempt_bound_is_resolved_apart_from_the_circuit_breakers(
+def test_the_attempt_bound_and_circuit_breakers_resolve_apart(
     tmp_path: Path,
 ) -> None:
     """One bounds what happens inside an investigation; the other bounds them."""
-    path = _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_agent_hops: 9\n")
+    breakers_changed = load_config(
+        _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_agent_hops: 9\n"),
+        env={},
+    )
+    attempts_changed = load_config(
+        _write(tmp_path, SCOPED + "\ninvestigation:\n  max_attempts: 1\n"),
+        env={},
+    )
 
-    config = load_config(path, env={})
-
-    assert config.investigation.max_attempts == 3
-    assert config.circuit_breakers.max_agent_hops == 9
-
-
-def test_changing_the_attempt_bound_leaves_the_breakers_alone(tmp_path: Path) -> None:
-    path = _write(tmp_path, SCOPED + "\ninvestigation:\n  max_attempts: 1\n")
-
-    config = load_config(path, env={})
-
-    assert config.circuit_breakers.max_agent_hops == 8
+    assert breakers_changed.investigation.max_attempts == 3
+    assert breakers_changed.circuit_breakers.max_agent_hops == 9
+    assert attempts_changed.circuit_breakers.max_agent_hops == 8
 
 
 def test_a_specialist_may_be_given_a_model_of_its_own(tmp_path: Path) -> None:

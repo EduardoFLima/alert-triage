@@ -130,7 +130,7 @@ async def _no_pause(_: float) -> None:
 
 
 def test_a_guide_offered_to_the_crew_is_read_with_its_description_and_references(
-    serve: str,
+    serve: str, platform: _Platform
 ) -> None:
     guides = fetch_guides((LOGS,), _deployment(serve), pause=_no_pause)
 
@@ -142,6 +142,7 @@ def test_a_guide_offered_to_the_crew_is_read_with_its_description_and_references
             references={"references/log-syntax.md": "Quote a value with spaces."},
         ),
     )
+    assert ("datadog/metrics", "references/metric-syntax.md") not in platform.loads
 
 
 def test_reading_the_guides_leaves_nothing_on_disk(
@@ -154,14 +155,6 @@ def test_reading_the_guides_leaves_nothing_on_disk(
 
     assert fetch_guides((LOGS,), _deployment(serve), pause=_no_pause)
     assert list(tmp_path.iterdir()) == []
-
-
-def test_a_guide_offered_to_nobody_has_no_reference_loaded(
-    serve: str, platform: _Platform
-) -> None:
-    fetch_guides((LOGS,), _deployment(serve), pause=_no_pause)
-
-    assert ("datadog/metrics", "references/metric-syntax.md") not in platform.loads
 
 
 def test_a_refused_load_is_asked_again_after_a_pause(

@@ -27,11 +27,30 @@ def _model_built_from(path: Path, exported: dict[str, str]) -> dict[str, object]
     return build_model(A_MODEL, resolve_model_access(environment)).client_kwargs or {}
 
 
-def test_a_key_only_the_file_declares_reaches_the_model(tmp_path: Path) -> None:
-    """The process exported nothing: without this, the model would find no key."""
-    path = _written(tmp_path, "GOOGLE_API_KEY=from-the-file\n")
+def test_api_key_access_resolves_from_the_env_file_or_process(
+    tmp_path: Path,
+) -> None:
+    """A container wins, a laptop file supplements, and no file changes nothing."""
+    cases: tuple[tuple[Path, dict[str, str], dict[str, object]], ...] = (
+        (
+            _written(tmp_path, "GOOGLE_API_KEY=from-the-file\n"),
+            {},
+            {"api_key": "from-the-file"},
+        ),
+        (
+            _written(tmp_path, "GOOGLE_API_KEY=from-the-file\n"),
+            {"GOOGLE_API_KEY": "from-the-process"},
+            {"api_key": "from-the-process"},
+        ),
+        (
+            tmp_path / "absent.env",
+            {"GOOGLE_API_KEY": "exported"},
+            {"api_key": "exported"},
+        ),
+    )
 
-    assert _model_built_from(path, {}) == {"api_key": "from-the-file"}
+    for path, exported, expected in cases:
+        assert _model_built_from(path, exported) == expected
 
 
 def test_the_platform_selected_only_in_the_file_reaches_the_model(
@@ -59,21 +78,3 @@ def test_an_enterprise_deployment_is_never_given_a_key(tmp_path: Path) -> None:
     )
 
     assert "api_key" not in _model_built_from(path, {})
-
-
-def test_an_exported_key_wins_over_the_one_in_the_file(tmp_path: Path) -> None:
-    """A container is never overridden by a file that happened to lie beside it."""
-    path = _written(tmp_path, "GOOGLE_API_KEY=from-the-file\n")
-
-    assert _model_built_from(path, {"GOOGLE_API_KEY": "from-the-process"}) == {
-        "api_key": "from-the-process"
-    }
-
-
-def test_no_file_leaves_an_exported_deployment_exactly_as_it_was(
-    tmp_path: Path,
-) -> None:
-    """The deployments that worked before this change go on working."""
-    assert _model_built_from(tmp_path / ".env", {"GOOGLE_API_KEY": "exported"}) == {
-        "api_key": "exported"
-    }

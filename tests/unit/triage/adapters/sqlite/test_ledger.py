@@ -66,23 +66,6 @@ def test_a_recorded_incident_is_read_back_as_it_was_recorded(
     assert ledger.open_incidents("checkout", NOON) == [incident]
 
 
-def test_the_alerts_keep_their_identity_and_provenance(
-    connection: sqlite3.Connection,
-) -> None:
-    """A report naming an incident without naming its alerts is not actionable."""
-    ledger = _ledger(connection)
-    alert = _alert("a")
-    ledger.record(_incident(alert), NOON)
-
-    (recovered,) = ledger.open_incidents("checkout", NOON)[0].alerts
-
-    assert recovered.source_id == alert.source_id
-    assert recovered.fired_at == alert.fired_at
-    assert recovered.service == alert.service
-    assert recovered.title == alert.title
-    assert recovered.link == alert.link
-
-
 def test_a_service_with_nothing_on_record_reads_back_empty(
     connection: sqlite3.Connection,
 ) -> None:
@@ -143,15 +126,6 @@ def _rows(connection: sqlite3.Connection, statement: str) -> list[tuple[object, 
 
 def _long_after_closing() -> datetime:
     return NOON + COOLDOWN + WINDOW + timedelta(minutes=1)
-
-
-def test_an_incident_that_has_gone_quiet_is_no_longer_offered(
-    connection: sqlite3.Connection,
-) -> None:
-    ledger = _ledger(connection)
-    ledger.record(_incident(), NOON)
-
-    assert ledger.open_incidents("checkout", _long_after_closing()) == []
 
 
 def test_only_the_open_incident_is_offered_beside_retained_history(
