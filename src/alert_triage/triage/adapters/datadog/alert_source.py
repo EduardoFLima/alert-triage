@@ -29,8 +29,6 @@ from alert_triage.triage.ports.alert_source import AlertSourceError
 
 SERVICE_TAG_PREFIX = "service:"
 OWNER_TAG_PREFIX = "team:"
-# Unified service tagging reserves ``env``, so a deployment on another
-# convention is out of reach until the tag is configurable.
 ENV_TAG_PREFIX = "env:"
 
 # Datadog files a monitor's firing events under this source; without it the
