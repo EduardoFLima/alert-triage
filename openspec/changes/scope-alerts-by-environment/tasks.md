@@ -76,5 +76,5 @@ module's own path, per AGENTS.md.
 
 - [x] 7.1 Run `uv run ruff check src tests`, `uv run ruff format --check src
   tests`, `uv run mypy` and `uv run pytest`; all four pass.
-- [ ] 7.2 Say plainly in the PR that the specialists' instructions changed and
+- [x] 7.2 Say plainly in the PR that the specialists' instructions changed and
   the credential-gated live tests (`docs/live-testing.md`) were not run.
