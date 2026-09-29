@@ -67,7 +67,6 @@ def test_an_unauthenticated_relay_resolves_without_credentials() -> None:
 
 
 def test_saying_nothing_about_the_channel_leaves_it_inactive() -> None:
-    """An absent channel is a decision, and takes no part in delivery."""
     assert resolve_email_settings(env={}) is None
 
 
@@ -88,19 +87,16 @@ def test_a_host_with_no_recipient_is_a_configuration_error_naming_it() -> None:
 
 
 def test_a_recipient_list_of_nothing_but_separators_is_a_configuration_error() -> None:
-    """A channel that would email nobody is half-configured, not configured."""
     with pytest.raises(ConfigError, match=EMAIL_TO_VARIABLE):
         resolve_email_settings(env=CONFIGURED | {EMAIL_TO_VARIABLE: " , , "})
 
 
 def test_a_sender_with_no_host_is_a_configuration_error_not_a_silent_absence() -> None:
-    """Configuring half a channel is a mistake, not a decision to leave it off."""
     with pytest.raises(ConfigError, match=SMTP_HOST_VARIABLE):
         resolve_email_settings(env={EMAIL_FROM_VARIABLE: "triage@example.com"})
 
 
 def test_a_password_with_no_username_is_a_configuration_error() -> None:
-    """Not a silent fallback to an unauthenticated send."""
     with pytest.raises(ConfigError, match=SMTP_USERNAME_VARIABLE):
         resolve_email_settings(env=CONFIGURED | {SMTP_PASSWORD_VARIABLE: "s3cret"})
 
@@ -128,12 +124,10 @@ def test_the_environment_is_read_from_the_process_by_default(
 
 
 def test_the_settings_have_no_config_file_to_be_read_from() -> None:
-    """The resolver takes an environment and nothing else: there is no file path."""
     assert list(inspect.signature(resolve_email_settings).parameters) == ["env"]
 
 
 def test_a_channel_setting_written_into_the_config_file_has_nowhere_to_land() -> None:
-    """No resolved config section names a relay, a sender, or a recipient."""
     sections = {field.name for field in fields(ResolvedConfig)}
 
     assert not sections & {"smtp", "email", "notification", "notifications"}

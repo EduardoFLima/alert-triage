@@ -1,26 +1,3 @@
-"""The APM specialist, declared: its tools, its instruction, and its schema.
-
-Golden signals first, then the two questions an engineer asks straight after
-them: what the service's immediate neighbours were doing, and whether anything
-landed just before the alerts. Both are tools on this platform rather than
-inferences, which is why they are declarations here and not code.
-
-What it reaches depends on one thing outside it: whether the account has
-Datadog's Preview ``apm`` toolset. Without it the specialist still reports the
-golden signals, the neighbours, and what changed — the last through raw events
-rather than change stories, which is coarser and still answers "did this start
-after a deploy". What it cannot do without it is say where the latency went, or
-report what the platform had already noticed on its own; ``core`` offers no
-substitute for either, so those asks leave the instruction entirely rather than
-becoming tools the model is told about and cannot call.
-
-Everything is a module constant or built from one, so that what the specialist
-asks for can be asserted by a unit test without constructing an agent or
-reaching a model. As with every specialist, the output schema offers no field
-an agent could write evidence into: it cites what it was shown, at either
-grain.
-"""
-
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.crew.specialists.section import (
@@ -55,40 +32,17 @@ from alert_triage.investigation.contract import (
 from alert_triage.investigation.domain.specialist import Specialist
 
 _METRIC_TOOLS = (SEARCH_METRICS, GET_METRIC_CONTEXT, GET_METRIC)
-"""The metric tools every account has, whatever its Preview access."""
-
 _PREVIEW_TOOLS = (
     LATENCY_BOTTLENECK_SUMMARY,
     SEARCH_WATCHDOG_STORIES,
     GET_CHANGE_STORIES,
     SEARCH_CHANGE_STORIES,
 )
-"""The tools that exist only in the Preview toolset, reached only where granted.
-
-That these names exist and that the filter admits them is what the
-credential-gated live run establishes; a fake is built from the same
-assumptions this declaration is.
-"""
-
 _WITHOUT_PREVIEW_TOOLS = (SEARCH_EVENTS,)
-"""What carries deploy correlation on an account without Preview.
-
-Events are deployments, infrastructure changes and monitor alerts rather than
-the change stories assembled for an APM service: coarser, and enough, because
-the question is whether something landed near the alerts rather than what it
-consisted of.
-"""
-
 _CATALOGUE_ASK = """\
 The catalogue answers what you ask, so ask it for the immediate upstream and
 downstream dependencies of the service you were told about, and not about its
 neighbours in turn."""
-"""What to ask the catalogue search, which would otherwise be asked anything.
-
-It follows the list directly, and the catalogue search is listed last, so the
-ask sits beside the tool it is about.
-"""
-
 _WATCHDOG_ASK = """\
 - Anything the platform already flagged for this service over the window. It
   detected it independently of you, so it is worth reporting whether or not it
@@ -118,7 +72,6 @@ _CHANGE_ASK = """\
 
 
 def _tools(preview: bool) -> tuple[DatadogTool, ...]:
-    """The tools this specialist may call, given what the account may reach."""
     return (
         *_METRIC_TOOLS,
         *(_PREVIEW_TOOLS if preview else _WITHOUT_PREVIEW_TOOLS),
@@ -127,7 +80,6 @@ def _tools(preview: bool) -> tuple[DatadogTool, ...]:
 
 
 def _what_to_report(preview: bool) -> str:
-    """What it is asked to report, minus anything it has no tool to establish."""
     asks = (
         (_WATCHDOG_ASK,) if preview else (),
         (_GOLDEN_SIGNALS_ASK,),
@@ -138,7 +90,6 @@ def _what_to_report(preview: bool) -> str:
 
 
 def _instruction(preview: bool) -> str:
-    """What this specialist is asked to look for, in the terms of this platform."""
     return f"""
 You are an APM specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
@@ -224,15 +175,6 @@ class ReportedFindings(BaseModel):
 
 
 def apm_specialist(*, preview: bool) -> Specialist:
-    """Declare the APM specialist for an account with or without Preview access.
-
-    Args:
-        preview: Whether the account may reach the ``apm`` toolset.
-
-    Returns:
-        The declaration, reaching only tools the account can actually call and
-        instructed only in what those tools can establish.
-    """
     return Specialist(
         name="apm_specialist",
         signal=Signal.APM,
@@ -243,7 +185,4 @@ def apm_specialist(*, preview: bool) -> Specialist:
 
 
 APM_SPECIALIST = apm_specialist(preview=APM_TOOLSET_AVAILABLE)
-"""The APM specialist as the crew sees it: one declaration, nothing else."""
-
 APM_INSTRUCTION = APM_SPECIALIST.instruction
-"""What the specialist is asked, for the access this deployment actually has."""

@@ -1,15 +1,3 @@
-"""What stops an investigation that is merely running long, and one that has hung.
-
-Two stages, because those are two different failures needing two different
-answers. A reasoning that is still working but slow should be told to stop
-gathering and conclude on what it holds — it keeps its hypothesis, and that is
-the common case. A reasoning that has stopped responding never reaches a
-callback at all, so the only thing that can end it is a bound around the run.
-
-The clock is injected rather than slept through: a test that waits five minutes
-to establish a five-minute bound is a test nobody runs.
-"""
-
 from typing import Any
 
 from pydantic import BaseModel
@@ -41,8 +29,6 @@ class _Tool:
 
 
 class _Hands:
-    """A clock a test moves, in the monotonic seconds a deadline is measured in."""
-
     def __init__(self) -> None:
         self._seconds = 1000.0
 
@@ -185,7 +171,6 @@ def test_the_deadline_is_recorded_as_the_bound_that_was_reached() -> None:
 
 
 def test_an_investigation_inside_its_bound_declines_nothing() -> None:
-    """Nothing recorded about time, and no incompleteness carried from it."""
     clock = _Hands()
     retrieved, bounds = Retrieved(), _bounded(clock, seconds=300)
     consulted = Consulted(offered=CREW, retrieved=retrieved, bounds=bounds)

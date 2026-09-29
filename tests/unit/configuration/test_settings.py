@@ -17,8 +17,6 @@ from alert_triage.configuration.settings import (
 
 @dataclass(frozen=True)
 class InMemoryConfig:
-    """What a test double for the port looks like: values, no source."""
-
     scope: Scope
     grouping: Grouping = field(default_factory=Grouping)
     ingestion: Ingestion = field(default_factory=Ingestion)
@@ -148,7 +146,6 @@ def test_the_operator_can_choose_the_model_and_the_attempts() -> None:
 
 
 def test_an_attempt_bound_below_one_is_refused() -> None:
-    """Zero attempts would leave every incident permanently uninvestigable."""
     with pytest.raises(ValueError, match="max_attempts"):
         Investigation(max_attempts=0)
 

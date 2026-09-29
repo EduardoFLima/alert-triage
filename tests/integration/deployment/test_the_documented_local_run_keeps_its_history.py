@@ -1,12 +1,3 @@
-"""The compose file exists to be the repeat run, so it is tested as one.
-
-``docker run`` without ``-v`` keeps no history and says nothing about it. The
-compose file is the answer to that — the mount written down once, so a second
-run reaches the first run's ledger without anyone re-typing it. A compose file
-that did not actually achieve this would be worse than none, because
-``docs/containerized.md`` would be sending people to it.
-"""
-
 import subprocess
 from pathlib import Path
 from uuid import uuid4
@@ -57,11 +48,6 @@ with sqlite3.connect(os.environ["ALERT_TRIAGE_LEDGER_PATH"]) as database:
 def test_two_compose_runs_share_one_ledger(
     compose_command: list[str], repository_root: Path
 ) -> None:
-    """Two runs, one ledger, through the invocation the README documents.
-
-    The project name is its own, so this never touches an operator's real
-    volume and takes its own with it on the way out.
-    """
     project = f"alert-triage-test-{uuid4().hex[:12]}"
     base = [*compose_command, "--project-name", project]
 

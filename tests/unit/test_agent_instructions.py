@@ -9,7 +9,6 @@ HARNESS_FILENAMES = ("CLAUDE.md", "GEMINI.md")
 
 @pytest.mark.parametrize("filename", HARNESS_FILENAMES)
 def test_harness_file_is_a_symlink_to_the_canonical_file(filename: str) -> None:
-    """A copy would drift; an editor or a Windows checkout can silently make one."""
     path = REPO_ROOT / filename
 
     assert CANONICAL.is_file()

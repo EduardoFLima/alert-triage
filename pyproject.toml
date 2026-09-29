@@ -59,12 +59,12 @@ select = [
     "D",    # pydocstyle
 ]
 
+# A docstring is written where a name cannot carry the intent, not everywhere;
+# pydocstyle checks the shape of the ones that exist.
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-
-[tool.ruff.lint.per-file-ignores]
-# Tests document themselves through their names; module/class docstrings are noise.
-"tests/**" = ["D100", "D101", "D103", "D104"]
 
 [tool.mypy]
 python_version = "3.13"

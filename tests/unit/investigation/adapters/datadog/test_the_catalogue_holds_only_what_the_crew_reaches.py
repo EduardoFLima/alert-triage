@@ -1,11 +1,3 @@
-"""The catalogue holds each tool the crew reaches, once, and nothing else.
-
-A tool nobody permits is a description nobody reads, and one that drifts
-unnoticed because no instruction ever renders it. Both Preview branches count:
-a Preview tool is permitted by the declaration an account with access gets,
-whatever this deployment's switch says.
-"""
-
 from alert_triage.investigation.adapters.crew.specialists.apm import apm_specialist
 from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_SPECIALIST,
@@ -46,5 +38,4 @@ def test_every_tool_is_one_some_specialist_permits() -> None:
 
 
 def test_every_tool_a_specialist_permits_is_in_the_catalogue() -> None:
-    """The other direction: a name typed outside it is a fact stated twice."""
     assert {tool.name for tool in EVERY_TOOL} >= PERMITTED_ANYWHERE

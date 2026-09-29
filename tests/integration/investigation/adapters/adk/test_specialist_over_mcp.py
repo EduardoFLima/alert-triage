@@ -1,15 +1,4 @@
-"""A specialist against a real MCP server, with no network and no model.
-
-The unit tests drive the callback with canned tool results, which is what makes
-them fast — and also what would let a wrong assumption about ADK's tool path
-pass them. This is the test that would catch it: a real ``McpToolset`` connects
-to a real MCP server over a real socket, a real ADK runner calls its tools, and
-the model is the only thing standing in.
-
-What it proves that a fake cannot: that the tool filter is applied, that a
-successful result reaches the model as citable evidence, and that a failing
-tool reaches it as a refusal rather than as an empty answer.
-"""
+"""Cover the ADK runner path that unit-level callback fakes cannot prove."""
 
 import asyncio
 import threading
@@ -62,7 +51,6 @@ FORBIDDEN = "delete_datadog_dashboard"
 
 
 def _server() -> FastMCP:
-    """A platform offering three tools, one of which nothing may reach."""
     mcp = FastMCP("fake-platform")
 
     @mcp.tool(name=SEARCH)
@@ -88,7 +76,6 @@ def _server() -> FastMCP:
 
 @pytest.fixture
 def platform(free_port: int) -> Iterator[str]:
-    """The fake platform, served over a real socket for the duration of a test."""
     server = uvicorn.Server(
         uvicorn.Config(
             _server().streamable_http_app(),
@@ -135,7 +122,6 @@ class _ScriptedModel(BaseLlm):
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
-        """Answer with the next turn the test wrote, remembering what it was given."""
         self.seen.append(llm_request)
         yield LlmResponse(content=self.turns.pop(0))
 
@@ -190,12 +176,7 @@ def _investigate(
     guides: tuple[DatadogGuide, ...] = (),
     breakers: CircuitBreakers | None = None,
 ) -> Any:
-    """One specialist over one platform, driven the way a consultation drives it.
-
-    The manager is not the subject here — the specialist's reach into a real MCP
-    server is. So this builds the agent a consultation would build and runs it,
-    rather than paying for a manager to decide to.
-    """
+    """Run the specialist directly so the manager is not part of the assertion."""
     retrieved = Retrieved()
     bounds = Bounds(breakers or CircuitBreakers())
     consulted = Consulted(offered=(_specialist(),), retrieved=retrieved, bounds=bounds)
@@ -299,7 +280,6 @@ def test_an_investigation_that_could_reach_nothing_is_a_failure(
 def test_a_platform_publishing_no_guides_is_investigated_unguided_and_whole(
     platform: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """This platform serves no guide tools, so reading its guides fails."""
     guides = fetch_guides(
         (_specialist(),), _deployment(platform, _ScriptedModel(model="scripted"))
     )

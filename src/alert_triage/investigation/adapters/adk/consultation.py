@@ -1,17 +1,4 @@
-"""What the manager asked, and what came back checked.
-
-The manager reaches each specialist as a tool, which puts a specialist's report
-on the same seat as any other tool result: ``after_tool_callback``, before the
-model reads it. Collecting findings there rather than out of the manager's own
-answer is what keeps a model from standing between a checked finding and the
-report — the manager reasons over its specialists' reports, it does not relay
-them.
-
-``Consulted`` is to consultation what ``Retrieved`` is to evidence, and the two
-are deliberately separate: one guards fabrication, the other records what an
-incident was asked and what it cost. One instance per investigation, so what a
-report may claim about its own scope is a record of what ran.
-"""
+"""Reports are collected before the manager can rewrite checked findings."""
 
 import json
 import logging
@@ -40,12 +27,7 @@ CONSULTATION_REFUSED = (
     "may be concluded from it in either direction. Conclude from the "
     "consultations that did happen."
 )
-"""What a manager is handed in place of a consultation it may not make.
-
-Deliberately verbose, for the reason ``RETRIEVAL_FAILED`` is: the one thing that
-must not happen is a model reading a refusal as a specialist that came back
-empty, and a terse error is exactly what invites that reading.
-"""
+"""Verbose so a refusal is not mistaken for a specialist that found nothing."""
 
 CONSULTATION_FAILED = (
     "This consultation did not answer. The specialist was asked and something "
@@ -54,27 +36,11 @@ CONSULTATION_FAILED = (
     "about that signal in either direction. Consult a different specialist, or "
     "ask this one again."
 )
-"""What a manager is handed when a consultation fails outright.
-
-A specialist answering in prose where its schema was asked for raises inside the
-framework, and an unhandled tool error ends the whole investigation — one
-specialist's bad turn costing every other specialist's work. Answering the
-manager instead keeps the failure where it belongs, on the one consultation that
-had it.
-
-Worded like the refusal above and for the same reason: a model reading "that
-call failed" as "that signal is clean" is the misreading this whole context is
-built to prevent.
-"""
+"""A specialist failure must not abort the crew or read as a clean signal."""
 
 
 class Consulted:
-    """Which specialists an investigation asked, and what survived their answers.
-
-    One instance per investigation. It knows the whole crew because the crew is
-    what the manager was offered, and a report's honesty about its own scope
-    depends on the difference between that and what was actually asked.
-    """
+    """One per investigation, to separate specialists offered from specialists asked."""
 
     def __init__(
         self,
@@ -83,16 +49,6 @@ class Consulted:
         retrieved: Retrieved,
         bounds: Bounds | None = None,
     ) -> None:
-        """Start with the crew offered and nothing yet asked.
-
-        Args:
-            offered: Every specialist the manager may reach.
-            retrieved: This investigation's evidence, which every finding
-                collected here is checked against.
-            bounds: What this investigation may still do. Absent, the documented
-                defaults, because an unconfigured deployment is bounded by them
-                rather than unbounded.
-        """
         self._offered = tuple(offered)
         self._retrieved = retrieved
         self._bounds = bounds or Bounds()
@@ -102,37 +58,20 @@ class Consulted:
 
     @property
     def bounds(self) -> Bounds:
-        """What this investigation may still do.
-
-        Offered rather than kept private because the budget it holds has two
-        claimants that must never disagree: the manager's instruction states it,
-        and the callback below enforces it. One value read twice is what makes
-        the disagreement impossible rather than merely unlikely.
-        """
+        """Prompt and callback read one Bounds so budgets cannot diverge."""
         return self._bounds
 
     @property
     def offered(self) -> tuple[Specialist, ...]:
-        """Every specialist the manager was given to choose from."""
         return self._offered
 
     @property
     def order(self) -> tuple[str, ...]:
-        """Which specialists were consulted, in the order they were asked.
-
-        A specialist asked twice appears twice: this is what the investigation
-        cost, not which signals it covered.
-        """
         return tuple(self._order)
 
     @property
     def signals(self) -> tuple[Signal, ...]:
-        """The signals actually consulted, each named once, in the order asked.
-
-        What a report may claim it examined. A specialist declared and never
-        asked is absent, which is the whole point: a signal nobody looked at
-        must never read as a signal that was clean.
-        """
+        """An unasked specialist must not read as a signal that was clean."""
         by_name = {specialist.name: specialist.signal for specialist in self._offered}
         seen: list[Signal] = []
         for name in self._order:
@@ -143,42 +82,18 @@ class Consulted:
 
     @property
     def findings(self) -> tuple[Finding, ...]:
-        """Everything the specialists reported that its evidence bears out."""
         return tuple(self._findings)
 
     @property
     def refusals(self) -> tuple[str, ...]:
-        """Which consultations were refused, and why, in the order they were asked.
-
-        An investigation with any of these wanted to ask more and could not,
-        which a reader has to be told: it is an account cut short rather than
-        one the manager chose to stop.
-        """
+        """Refusals mark an account cut short, not one the manager chose to stop."""
         return tuple(self._refusals)
 
     def declined(self, name: str) -> dict[str, Any] | None:
-        """Whether this consultation may be made, answered if it may not.
-
-        Args:
-            name: The specialist the reasoning is asking for.
-
-        Returns:
-            ``None`` where the consultation may go ahead, or the refusal the
-            manager is given in place of running it.
-        """
         reason = self._bounds.decline_consultation(name, len(self._order))
         return None if reason is None else self._refuse(name, reason)
 
     def fail(self, name: str, error: Exception) -> dict[str, Any]:
-        """Record a consultation that could not answer, and say so unmistakably.
-
-        Args:
-            name: The specialist that was asked and could not report.
-            error: What went wrong, for whoever tunes the investigation.
-
-        Returns:
-            The answer the manager is given in place of the report.
-        """
         reason = f"the {name} was consulted and could not answer: {error}"
         self._refusals.append(reason)
         _log.warning(journal.event(f"{name} could not answer", detail=reason))
@@ -189,15 +104,6 @@ class Consulted:
         }
 
     def _refuse(self, name: str, reason: str) -> dict[str, Any]:
-        """Record a consultation that may not be made, and answer it unmistakably.
-
-        Args:
-            name: The specialist that was asked for and not run.
-            reason: Which bound stopped it, for the reader of the report.
-
-        Returns:
-            The refusal the manager is given in place of running it.
-        """
         self._refusals.append(reason)
         return {
             "consultation_refused": True,
@@ -206,29 +112,13 @@ class Consulted:
         }
 
     def named(self, name: str) -> Specialist | None:
-        """The specialist a tool name refers to, or ``None`` for anything else."""
         for specialist in self._offered:
             if specialist.name == name:
                 return specialist
         return None
 
     def record(self, specialist: Specialist, reported: Any) -> tuple[Finding, ...]:
-        """Note that a specialist was asked, and keep what its answer bears out.
-
-        Being asked and answering legibly are different facts, and the first is
-        recorded whatever the second turns out to be: a specialist whose report
-        could not be read was still consulted, and a report claiming its signal
-        was never examined would be as wrong as one claiming it was clean.
-
-        Args:
-            specialist: The specialist that was consulted.
-            reported: What it reported, however the framework handed it over.
-
-        Returns:
-            What this consultation contributed, which is what a reader of the
-            log is shown. Empty where nothing the specialist said was borne out
-            by the evidence behind it.
-        """
+        """Asked and answered are separate; record the ask even with no findings."""
         kept = findings_from(
             reported_findings(reported), self._retrieved, specialist.signal
         ).findings
@@ -238,14 +128,9 @@ class Consulted:
 
 
 def reported_findings(reported: Any) -> list[Any]:
-    """Read the findings out of what a specialist reported, however little that is.
+    """ADK may hand back the schema, a wrapped schema, or JSON text.
 
-    A specialist's structured answer crosses the framework on its way here and
-    may arrive as the record it declared, as that record wrapped in a result
-    field, or as the JSON text of one. All three are the same answer, and none
-    of them is worth failing an investigation over: a report nothing can be read
-    out of contributes no findings, which the evidence check would have arrived
-    at anyway.
+    Unreadable reports contribute no findings rather than failing the investigation.
     """
     payload = _unwrapped(reported)
     if not isinstance(payload, dict):
@@ -261,7 +146,6 @@ def reported_findings(reported: Any) -> list[Any]:
 
 
 def _unwrapped(reported: Any) -> Any:
-    """What a specialist reported, whatever the framework wrapped it in."""
     if isinstance(reported, str):
         return _parsed(reported)
     if isinstance(reported, dict) and "findings" not in reported:
@@ -272,7 +156,6 @@ def _unwrapped(reported: Any) -> Any:
 
 
 def _parsed(text: str) -> Any:
-    """The record a piece of text carries, or the text itself if it carries none."""
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -280,18 +163,7 @@ def _parsed(text: str) -> Any:
 
 
 def collect_findings_callback(consulted: Consulted) -> AfterTool:
-    """The callback that keeps what a specialist reported before the manager reads it.
-
-    Registered on the manager, whose only tools are its specialists. It collects
-    and hands the report on untouched: the manager needs what came back in order
-    to choose what to ask next, and what reaches the report is what this checked.
-
-    Args:
-        consulted: This investigation's record of what was asked.
-
-    Returns:
-        The ``after_tool_callback`` to register on the manager.
-    """
+    """Collects a specialist report before the manager reads it."""
 
     def _collected(
         *, tool: Any, args: dict[str, Any], tool_context: Any, tool_response: Any
@@ -306,16 +178,7 @@ def collect_findings_callback(consulted: Consulted) -> AfterTool:
 
 
 def _reported(specialist: Specialist, findings: Sequence[Finding]) -> str:
-    """What one consultation came to, in the words the specialist used.
-
-    The observation is written down whole. It is the investigation's own
-    characterisation of what it saw, it is what a reader is here for, and a
-    shortened one would be this system paraphrasing itself.
-
-    A specialist that bore nothing out is written down as exactly that: silence
-    in the log would read as a specialist nobody asked, which is the one thing
-    the whole consultation record exists to keep apart.
-    """
+    """No findings is logged explicitly, so silence is not read as no consultation."""
     if not findings:
         return journal.event(
             f"{specialist.name} reported",
@@ -337,19 +200,7 @@ def _reported(specialist: Specialist, findings: Sequence[Finding]) -> str:
 
 
 def bound_consultations_callback(consulted: Consulted) -> BeforeTool:
-    """The callback that decides whether one more question may be asked.
-
-    It refuses rather than counts. The seat matters: a callback can decline the
-    call, whereas a coordinator tallying afterwards has already paid for the
-    reasoning it wanted to prevent. It is the same seat slice 12's configurable
-    bound belongs on, for the same reason.
-
-    Args:
-        consulted: This investigation's record of what has been asked.
-
-    Returns:
-        The ``before_tool_callback`` to register on the manager.
-    """
+    """Refuses before consultation; counting later has already spent reasoning."""
 
     def _bounded(
         *, tool: Any, args: dict[str, Any], tool_context: Any
@@ -373,24 +224,9 @@ def bound_consultations_callback(consulted: Consulted) -> BeforeTool:
 
 
 def failed_consultation_callback(consulted: Consulted) -> OnToolError:
-    """The callback that keeps a specialist's failure to that specialist.
+    """Unhandled ADK tool errors abort the whole crew.
 
-    Without one, the framework re-raises: a single specialist answering in prose
-    where its schema was asked for ends the whole investigation, and every other
-    specialist's work goes with it. That is the wrong blast radius — a
-    consultation that could not answer is exactly the case the manager is
-    equipped to route around, so it is told, and it decides.
-
-    Only a specialist's failure is answered. Anything else — a framework tool,
-    the one that collects the structured answer — is left to raise, because a
-    failure there is not a consultation that went wrong and swallowing it would
-    hide a real fault.
-
-    Args:
-        consulted: This investigation's record of what was asked.
-
-    Returns:
-        The ``on_tool_error_callback`` to register on the manager.
+    Only specialist failures are answered here; framework-tool failures still raise.
     """
 
     def _failed(

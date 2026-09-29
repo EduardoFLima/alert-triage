@@ -50,7 +50,6 @@ def test_a_configured_specialist_reasons_on_the_model_it_was_given() -> None:
 
 
 def test_configuring_one_specialist_leaves_its_declaration_alone() -> None:
-    """The declaration is the source; configuration produces a crew from it."""
     crew_for(
         {"logs_specialist": SpecialistModel(model="a-bigger-model")},
         providers={DATADOG},
@@ -91,18 +90,10 @@ def test_the_crew_names_each_specialist_once() -> None:
 
 
 def test_the_crew_covers_every_signal_a_finding_can_be_drawn_from() -> None:
-    """A signal nothing reports under is a signal no report may claim."""
     assert {specialist.signal for specialist in CREW} == set(Signal)
 
 
 def test_every_declared_toolset_names_a_provider_this_project_defines() -> None:
-    """A provider spelled by hand is a specialist that silently goes unoffered.
-
-    The declaration is refused only for an empty provider; a typo passes the
-    dataclass and then fails to match anything the deployment configured. This
-    is what catches it, and it is why a provider is a constant beside its
-    plumbing rather than a string in four files.
-    """
     named = {toolset.provider for specialist in CREW for toolset in specialist.toolsets}
 
     assert named == {DATADOG}
@@ -113,17 +104,10 @@ def test_a_deployment_holding_every_named_provider_is_offered_the_whole_crew() -
 
 
 def test_a_specialist_whose_provider_is_not_configured_is_not_offered() -> None:
-    """Not offered rather than offered-and-failing.
-
-    An unreachable specialist the manager can choose costs a consultation to
-    discover a credential is missing, and the refusal that comes back reads
-    like a signal that was examined and found quiet.
-    """
     assert offered_from(CREW, providers={"grafana"}) == ()
 
 
 def test_a_specialist_reaching_two_providers_needs_both_to_be_offered() -> None:
-    """Half its evidence is not a specialist: it was declared to gather both."""
     both = Specialist(
         name="apm_specialist",
         signal=Signal.APM,
@@ -150,7 +134,6 @@ def test_the_refusal_names_the_providers_the_crew_asked_for() -> None:
 
 
 def test_selecting_by_provider_leaves_the_configured_model_applied() -> None:
-    """The two decisions are independent: which crew, and what each reasons on."""
     crew = crew_for(
         {"logs_specialist": SpecialistModel(model="a-bigger-model")},
         providers={DATADOG},
@@ -181,7 +164,6 @@ def _target() -> InvestigationTarget:
 def _consulting_everyone(
     crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
 ) -> dict[str, Any]:
-    """A stand-in manager that happens to want every signal this incident has."""
     for specialist in crew:
         offered = retrieved.retain_evidence(
             "search_logs", {"logs": [{"message": f"{specialist.name} saw this"}]}
@@ -222,7 +204,6 @@ def test_an_investigation_over_the_whole_crew_reports_from_every_specialist() ->
 
 
 def test_a_crew_of_four_produces_what_a_crew_of_one_does_and_no_new_shape() -> None:
-    """The claim slice 7 made: a specialist costs a declaration and nothing else."""
     alone = _investigator((LOGS_SPECIALIST,)).investigate(_target()).findings
     whole = _investigator(CREW).investigate(_target()).findings
 
@@ -234,7 +215,6 @@ def test_a_crew_of_four_produces_what_a_crew_of_one_does_and_no_new_shape() -> N
 
 
 def test_each_finding_carries_the_evidence_its_own_specialist_retrieved() -> None:
-    """Findings arrive grouped by whoever the manager asked, in the order asked."""
     findings = _investigator(CREW).investigate(_target()).findings
 
     for specialist, finding in zip(CREW, findings.findings, strict=True):
@@ -242,10 +222,4 @@ def test_each_finding_carries_the_evidence_its_own_specialist_retrieved() -> Non
 
 
 def test_the_default_consultation_budget_admits_the_whole_crew_and_more() -> None:
-    """A budget that admitted each specialist once would be a once-each rule.
-
-    The point of holding the thread is going back to a specialist with the
-    narrower question its first answer raised, so the default has to leave room
-    for that after every signal has been looked at once.
-    """
     assert len(CREW) < CircuitBreakers.DEFAULT_MAX_AGENT_HOPS

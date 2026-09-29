@@ -1,18 +1,3 @@
-"""How many times one specialist may reach the platform, and what stops it.
-
-A specialist with six tools and runtime discovery of what they take can loop
-indefinitely: nothing about a search failing, or coming back empty, tells a
-model to stop searching. The bound is what stops it, and it is spent per
-specialist per incident rather than per consultation — an agent is built once
-and reused, so resetting the count each time the manager comes back would hand a
-specialist asked five times five full budgets.
-
-What a declined call is answered with matters more than that it is declined. A
-bound that reads as a platform with nothing in it is how "we stopped looking"
-becomes "there was nothing to find", which is the misreading the whole refusal
-register exists to prevent.
-"""
-
 import logging
 from typing import Any
 
@@ -41,7 +26,6 @@ def _bounds(calls: int) -> Bounds:
 
 
 def _call(caller: str, retrieved: Retrieved, bounds: Bounds) -> dict[str, Any] | None:
-    """One tool call, driven the way the framework drives one."""
     declined = log_tool_call(caller, PERMITTED, retrieved, bounds)(
         tool=_Tool(), args={"query": "status:error"}, tool_context=None
     )
@@ -66,7 +50,6 @@ def test_a_specialist_calling_past_its_bound_has_the_further_calls_declined() ->
 
 
 def test_it_still_reports_on_the_evidence_it_gathered_before_the_bound() -> None:
-    """The searches that came back are no less true for the budget running out."""
     retrieved, bounds = Retrieved(), _bounds(2)
     for _ in range(3):
         _call("logs_specialist", retrieved, bounds)
@@ -84,7 +67,6 @@ def test_an_unconfigured_specialist_is_bounded_by_the_documented_default() -> No
 
 
 def test_a_declined_call_says_the_call_did_not_happen() -> None:
-    """Not that the platform answered: those are opposite pieces of news."""
     retrieved, bounds = Retrieved(), _bounds(0)
 
     declined = _call("logs_specialist", retrieved, bounds)
@@ -106,7 +88,6 @@ def test_a_declined_call_is_not_a_retrieval_that_came_back_empty() -> None:
 
 
 def test_the_count_is_cumulative_across_two_consultations_of_one_specialist() -> None:
-    """An agent is built once per investigation, so its budget is spent once."""
     retrieved, bounds = Retrieved(), _bounds(3)
 
     first = [_call("logs_specialist", retrieved, bounds) for _ in range(2)]
@@ -136,7 +117,6 @@ def test_a_declined_call_is_recorded_so_the_investigation_reads_as_incomplete() 
 
 
 def test_the_bound_that_was_reached_is_recorded_as_one() -> None:
-    """A report has to say what stopped it, not only that it was stopped."""
     retrieved, bounds = Retrieved(), _bounds(0)
 
     _call("logs_specialist", retrieved, bounds)
@@ -148,7 +128,6 @@ def test_the_bound_that_was_reached_is_recorded_as_one() -> None:
 def test_a_permitted_call_is_still_written_down_before_it_is_made(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Bounding the seat did not cost it the account it was already keeping."""
     from alert_triage.investigation.adapters.adk.evidence import TOOL_CALL_LOGGER
 
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):

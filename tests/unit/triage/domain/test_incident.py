@@ -32,7 +32,6 @@ def test_an_incident_that_has_never_been_reported_says_so() -> None:
 
 
 def test_the_window_an_incident_spans_is_read_from_its_alerts() -> None:
-    """Derived, not stored: two records of the same fact can disagree."""
     first = _alert()
     last = _alert(timedelta(minutes=7))
 
@@ -43,7 +42,6 @@ def test_the_window_an_incident_spans_is_read_from_its_alerts() -> None:
 
 
 def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() -> None:
-    """What crosses to investigation is a service, a window, and a volume."""
     first = _alert()
     last = _alert(timedelta(minutes=7))
 
@@ -55,7 +53,6 @@ def test_an_incident_states_itself_as_something_an_investigation_can_be_asked() 
 
 
 def test_an_incident_of_one_alert_is_still_askable_about_a_period() -> None:
-    """One alert spans an instant, and no metric query accepts one."""
     target = _incident(_alert()).investigation_target(Scope(owner="sre"))
 
     assert target.window.end > target.window.start
@@ -63,7 +60,6 @@ def test_an_incident_of_one_alert_is_still_askable_about_a_period() -> None:
 
 
 def test_an_incident_on_a_critical_service_is_stated_as_critical() -> None:
-    """The one fact the scope holds that an investigation is entitled to."""
     scope = Scope(services={"checkout": ServiceScope(critical=True)})
 
     assert _incident(_alert()).investigation_target(scope).critical
@@ -76,12 +72,10 @@ def test_an_incident_on_a_service_in_scope_and_not_declared_critical_is_not() ->
 
 
 def test_an_incident_on_a_service_the_scope_never_named_is_not_critical() -> None:
-    """An owner-bounded run names no service, and declares none critical."""
     assert not _incident(_alert()).investigation_target(Scope(owner="sre")).critical
 
 
 def test_an_investigation_is_told_the_environment_the_run_watches() -> None:
-    """Every alert fetched is from the scope's environment, so it is read there."""
     scope = Scope(owner="sre", env="staging")
 
     assert _incident(_alert()).investigation_target(scope).env == "staging"
@@ -112,7 +106,6 @@ def test_absorbing_a_later_alert_extends_the_window() -> None:
 
 
 def test_an_alert_already_absorbed_is_not_recorded_twice() -> None:
-    """Overlapping ingestion windows re-deliver alerts the incident already has."""
     seen = _alert(source_id="a")
     incident = _incident(seen)
 
@@ -153,7 +146,6 @@ def test_a_failed_investigation_spends_an_attempt() -> None:
 
 
 def test_a_delivered_report_clears_the_attempts() -> None:
-    """Whatever it carried: a delivery is what ends a round of retrying."""
     spent = _incident(_alert()).investigation_failed().investigation_failed()
 
     assert spent.reported(NOON).investigation_attempts == 0

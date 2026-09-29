@@ -35,15 +35,11 @@ SINCE = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
 
 class FakeEvents:
-    """Stands in for the SDK's events endpoint, returning canned pages."""
-
     def __init__(self, *pages: EventsListResponse | Exception) -> None:
-        """Hold the pages to hand back, one per call, in order."""
         self._pages = list(pages)
         self.requests: list[EventsListRequest] = []
 
     def search_events(self, *, body: EventsListRequest) -> EventsListResponse:
-        """Record the request and reply with the next canned page."""
         self.requests.append(body)
         page = self._pages[len(self.requests) - 1]
         if isinstance(page, Exception):
@@ -88,11 +84,6 @@ def _source(*pages: EventsListResponse | Exception) -> DatadogAlertSource:
 
 
 def _transport_failure() -> MaxRetryError:
-    """A spent retry bound, shaped exactly as urllib3 raises one.
-
-    The pool is real — constructing one opens no socket — because the error
-    carries it and a stand-in would not type-check.
-    """
     return MaxRetryError(
         pool=HTTPSConnectionPool(host="api.datadoghq.com", port=443),
         url="/api/v2/events/search",
@@ -102,7 +93,6 @@ def _transport_failure() -> MaxRetryError:
 def test_the_fetch_announces_who_it_is_for_and_how_far_back_it_looks(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The first block of a run: without it, nothing below it has a scope."""
     with caplog.at_level(logging.INFO):
         _source(_page()).fetch_since(SINCE)
 
@@ -128,7 +118,6 @@ def test_an_event_is_translated_into_an_alert() -> None:
 
 
 def test_an_organisation_on_its_own_subdomain_is_linked_there() -> None:
-    """``app`` is where most accounts live, not where every account lives."""
     source = DatadogAlertSource(
         events=FakeEvents(_page(_event("evt-1", tags=["service:checkout"]))),
         owner="sre",
@@ -142,7 +131,6 @@ def test_an_organisation_on_its_own_subdomain_is_linked_there() -> None:
 
 
 def test_an_alert_links_to_the_monitor_that_raised_it() -> None:
-    """The event id v2 returns has no page; the monitor that fired has one."""
     source = _source(
         _page(_event("evt-1", tags=["service:checkout"], monitor_id=98765))
     )
@@ -154,7 +142,6 @@ def test_an_alert_links_to_the_monitor_that_raised_it() -> None:
 
 
 def test_an_alerts_link_is_scoped_to_when_it_fired() -> None:
-    """A reader following it days later sees the firing, not the present."""
     source = _source(_page(_event("evt-1", tags=["service:checkout"])))
 
     (alert,) = source.fetch_since(SINCE)
@@ -166,7 +153,6 @@ def test_an_alerts_link_is_scoped_to_when_it_fired() -> None:
 
 
 def test_an_event_with_no_monitor_falls_back_to_its_services_own_events() -> None:
-    """An address over the service beats one known not to open."""
     source = _source(_page(_event("evt-1", tags=["service:checkout"], monitor_id=None)))
 
     (alert,) = source.fetch_since(SINCE)
@@ -182,7 +168,6 @@ def test_an_event_with_no_monitor_falls_back_to_its_services_own_events() -> Non
 
 
 def test_an_event_nothing_can_be_built_from_keeps_the_empty_default() -> None:
-    """A link is a field nobody gave this event, and inventing one is the bug."""
     source = _source(
         _page(_event("evt-1", tags=["service:", "team:sre"], monitor_id=None))
     )
@@ -237,7 +222,6 @@ def test_the_request_scopes_to_the_named_services_in_datadogs_own_terms() -> Non
 
 
 def test_one_named_service_is_asked_for_by_name() -> None:
-    """A group of one is noise in a query a human reads in the platform's UI."""
     events = FakeEvents(_page())
     source = DatadogAlertSource(
         events=events,
@@ -254,7 +238,6 @@ def test_one_named_service_is_asked_for_by_name() -> None:
 
 
 def test_a_criticality_never_reaches_the_request() -> None:
-    """A critical service is fetched on the same terms as any other in scope."""
     events = FakeEvents(_page())
     source = DatadogAlertSource(
         events=events,
@@ -288,7 +271,6 @@ def test_an_owner_alone_asks_for_no_service_at_all() -> None:
 def test_a_fetch_bounded_by_services_alone_announces_them(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A reader of the log has to be able to see what bounded the run."""
     source = DatadogAlertSource(
         events=FakeEvents(_page()),
         owner=None,
@@ -319,7 +301,6 @@ def test_a_failure_of_a_service_bounded_fetch_still_says_what_it_was_for() -> No
 
 
 def test_the_request_scopes_to_the_environment_beside_owner_and_services() -> None:
-    """The environment narrows the other filters; it is never asked for alone."""
     events = FakeEvents(_page())
     source = DatadogAlertSource(
         events=events,
@@ -346,7 +327,6 @@ def test_a_failed_fetch_names_the_environment_it_was_for() -> None:
 
 
 def test_a_monitor_link_is_left_as_the_platform_addresses_it() -> None:
-    """The monitor page is the monitor's own, not a view the system scopes."""
     source = _source(_page(_event("evt-1", tags=["service:checkout"])))
 
     (alert,) = source.fetch_since(SINCE)
@@ -442,11 +422,6 @@ def test_an_unreachable_platform_part_way_through_pagination_is_reported() -> No
 
 
 def test_an_answer_the_client_cannot_interpret_is_reported() -> None:
-    """``ApiValueError`` is a sibling of ``ApiException``, not a subclass.
-
-    The SDK's own request path raises it, so catching ``ApiException`` alone
-    leaves a second route out of the adapter.
-    """
     source = _source(ApiValueError("Invalid value for `data`"))
 
     with pytest.raises(AlertSourceError, match="sre"):
@@ -454,7 +429,6 @@ def test_an_answer_the_client_cannot_interpret_is_reported() -> None:
 
 
 def test_the_underlying_failure_is_kept_as_the_cause() -> None:
-    """A developer reading the log still gets the original, whatever it was."""
     transport = _transport_failure()
     source = _source(transport)
 
@@ -476,7 +450,6 @@ def test_the_client_is_bound_by_ingestions_own_timeout_and_retries() -> None:
 
 
 def test_the_investigation_breakers_do_not_reach_the_client() -> None:
-    """The breakers bound investigation; they are not an input to this client."""
     parameters = inspect.signature(build_configuration).parameters
     assert [parameter.annotation for parameter in parameters.values()] == [
         DatadogConnection,

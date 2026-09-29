@@ -1,14 +1,3 @@
-"""What an investigation offers its manager, what it asks, and what it concludes.
-
-The crew is no longer walked. A manager is offered every specialist and consults
-the ones this incident needs, so the two facts worth asserting are what it was
-given to choose from and what it actually chose — neither of which a fixed
-sequence had to make observable.
-
-Everything here runs with no model and no network: the manager is a stub that
-consults whichever specialists the test names.
-"""
-
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -76,8 +65,6 @@ def _manager(
     confidence: str = "high",
     offered_to: list[tuple[str, ...]] | None = None,
 ) -> Any:
-    """A stand-in manager: it consults what the test names, then concludes."""
-
     def _run(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
@@ -116,8 +103,6 @@ def _investigator(links: Any = None, **manager: Any) -> AdkInvestigator:
 
 
 class _ServicePages:
-    """A platform's addresses, recording what each service page was asked for."""
-
     def __init__(self) -> None:
         self.asked: list[tuple[str, Window, Section | None]] = []
         self.environments: list[str | None] = []
@@ -186,7 +171,6 @@ def test_an_investigation_with_no_platform_addresses_points_nowhere() -> None:
 def test_what_an_investigation_came_to_is_written_down_where_it_ends(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The one block a reader scrolls back to: who was asked, and what it means."""
     with caplog.at_level(logging.INFO):
         _investigator(
             consults=("logs_specialist",),
@@ -227,7 +211,6 @@ def test_only_the_specialists_the_manager_asked_for_are_consulted() -> None:
 
 
 def test_a_specialist_that_was_never_consulted_names_no_signal() -> None:
-    """The failure this whole slice exists to prevent, asserted directly."""
     diagnosis = _investigator(consults=("logs_specialist",)).investigate(_target())
 
     assert diagnosis.findings.consulted == (Signal.LOGS,)

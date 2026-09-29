@@ -1,10 +1,3 @@
-"""The Teams channel against a real HTTP server in this process.
-
-The unit tests drive the card and every failure path against fakes. What is
-left to prove is that the envelope arrives over a real socket as the shape
-Workflows expects — the part a fake cannot answer for.
-"""
-
 import json
 import threading
 from collections.abc import Iterator
@@ -21,16 +14,12 @@ from alert_triage.notification.ports.notifier import NotifierError
 
 @dataclass
 class _Webhook:
-    """A real HTTP destination, and what a real client posted to it."""
-
     url: str
     posted: list[dict[str, Any]] = field(default_factory=list)
     status: int = 202
 
 
 class _WebhookHandler(BaseHTTPRequestHandler):
-    """Answers as a Workflows webhook does, recording what it was sent."""
-
     webhook: ClassVar[_Webhook]
 
     def do_POST(self) -> None:
@@ -50,12 +39,11 @@ class _WebhookHandler(BaseHTTPRequestHandler):
         )
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
-        """Keep the test output free of the server's own access log."""
+        pass
 
 
 @pytest.fixture
 def webhook() -> Iterator[_Webhook]:
-    """A real HTTP server standing in for the webhook, on a loopback port."""
     server = HTTPServer(("127.0.0.1", 0), _WebhookHandler)
     destination = _Webhook(url=f"http://127.0.0.1:{server.server_port}/workflows/abc")
     _WebhookHandler.webhook = destination
@@ -101,6 +89,5 @@ def test_a_webhook_that_rejects_the_card_is_a_delivery_failure_carrying_its_answ
 def test_a_destination_that_is_not_listening_is_a_delivery_failure(
     free_port: int, report: TriageReport
 ) -> None:
-    """Nothing is bound to the port, so this is a real connection refusal."""
     with pytest.raises(NotifierError):
         TeamsNotifier(f"http://127.0.0.1:{free_port}/workflows/abc").deliver(report)

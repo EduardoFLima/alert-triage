@@ -1,15 +1,3 @@
-"""What an incident is worth saying, given what was learned about it.
-
-Which report an incident earns is decided by whether an investigation completed,
-and that decision is asserted here. What the investigation had to say for itself
-is not: it arrives already worded, and what an account shows is established
-beside the renderer that builds one.
-
-What is left here is what only triage knows — the subject that marks the sender,
-the alerts that fired, and the report of last resort for an incident nothing
-managed to look at.
-"""
-
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -30,14 +18,12 @@ from alert_triage.triage.domain.report import NOT_INVESTIGATED, build_report
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 PROD = "prod"
-"""The environment the run that built each report watches."""
 
 
 EVERY_SIGNAL = tuple(Signal)
 
 
 def _uninvestigated(incident: Incident) -> TriageReport:
-    """The report an incident gets when no investigation ever completed."""
     return build_report(incident, None, PROD)
 
 
@@ -64,12 +50,6 @@ def _diagnosis(
     hypothesis: str | None = "the container memory limit is too low",
     confidence: Confidence | None = Confidence.HIGH,
 ) -> Diagnosis:
-    """A diagnosis whose account is composed the way a real one is.
-
-    Worded through the real renderer rather than hand-written, so these
-    assertions are about what a report carries rather than about the fixture
-    that fed it.
-    """
     found = (
         findings
         if findings is not None
@@ -87,7 +67,6 @@ def _diagnosis(
 def _investigated(
     incident: Incident, diagnosis: Diagnosis | None = None
 ) -> TriageReport:
-    """The report an incident gets when one did."""
     return build_report(incident, diagnosis or _diagnosis(), PROD)
 
 
@@ -149,7 +128,6 @@ def test_a_pass_through_report_names_the_incident_it_was_built_from() -> None:
 
 
 def test_a_pass_through_report_says_investigation_could_not_complete() -> None:
-    """The report of last resort: it explains its own emptiness, not poses as triage."""
     body = _uninvestigated(_firing_incident(_fired(0, "Latency", "l/1"))).body
 
     assert "could not complete" in body
@@ -157,7 +135,6 @@ def test_a_pass_through_report_says_investigation_could_not_complete() -> None:
 
 
 def test_an_alert_with_no_title_and_no_link_is_still_listed() -> None:
-    """Both are optional on an ``Alert``; a source that supplies neither is fine."""
     alert = Alert(service="checkout", fired_at=NOON, source_id="bare")
 
     body = _uninvestigated(_firing_incident(alert)).body
@@ -168,7 +145,6 @@ def test_an_alert_with_no_title_and_no_link_is_still_listed() -> None:
 
 
 def test_the_subject_survives_a_service_tag_that_spans_two_lines() -> None:
-    """A subject is one line whatever the platform tagged the alerts with."""
     incident = Incident(
         id="incident-1",
         service="check\nout",
@@ -201,7 +177,6 @@ def test_an_investigated_report_carries_the_account_it_was_given() -> None:
 
 
 def test_an_investigated_report_states_the_confidence_it_was_given() -> None:
-    """Stated by the renderer, so it reaches a reader whatever the writer wrote."""
     report = _investigated(_incident(), _diagnosis(confidence=Confidence.LOW))
 
     assert Confidence.LOW.value in report.body
@@ -236,7 +211,6 @@ def test_an_investigated_report_names_the_incident_it_was_built_from() -> None:
 
 
 def test_the_report_for_an_incident_is_chosen_by_whether_one_completed() -> None:
-    """Why an investigation failed is the run's business; a report only knows if."""
     incident = _incident()
 
     assert build_report(incident, None, PROD) == _uninvestigated(incident)
@@ -244,7 +218,6 @@ def test_the_report_for_an_incident_is_chosen_by_whether_one_completed() -> None
 
 
 def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
-    """One says nobody looked; the other says somebody looked and it was clean."""
     incident = _incident()
     clean = _diagnosis(
         findings=Findings(consulted=EVERY_SIGNAL),
@@ -260,7 +233,6 @@ def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
 
 
 def test_the_last_resort_report_carries_no_hypothesis_and_no_confidence() -> None:
-    """Nothing produced one, and a report must never invent what it was not given."""
     body = _uninvestigated(_incident()).body.lower()
 
     assert NOT_INVESTIGATED in _uninvestigated(_incident()).body
@@ -276,7 +248,6 @@ def test_the_report_does_not_pretend_to_conclude_on_a_failed_investigation() -> 
 
 
 def test_triage_does_not_read_the_investigations_vocabulary_to_build_a_body() -> None:
-    """The account arrives written; a finding's shape is no longer triage's business."""
     import alert_triage.triage.domain.report as report_module
 
     source = Path(report_module.__file__).read_text()
@@ -293,7 +264,6 @@ def test_a_pass_through_report_names_the_environment_after_its_prefix() -> None:
 
 
 def test_an_investigated_report_names_the_environment_after_its_prefix() -> None:
-    """The headline is the agent's; the environment is written by the system."""
     report = _investigated(_incident())
 
     assert report.subject == "[alert-triage] [prod] checkout is out of memory"

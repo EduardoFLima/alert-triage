@@ -1,5 +1,3 @@
-"""Email adapters: a ``Notifier`` implementation that delivers by mail."""
-
 from alert_triage.notification.adapters.email.notifier import EmailNotifier, render
 from alert_triage.notification.adapters.email.settings import (
     DEFAULT_SMTP_PORT,

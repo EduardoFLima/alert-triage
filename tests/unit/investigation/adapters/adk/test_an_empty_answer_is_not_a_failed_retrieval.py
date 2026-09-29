@@ -1,17 +1,3 @@
-"""The gate this change turns on: silence from the platform is an answer.
-
-A specialist asks about a signal a deployment may not have — a container
-workload for a service running on virtual machines, traces for a service
-nobody instrumented — and the platform answers that there are none. That is a
-fact about the deployment, not a retrieval that failed, and recording it as
-one would mark every investigation on such a deployment incomplete.
-
-The opposite direction is the other half of the discipline and is asserted
-beside it: a refusal, an error, and an answer carrying nothing readable stay
-failures, because a broken search read as silence is the more dangerous
-misreading.
-"""
-
 from datetime import UTC, datetime
 from typing import Any
 
@@ -37,7 +23,6 @@ EMPTY_ANSWERS: dict[str, Any] = {
     "an empty list of entries": [],
     "no content at all": {"content": [], "isError": False},
 }
-"""The shapes a platform answers "there are none" in."""
 
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
@@ -54,7 +39,6 @@ def _target() -> InvestigationTarget:
 
 
 def _asks_about_containers() -> Specialist:
-    """A specialist whose signal a deployment may genuinely not have."""
     return Specialist(
         name="infrastructure_specialist",
         signal=Signal.LOGS,
@@ -85,7 +69,6 @@ def _after(retrieved: Retrieved, response: Any) -> Any:
 
 
 def _investigation_retrieving(answer: Any) -> Any:
-    """A manager consulting one specialist whose retrieval comes back with that."""
 
     def _run(crew: Any, consulted: Any, retrieved: Retrieved, prompt: str) -> Any:
         for specialist in crew:
@@ -116,7 +99,6 @@ def test_an_empty_answer_is_retained_as_a_retrieval_that_found_nothing() -> None
 def test_a_signal_the_deployment_does_not_have_leaves_the_investigation_complete() -> (
     None
 ):
-    """A service that is not on containers is not an investigation that broke."""
     for shape, answer in EMPTY_ANSWERS.items():
         investigator = AdkInvestigator(
             crew=(_asks_about_containers(),),
@@ -142,7 +124,6 @@ def test_an_empty_answer_and_a_refused_one_stay_distinguishable() -> None:
 
 
 def test_an_answer_carrying_nothing_readable_is_still_a_failure() -> None:
-    """The system cannot tell a broken answer from an empty one, so it says so."""
     for shape in (None, {"content": [{"type": "text", "text": "   "}]}):
         retrieved = Retrieved()
 

@@ -1,5 +1,3 @@
-"""Datadog adapters: the ``AlertSource`` implementation backed by Datadog's REST API."""
-
 from alert_triage.triage.adapters.datadog.alert_source import (
     DatadogAlertSource,
     build_alert_source,

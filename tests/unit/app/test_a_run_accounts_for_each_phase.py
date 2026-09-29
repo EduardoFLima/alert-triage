@@ -1,15 +1,3 @@
-"""A run, read back off the log by someone who was not watching it happen.
-
-The phases are what a reader navigates by: an incident opens one, the
-investigation of it is another, and what was delivered about it closes it. Each
-announces itself, and each says what it concerns — a block that could belong to
-any of three services is a block a reader has to correlate by hand.
-
-What went wrong is read the same way, at the weight its consequence deserves: a
-failure that ends the run is boxed like the phase it ended, and a failure
-contained to one group is captioned under the phase it happened in.
-"""
-
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -180,7 +168,6 @@ def test_what_a_run_grouped_is_written_down_before_any_of_it_is_handled(
 def test_what_was_delivered_is_written_down_in_the_words_a_team_receives(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The headline is the report; a reader should not have to open their email."""
     written = _ran(caplog)
 
     assert HEADLINE in written
@@ -216,7 +203,7 @@ def test_a_failure_that_ends_the_run_is_boxed_like_the_phase_it_ended(
 def test_a_failure_contained_to_one_group_is_captioned_under_its_phase(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The groups after it still get their reports, so it is not the run ending."""
+    """Later groups still get reports, so this is not the run ending."""
     written = _ran(caplog, ledger=_Ledger(failure="the ledger is unreadable"))
 
     assert "╭" not in written.split("INCIDENT · checkout")[-1].split("──")[0]

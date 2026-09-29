@@ -1,20 +1,4 @@
-"""Standing between a tool result and the model that is about to read it.
-
-The model is never given the chance to write evidence. Every tool result passes
-through ``Retrieved`` on its way to the model, which keeps it and hands back a
-citable form in its place: the retrieval under ``call-N``, and each discrete
-item within it under ``call-N/item-M``. What the model may cite is therefore
-exactly what it was shown. A finding about a pattern cites items; a finding
-about an aggregate — a flame graph, a dependency map — cites the call it came
-from, because there are no items in it to point at.
-
-A failed retrieval is never retained, because it evidences nothing. It is
-recorded, and replaced with the refusal the discipline states, so that nothing
-can be concluded from it in either direction.
-
-Which citations then survive into findings is the discipline's own business,
-in ``investigation/domain/evidence.py``.
-"""
+"""Retrieved mediates tool results so citations name exactly what the model saw."""
 
 import logging
 from collections.abc import Callable, Mapping, Sequence
@@ -35,80 +19,28 @@ from alert_triage.shared.window import Window
 _log = logging.getLogger(__name__)
 
 TOOL_CALL_LOGGER = f"{__name__}.tool_calls"
-"""Where the back and forth between a specialist and the platform is written.
-
-A logger of its own, and nothing else writes to it. What a specialist was asked
-and what it concluded are the account of an investigation; the queries it
-composed on the way are the working, and a deployment that wants one without the
-other holds this name rather than picking log lines apart. A retrieval that
-*failed* is not working — it is why a report is incomplete — so it stays on the
-module's own logger and is never held with this.
-"""
+"""Separate logger for specialist working, apart from the investigation account."""
 
 _tool_log = logging.getLogger(TOOL_CALL_LOGGER)
 
 _CALL_PREFIX = "call-"
 
 AfterTool = Callable[..., dict[str, Any] | None]
-"""How ADK hands a tool result over before the model sees it.
-
-Loosely typed on purpose: the framework passes its own tool and context
-objects, and this project reads a name off the first and nothing off the
-second, so a unit test drives the callback with no framework at all.
-"""
+"""Loosely typed because tests replace ADK framework objects with fakes."""
 
 OnToolError = Callable[..., dict[str, Any] | None]
-"""How ADK offers a tool's failure before it re-raises it.
-
-A callback returning a record answers the call with it instead; returning
-``None`` lets the failure propagate, which for an unhandled tool error means
-ending the whole run.
-"""
+"""Returning a record answers the failed call; returning None lets ADK raise."""
 
 BeforeTool = Callable[..., dict[str, Any] | None]
-"""How ADK offers a tool call for inspection before it is made.
-
-A callback returning a record skips the call and uses that record as its
-result, which is what lets a refusal be a refusal rather than a tally.
-"""
+"""Returning a record skips the call and uses that record as the result."""
 
 
 class Links(Protocol):
-    """How a platform addresses what a retrieval returned, at both grains.
-
-    Injected rather than imported: this module is the framework's side of the
-    boundary, and which route opens a log item is the platform adapter's
-    knowledge. A deployment that supplies none gets evidence with no addresses,
-    which is what evidence has always been here.
-
-    The two grains are the two a citation has. ``to_retrieval`` addresses
-    whatever a retrieval came from, which is what a finding about an aggregate
-    cites; ``to_item`` addresses one thing within it, which is what a finding
-    about a pattern cites. Both answer with an address, never with evidence.
-
-    Both are told the tool, because what produced a retrieval depends on which
-    tool was called and its arguments cannot say: a query over a window is a
-    log search or a metric or an audit trail. ``None`` is a complete answer,
-    and the right one for a tool the platform has no known address for.
-
-    ``to_service`` is the third address, and not a grain of evidence: where a
-    reader goes to look at the service a finding concerns, on the section the
-    finding named. It is built around a member of a closed set rather than
-    around anything the reasoning wrote.
-
-    Both are told the service too, because a service-scoped page is addressed
-    to the service the investigation holds rather than to whatever the query
-    happened to name, and how a service is named to a tool differs by tool.
-    All three are told the environment the target states, or ``None``, so that
-    a page composed from the target is confined to it rather than showing every
-    environment of the service at once.
-    """
+    """Injected so evidence stays platform-blind while URLs stay platform-owned."""
 
     def to_retrieval(
         self, tool: str, args: Mapping[str, Any], service: str, env: str | None
-    ) -> str | None:
-        """Where whatever produced this retrieval is opened, if it can be."""
-        ...
+    ) -> str | None: ...
 
     def to_item(
         self,
@@ -117,9 +49,7 @@ class Links(Protocol):
         within: str | None,
         service: str,
         env: str | None,
-    ) -> str | None:
-        """Where this item is opened, or ``within`` when it names no item."""
-        ...
+    ) -> str | None: ...
 
     def to_service(
         self,
@@ -127,34 +57,15 @@ class Links(Protocol):
         window: Window,
         section: Section | None,
         env: str | None,
-    ) -> str | None:
-        """Where a reader looks at a service, opened on a section it names."""
-        ...
+    ) -> str | None: ...
 
 
 class Retrieved:
-    """What this investigation actually retrieved, keyed for citation.
-
-    One instance per investigation. It is deliberately stateful and short
-    lived: what may be cited is exactly what this investigation was shown, so
-    a stale identifier from an earlier incident cannot resolve.
-    """
+    """One per investigation, so stale citation IDs cannot resolve across incidents."""
 
     def __init__(
         self, link: Links | None = None, service: str = "", env: str | None = None
     ) -> None:
-        """Start with nothing retrieved, nothing citable, and nothing failed.
-
-        Args:
-            link: How this deployment's platform addresses what it returns.
-                Absent, every piece of evidence is kept without an address.
-            service: The service under investigation, which the platform's
-                service-scoped addresses are pinned to. Passed from the target
-                rather than read from a tool's arguments, because how a service
-                is named to a tool differs by tool.
-            env: The environment the target states, which the same addresses
-                are confined to, or ``None`` where it states none.
-        """
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
@@ -164,35 +75,16 @@ class Retrieved:
 
     @property
     def retrievals(self) -> int:
-        """How many retrievals came back with something."""
         return self._retrievals
 
     @property
     def failures(self) -> tuple[str, ...]:
-        """Why this investigation saw less than it asked for, in order.
-
-        A retrieval that failed and a call a bound declined are both here: they
-        are different reasons and the same fact, which is that the account was
-        drawn on less than the specialist wanted.
-        """
+        """Failed and declined retrievals both mean the account asked for more."""
         return tuple(self._failures)
 
     def retain_evidence(
         self, tool: str, result: Any, args: Mapping[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Keep what a tool returned and describe it in the terms it may be cited in.
-
-        Args:
-            tool: The tool that returned it, which is what decides the kind of
-                page its address opens, if it has one.
-            result: What the tool returned, as ADK handed it over.
-            args: What the tool was called with. The query is in here, which is
-                what a retrieval with no discrete items is addressed by.
-
-        Returns:
-            The call and its items under the identifiers that resolve, which is
-            what the model is given in place of the result itself.
-        """
         self._retrievals += 1
         call = f"{_CALL_PREFIX}{self._retrievals}"
         address = self._address_of(tool, args or {})
@@ -209,19 +101,7 @@ class Retrieved:
         return self._offered(call, items, result)
 
     def refuse_call(self, reason: str) -> dict[str, Any]:
-        """Record a retrieval that never happened, and answer it unmistakably.
-
-        Kept beside the retrievals that failed, because both answer the one
-        question a reader is asking: why is this account drawn on less than it
-        asked for. A call a bound declined and a call the platform refused are
-        different reasons and the same incompleteness.
-
-        Args:
-            reason: Which bound stopped it, for the reader of the report.
-
-        Returns:
-            The refusal the model is given in place of making the call.
-        """
+        """Declined calls sit beside failed retrievals to explain incompleteness."""
         self._failures.append(reason)
         return {
             "call_declined": True,
@@ -230,14 +110,6 @@ class Retrieved:
         }
 
     def refuse_evidence(self, reason: str) -> dict[str, Any]:
-        """Record a failed retrieval and answer it in terms nothing can misread.
-
-        Args:
-            reason: What went wrong, for whoever tunes the investigation.
-
-        Returns:
-            The refusal the model is given in place of the failure.
-        """
         self._failures.append(reason)
         _log.warning(journal.event("retrieval refused to the model", reason=reason))
         return {
@@ -247,17 +119,14 @@ class Retrieved:
         }
 
     def resolve(self, citation: str) -> EvidenceItem | None:
-        """The evidence behind a citation, or ``None`` if there is none."""
         return self._evidence.get(citation)
 
     def _address_of(self, tool: str, args: Mapping[str, Any]) -> str | None:
-        """Where whatever this retrieval came from is opened."""
         if self._link is None:
             return None
         return self._link.to_retrieval(tool, args, self._service, self._env)
 
     def _item_addresses(self, tool: str, within: str | None) -> Linker | None:
-        """How each item of this retrieval is addressed, given where it came from."""
         link = self._link
         if link is None:
             return None
@@ -268,7 +137,6 @@ class Retrieved:
     def _offered(
         self, call: str, items: Sequence[EvidenceItem], result: Any
     ) -> dict[str, Any]:
-        """Present one retrieval as what it is and what may be cited from it."""
         offered: dict[str, Any] = {
             "call": call,
             "items": [
@@ -291,33 +159,9 @@ class Retrieved:
 def keep_evidence_callback(
     retrieved: Retrieved, permitted: frozenset[str], caller: str
 ) -> AfterTool:
-    """The callback that stands between a tool result and the model reading it.
+    """A closure scopes citations to one investigation.
 
-    Registered on every specialist, closing over one investigation's
-    ``Retrieved``. A closure rather than a framework plugin: a plugin is global
-    to the runner and would have to find its way back to the right
-    investigation, while a closure already holds it, which is what scopes
-    citations to this incident.
-
-    It covers tools nobody wrote a method for, which is the point: every result
-    from the platform is checked, whether or not this project has ever heard of
-    the tool that produced it.
-
-    Only from the platform, though. A framework passes its own tools through
-    the same callback — the one it uses to collect a structured answer, among
-    others — and their results are not evidence, are not citable, and cannot
-    fail a retrieval that was never made. What a specialist declared is the
-    line, which is the same line everything else in this slice draws.
-
-    Args:
-        retrieved: What this investigation has gathered so far.
-        permitted: The tools this specialist declared. A result from anything
-            else passes through untouched.
-        caller: The specialist whose result this is, so that a reader following
-            an investigation knows who asked.
-
-    Returns:
-        The ``after_tool_callback`` to register on a specialist.
+    Only declared platform tools become evidence; ADK framework tools pass through.
     """
 
     def _kept(
@@ -349,28 +193,7 @@ def log_tool_call(
     retrieved: Retrieved | None = None,
     bounds: Bounds | None = None,
 ) -> BeforeTool:
-    """The callback that bounds a specialist's calls, and writes down the rest.
-
-    It declines rather than counts: a coordinator tallying afterwards has
-    already paid for the search it wanted to prevent.
-
-    Only the tools the declaration named are bounded. A framework's own cross
-    this seat too, including the one a model answers through where it cannot
-    pair an output schema with tools — and bounding that leaves a spent
-    specialist no way to report at all.
-
-    Args:
-        caller: The specialist making the call.
-        permitted: The tools it declared. Anything else passes through.
-        retrieved: This investigation's evidence, which a declined call is
-            recorded against so the report says the account is incomplete.
-        bounds: What this investigation may still do. Absent, the documented
-            defaults, because an unconfigured deployment is bounded by them
-            rather than unbounded.
-
-    Returns:
-        The ``before_tool_callback`` to register on a specialist.
-    """
+    """Only declared tools are bounded; ADK framework tools still return schemas."""
     kept = retrieved if retrieved is not None else Retrieved()
     within = bounds or Bounds()
 
@@ -394,15 +217,9 @@ def log_tool_call(
 
 
 def _failure_in(result: Any) -> str | None:
-    """Why this result is a failed retrieval, or ``None`` if it is not one.
+    """Errors and unreadable answers are failures; empty structured answers are not.
 
-    Three shapes, and each is a failure the model must not read as an answer:
-    the server refused the call, ADK converted an exception into a result, or
-    what came back carries nothing that can be read at all.
-
-    The last of those is checked after an empty answer has been let through,
-    because "there are none" and "this could not be read" are different facts
-    and only the second is a failure.
+    The distinction keeps missing telemetry from making every run look incomplete.
     """
     if isinstance(result, dict):
         if result.get("isError"):
@@ -418,20 +235,7 @@ def _failure_in(result: Any) -> str | None:
 
 
 def _answered_with_nothing(result: dict[str, Any]) -> bool:
-    """Whether the platform answered this call, and the answer was empty.
-
-    A signal a deployment does not have — no container workload, no
-    instrumented traces, no host metrics for a managed service — comes back
-    as an answer with nothing in it. Recording that as a failure would mark
-    every investigation on such a deployment incomplete, which is the
-    incompleteness marker losing its meaning for the deployments most likely
-    to need it.
-
-    An empty answer is distinguishable from an unreadable one by its shape:
-    the server either gave structure that happens to be empty, or explicitly
-    returned no content at all. A result carrying content that reads as
-    nothing is neither, and stays a failure.
-    """
+    """Empty structured content is valid for signals a deployment does not have."""
     structured = result.get("structuredContent")
     if isinstance(structured, dict | list):
         return not structured
@@ -440,15 +244,9 @@ def _answered_with_nothing(result: dict[str, Any]) -> bool:
 
 
 def _detail(result: dict[str, Any]) -> str:
-    """What a refused call said about itself, for whoever tunes the investigation."""
     said = readable(result)
     return "" if said is None else summarise(said)
 
 
 def named_tool(tool: Any) -> str:
-    """What to call the tool in a log line or a failure record.
-
-    Shared with the consultation callbacks, which sit on the same seat for a
-    manager whose tools are its specialists and need the same answer.
-    """
     return str(getattr(tool, "name", tool))

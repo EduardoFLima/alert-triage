@@ -1,10 +1,3 @@
-"""Fetching alerts from Datadog's Events API and translating them to Alerts.
-
-Everything Datadog-shaped stops here: the ``team:``, ``service:`` and ``env:``
-tag encodings, the cursor pagination, the SDK's exceptions and payload models. What
-leaves is a list of ``Alert``.
-"""
-
 import logging
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime, timedelta
@@ -38,31 +31,16 @@ MONITOR_ALERT_QUERY = "source:alert"
 PAGE_LIMIT = 100
 
 LINK_MARGIN = timedelta(minutes=30)
-"""How much either side of a firing an alert's link shows.
-
-A page pinned to the instant an alert fired shows a reader the moment and none
-of its run-up. Half an hour each way is enough to see the shape of it without
-being a window a reader has to search within.
-"""
 
 _log = logging.getLogger(__name__)
 
 
 class EventSearch(Protocol):
-    """The one endpoint this adapter uses, named so a test can stand in for it."""
-
-    def search_events(self, *, body: EventsListRequest) -> EventsListResponse:
-        """Search events matching the request body."""
-        ...
+    def search_events(self, *, body: EventsListRequest) -> EventsListResponse: ...
 
 
 class DatadogAlertSource:
-    """An ``AlertSource`` backed by Datadog's Events API v2 search endpoint.
-
-    The API client is injected rather than built here: constructing it needs
-    credentials, which belong to the composition root, and injecting it is what
-    lets the tests drive translation and pagination with no network.
-    """
+    """The API client is injected so translation and pagination test without network."""
 
     def __init__(
         self,
@@ -73,23 +51,6 @@ class DatadogAlertSource:
         *,
         env: str,
     ) -> None:
-        """Bind the adapter to an endpoint, a scope, and a web host.
-
-        Args:
-            events: The Datadog events endpoint to query.
-            owner: Owner whose alerts are in scope, in the project's own terms,
-                or ``None`` where the services alone bound the fetch.
-            web_host: Where this account's web app is served, used to build a
-                link a human can open. The whole host rather than the region:
-                an organisation may be issued a sub-domain of its own, and
-                composing ``app`` in here would send its readers nowhere.
-            services: Services whose alerts are in scope, in the project's own
-                terms. Empty where the owner alone bounds the fetch. Which of
-                them a deployment declared critical is deliberately not here:
-                a critical service is fetched on the same terms as any other.
-            env: The one environment whose alerts are in scope. Always spent,
-                narrowing whichever of owner and services resolved.
-        """
         self._events = events
         self._owner = owner
         self._web_host = web_host
@@ -97,7 +58,6 @@ class DatadogAlertSource:
         self._env = env
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
-        """Fetch the in-scope alerts that fired at or after ``since``."""
         _log.info(
             journal.banner(
                 "FETCHING ALERTS",
@@ -115,7 +75,6 @@ class DatadogAlertSource:
         ]
 
     def _events_since(self, since: datetime) -> Iterator[EventResponse]:
-        """Walk the cursor to exhaustion, so a caller never sees a partial result."""
         cursor: str | None = None
         while True:
             page = self._search(since, cursor)
@@ -127,21 +86,9 @@ class DatadogAlertSource:
     def _search(self, since: datetime, cursor: str | None) -> EventsListResponse:
         """Fetch one page, turning any failure of it into the port's own.
 
-        This is the boundary: past it, a caller catches ``AlertSourceError``
-        and never learns that Datadog was involved. Failing here rather than
-        returning what was retrieved so far is deliberate — a partial result is
-        indistinguishable from a quiet period.
-
-        Both libraries' roots are caught rather than the particular errors
-        under them. The SDK reaches the platform through urllib3 but translates
-        only one of its failures, so a refused connection or a spent retry
-        bound arrives as a ``TransportError`` that no ``OpenApiException`` catch
-        would see — and a caller would meet a failure this boundary exists to
-        have hidden. Naming the leaves instead would leave the same gap open
-        for whichever leaf either library adds next.
-
-        Deliberately not ``except Exception``: a defect in the translation
-        below should still crash rather than be reported as a failed fetch.
+        A partial result is indistinguishable from a quiet period, so fail the
+        whole fetch. Catch both SDK and transport roots because urllib3 failures
+        can escape SDK translation.
         """
         try:
             return self._events.search_events(body=self._request(since, cursor))
@@ -151,7 +98,6 @@ class DatadogAlertSource:
             ) from error
 
     def _request(self, since: datetime, cursor: str | None) -> EventsListRequest:
-        """Build the search request for one page of in-scope alerts."""
         page = EventsRequestPage(limit=PAGE_LIMIT)
         if cursor is not None:
             page.cursor = cursor
@@ -166,14 +112,7 @@ class DatadogAlertSource:
 
     @property
     def _query(self) -> str:
-        """What the platform is asked for: monitor alerts, narrowed by the scope.
-
-        Each filter is spent as a term only where it resolved, and terms in a
-        Datadog query are conjunctive — so naming services within an owner asks
-        for those services *of* that owner, which is what a narrowing scope
-        means. At least one always resolved, so this never asks for everything.
-        The environment is always spent, and only ever narrows them further.
-        """
+        """Datadog terms are conjunctive, so every resolved scope narrows the fetch."""
         terms = [MONITOR_ALERT_QUERY]
         if self._owner is not None:
             terms.append(f"{OWNER_TAG_PREFIX}{self._owner}")
@@ -184,7 +123,6 @@ class DatadogAlertSource:
 
     @property
     def _scope(self) -> str:
-        """What this fetch was for, as a failure has to be able to name it."""
         named = [
             f"owner {self._owner!r}" if self._owner is not None else "",
             f"services {', '.join(repr(one) for one in self._services)}"
@@ -196,11 +134,6 @@ class DatadogAlertSource:
         )
 
     def _to_alert(self, event: EventResponse) -> Alert | None:
-        """Translate one event, or ``None`` when it carries no service tag.
-
-        An alert with no service cannot be grouped or reported against
-        anything, so it is dropped rather than given a placeholder.
-        """
         attributes = event.attributes
         service = _service_of(getattr(attributes, "tags", []))
         if service is None:
@@ -215,17 +148,7 @@ class DatadogAlertSource:
         )
 
     def _link_to(self, attributes: object, service: str, fired_at: datetime) -> str:
-        """Where a reader opens what fired, over the period it fired in.
-
-        The monitor that raised the alert where the event names one, and the
-        service's own events where it does not. Never the event itself: the v2
-        identifier this API returns has no page of its own, and a link built
-        from one reads as working until a human follows it.
-
-        Only the service's events are confined to the environment: that view is
-        one this system scopes, while the monitor page is the monitor's own and
-        a group filter on it is not a documented address form.
-        """
+        """Use monitor pages when available; v2 event ids have no page of their own."""
         window = _window_around(fired_at)
         monitor = getattr(getattr(attributes, "attributes", None), "monitor_id", None)
         if monitor is not None:
@@ -245,20 +168,7 @@ class DatadogAlertSource:
 def build_configuration(
     connection: DatadogConnection, ingestion: Ingestion
 ) -> Configuration:
-    """Configure the SDK client from where Datadog is and how hard to try.
-
-    Ingestion's two bounds are mapped onto the client's own timeout and retry
-    policy rather than hand-rolled around it: the SDK already backs off and
-    already knows which statuses are worth retrying. The investigation circuit
-    breakers are deliberately not an input here.
-
-    Args:
-        connection: Where Datadog is and how to authenticate.
-        ingestion: The bounds a fetch runs under.
-
-    Returns:
-        A configuration ready to build an API client from.
-    """
+    """Use the SDK's timeout and retry policy rather than hand-rolling one."""
     configuration = Configuration(
         api_key={
             "apiKeyAuth": connection.api_key,
@@ -280,23 +190,6 @@ def build_alert_source(
     *,
     env: str,
 ) -> DatadogAlertSource:
-    """Assemble the adapter and the client it queries through.
-
-    The composition root calls this; the adapter itself stays free of
-    credentials so its tests need neither network nor monkeypatching.
-
-    Args:
-        connection: Where Datadog is and how to authenticate.
-        ingestion: The bounds a fetch runs under.
-        owner: Owner whose alerts are in scope, or ``None`` where the services
-            alone bound the fetch.
-        services: Services whose alerts are in scope. Empty where the owner
-            alone bounds the fetch.
-        env: The one environment whose alerts are in scope.
-
-    Returns:
-        An ``AlertSource`` backed by Datadog.
-    """
     client = ApiClient(build_configuration(connection, ingestion))
     return DatadogAlertSource(
         events=EventsApi(client),
@@ -308,24 +201,18 @@ def build_alert_source(
 
 
 def _any_of(names: Sequence[str]) -> str:
-    """One term matching any of these names, in the grammar Datadog reads.
-
-    A single name is spent bare: a group of one narrows nothing and reads as
-    noise to whoever opens the same query in the platform's own UI.
-    """
+    """A single-name group narrows nothing and only adds UI noise."""
     if len(names) == 1:
         return names[0]
     return f"({' OR '.join(names)})"
 
 
 def _next_cursor(page: EventsListResponse) -> str | None:
-    """Read the cursor for the page after this one; absent means this was the last."""
     meta = getattr(page, "meta", None)
     return getattr(getattr(meta, "page", None), "after", None)
 
 
 def _service_of(tags: Sequence[str]) -> str | None:
-    """Read the service Datadog carries as a ``service:<name>`` tag."""
     for tag in tags:
         if tag.startswith(SERVICE_TAG_PREFIX):
             return tag.removeprefix(SERVICE_TAG_PREFIX)
@@ -333,7 +220,6 @@ def _service_of(tags: Sequence[str]) -> str | None:
 
 
 def _window_around(fired_at: datetime) -> dict[str, str]:
-    """The period a link shows, pinned so it outlives the moment it was built."""
     return {
         "from_ts": str(int((fired_at - LINK_MARGIN).timestamp() * 1000)),
         "to_ts": str(int((fired_at + LINK_MARGIN).timestamp() * 1000)),
@@ -342,7 +228,6 @@ def _window_around(fired_at: datetime) -> dict[str, str]:
 
 
 def _as_utc(timestamp: datetime) -> datetime:
-    """Express a fire time in UTC so alerts from any source compare alike."""
     if timestamp.tzinfo is None:
         return timestamp.replace(tzinfo=UTC)
     return timestamp.astimezone(UTC)

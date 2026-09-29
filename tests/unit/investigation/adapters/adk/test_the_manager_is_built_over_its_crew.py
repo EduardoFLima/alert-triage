@@ -1,10 +1,3 @@
-"""The manager reaches its specialists, and nothing else.
-
-An agent whose tools are agents is the shape this slice turns on, and the two
-things worth asserting about it are that every specialist is reachable and that
-the manager itself holds no platform toolset — it asks, it does not search.
-"""
-
 from typing import Any
 
 from google.adk.tools.agent_tool import AgentTool
@@ -89,7 +82,6 @@ def test_each_tool_is_named_for_the_specialist_it_reaches() -> None:
 
 
 def test_the_manager_holds_no_toolset_of_its_own() -> None:
-    """It asks specialists; searching the platform is what they are for."""
     assert not any(isinstance(tool, McpToolset) for tool in _manager().tools)
 
 
@@ -101,12 +93,10 @@ def test_the_manager_carries_the_consultation_callbacks() -> None:
 
 
 def test_the_manager_carries_the_reasoning_log() -> None:
-    """Why it asked what it asked lives in its own words, and nowhere else."""
     assert _manager().after_model_callback is not None
 
 
 def test_a_specialist_carries_no_reasoning_log() -> None:
-    """A specialist reports through a schema; the manager is the one reasoning."""
     agent = build_agent(CREW[0], _deployment(), Retrieved())
 
     assert agent.after_model_callback is None
@@ -121,12 +111,7 @@ def test_the_manager_is_the_diagnostician_declaration() -> None:
 
 
 def test_the_manager_is_told_the_budget_that_is_enforced_on_it() -> None:
-    """One value feeds both, so what it plans against is what it is held to.
-
-    Told eight while six are enforced, a manager spends its last two questions
-    on a plan it cannot finish — and neither half of the disagreement is visible
-    from the other.
-    """
+    """One value feeds both, so what it plans against is what it is held to."""
     manager = _manager(hops=5)
 
     assert manager.instruction == diagnostician(5).instruction
@@ -134,7 +119,6 @@ def test_the_manager_is_told_the_budget_that_is_enforced_on_it() -> None:
 
 
 def test_a_reasoner_is_built_with_no_tools_at_all() -> None:
-    """The report agent is given everything it needs; it reaches nothing."""
     agent = build_reasoner(REPORT_WRITER, _deployment())
 
     assert agent.tools == []
@@ -142,7 +126,6 @@ def test_a_reasoner_is_built_with_no_tools_at_all() -> None:
 
 
 def test_a_reasoner_carries_the_reasoning_log() -> None:
-    """The report agent's turn is the report taking shape; nothing else keeps it."""
     assert build_reasoner(REPORT_WRITER, _deployment()).after_model_callback is not None
 
 

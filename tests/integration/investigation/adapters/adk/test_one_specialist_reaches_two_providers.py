@@ -1,16 +1,4 @@
-"""One declaration, two providers, one investigation.
-
-The capability the slice exists for, proved where a fake cannot fake it: two
-real MCP servers on two sockets, each with its own address and its own
-credentials, and a single specialist whose toolsets name one each. What this
-establishes past the unit tests is that the two connections really are separate
-sessions — the agent does not open one and reuse it, and the header sent to one
-provider is not the header the other authenticated with.
-
-There is deliberately no assertion here about a specialist being *better* for
-reaching two providers. It reaches them; whether asking two providers produces
-a better investigation is the evaluation harness's question.
-"""
+"""Prove two toolsets open separate MCP sessions with their own credentials."""
 
 import asyncio
 import threading
@@ -57,7 +45,6 @@ seen_headers: dict[str, dict[str, str]] = {}
 
 
 def _observability_server() -> FastMCP:
-    """The provider a logs specialist has always had."""
     mcp = FastMCP("fake-observability")
 
     @mcp.tool(name=SEARCH_LOGS)
@@ -69,7 +56,6 @@ def _observability_server() -> FastMCP:
 
 
 def _deploy_history_server() -> FastMCP:
-    """The second provider: what shipped, which no observability tool can say."""
     mcp = FastMCP("fake-deploy-history")
 
     @mcp.tool(name=LIST_DEPLOYS)
@@ -81,7 +67,6 @@ def _deploy_history_server() -> FastMCP:
 
 
 def _serve(app: Any, port: int) -> Iterator[str]:
-    """Run one MCP server on a real socket for the duration of a test."""
     server = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
     )
@@ -114,7 +99,6 @@ class _ScriptedModel(BaseLlm):
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
-        """Answer with the next turn the test wrote."""
         yield LlmResponse(content=self.turns.pop(0))
 
 
@@ -126,7 +110,6 @@ def _calls(name: str, **args: Any) -> types.Content:
 
 
 def _reports(cites: list[str]) -> types.Content:
-    """One finding citing evidence retrieved from both providers."""
     cited = ", ".join(f'"{one}"' for one in cites)
     return types.Content(
         role="model",
@@ -142,7 +125,6 @@ def _reports(cites: list[str]) -> types.Content:
 
 
 def _specialist() -> Specialist:
-    """One declaration whose evidence comes from two providers."""
     return Specialist(
         name="apm_specialist",
         signal=Signal.APM,
@@ -156,7 +138,6 @@ def _specialist() -> Specialist:
 
 
 def _deployment(observability: str, deploy_history: str, model: BaseLlm) -> Deployment:
-    """Two providers, each at its own address and behind its own credential."""
     return Deployment(
         platforms={
             OBSERVABILITY: PlatformAccess(
@@ -177,12 +158,7 @@ def _target() -> InvestigationTarget:
 
 
 def _investigation(observability: str, deploy_history: str) -> Any:
-    """Drive the specialist through one call to each provider, then a report.
-
-    Built and run the way a consultation would, rather than through a manager:
-    the subject is one declaration's reach into two servers, and a manager
-    deciding to ask is not what is in question.
-    """
+    """Run one declaration directly; manager routing is out of scope."""
     model = _ScriptedModel(
         model="scripted",
         turns=[

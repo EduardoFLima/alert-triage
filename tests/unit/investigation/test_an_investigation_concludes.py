@@ -1,10 +1,3 @@
-"""What an investigation is entitled to say, and what it may say it on.
-
-The conclusion is the thing this context newly produces, and the thing most
-worth constraining: a hypothesis is the most quotable output the system has and
-the least checkable. So it is kept only where findings survived to bear it.
-"""
-
 import pytest
 
 from alert_triage.investigation.contract import (
@@ -37,7 +30,6 @@ def _findings(
 
 
 def test_findings_record_the_signals_that_were_consulted() -> None:
-    """Empty is not "every signal": it is the honest starting point."""
     findings = _findings(_finding(), consulted=(Signal.LOGS, Signal.APM))
     empty = Findings()
     every = tuple(Signal)
@@ -68,7 +60,6 @@ def test_a_diagnosis_carries_the_conclusion_and_what_it_was_drawn_from() -> None
 
 
 def test_a_headline_spanning_more_than_one_line_is_refused() -> None:
-    """A channel presents it as a subject, which is one line or it is broken."""
     with pytest.raises(ValueError, match="single line"):
         Diagnosis(
             headline="checkout is out of memory\nand has been for an hour",
@@ -80,7 +71,6 @@ def test_a_headline_spanning_more_than_one_line_is_refused() -> None:
 
 
 def test_a_diagnosis_with_no_surviving_finding_carries_no_hypothesis() -> None:
-    """A conclusion with nothing beneath it is the verdict this system withholds."""
     diagnosis = Diagnosis(
         headline="checkout alerted",
         account="Nothing survived the evidence check.",

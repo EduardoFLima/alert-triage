@@ -1,10 +1,3 @@
-"""The listing says which guides exist, what each covers, and what it bundles.
-
-The shape is the one the real server returns with ``include_header``: a line
-per guide, its related guides in a trailing parenthesis, and its bundled
-references on an indented line beneath.
-"""
-
 from alert_triage.investigation.adapters.datadog.guides import (
     ListedGuide,
     listed_guides,

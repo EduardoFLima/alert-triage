@@ -1,15 +1,3 @@
-"""No specialist browses the platform's guides; it is offered the ones it needs.
-
-Browsing let a specialist read about tools its declaration does not permit, and
-then try to call them, and every list or load spent its tool budget and was
-kept as evidence. The guides documenting its own tools now reach it through the
-framework instead, read once when the run starts, so neither of the platform's
-own guide tools belongs in a declaration or an instruction.
-
-Every declaration counts, Preview included: a declaration an account with
-Preview access gets must not browse either.
-"""
-
 import pytest
 
 from alert_triage.investigation.adapters.crew.specialists.apm import apm_specialist
@@ -61,7 +49,6 @@ def test_no_specialist_may_reach_the_platforms_guide_tools(
 def test_no_instruction_tells_a_specialist_to_browse_the_guides(
     specialist: Specialist,
 ) -> None:
-    """Its menu of guides is added by the framework, not written here."""
     for tool in GUIDE_TOOLS:
         assert tool not in specialist.instruction
 
@@ -70,5 +57,4 @@ def test_no_instruction_tells_a_specialist_to_browse_the_guides(
 def test_no_instruction_names_a_guide_the_platform_would_have_to_keep_stable(
     specialist: Specialist,
 ) -> None:
-    """Which guides a specialist is offered follows from its tools, not its prose."""
     assert "datadog/" not in specialist.instruction

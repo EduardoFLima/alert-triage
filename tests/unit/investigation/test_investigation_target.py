@@ -26,7 +26,6 @@ def test_a_target_is_described_by_its_service_and_window() -> None:
 
 
 def test_a_target_tells_a_specialist_how_much_fired() -> None:
-    """Volume is context a specialist weighs; which alerts they were is not."""
     assert "2" in _target(alert_count=2).describe()
 
 
@@ -43,7 +42,6 @@ def test_a_critical_services_target_says_so_where_the_agents_read_it() -> None:
 
 
 def test_a_target_that_is_not_critical_is_stated_plainly() -> None:
-    """Silence is not the answer: a reader must be told which of the two it is."""
     target = _target()
     described = target.describe()
 
@@ -53,7 +51,6 @@ def test_a_target_that_is_not_critical_is_stated_plainly() -> None:
 
 
 def test_a_single_alert_still_gives_the_platform_a_period_it_can_query() -> None:
-    """An incident of one alert spans an instant, and no query accepts one."""
     target = InvestigationTarget(
         service="checkout", window=Window(start=NOON, end=NOON), alert_count=1
     )
@@ -72,7 +69,6 @@ def test_a_window_too_narrow_to_query_is_widened_to_the_minimum() -> None:
 
 
 def test_a_window_is_widened_evenly_so_the_alerts_stay_centred() -> None:
-    """The lead-up and the aftermath are both worth seeing."""
     target = InvestigationTarget(
         service="checkout", window=Window(start=NOON, end=NOON), alert_count=1
     )

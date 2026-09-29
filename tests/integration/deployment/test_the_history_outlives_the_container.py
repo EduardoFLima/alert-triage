@@ -1,15 +1,3 @@
-"""The one thing containerizing breaks that a build alone never reveals.
-
-A container's filesystem does not survive it. The ledger's default location is
-relative to the working directory, so a packaged run left on that default keeps
-its incident history *inside* the container — and every run then opens every
-incident afresh, silently disabling dedup, continuation and the re-notify
-cooldown while still exiting successfully.
-
-These assert the ledger lands somewhere that outlives the run, and that a
-second run finds what the first one left rather than writing over it.
-"""
-
 import subprocess
 from collections.abc import Callable
 
@@ -21,7 +9,6 @@ LEDGER_DIRECTORY = "/var/lib/alert-triage"
 
 
 def _contents_of(run_image: PackagedRun, volume: str) -> str:
-    """Read the mount back with a throwaway container, after the run is gone."""
     return run_image(
         mounts={volume: LEDGER_DIRECTORY},
         entrypoint="/bin/sh",
@@ -52,9 +39,6 @@ with sqlite3.connect(os.environ["ALERT_TRIAGE_LEDGER_PATH"]) as database:
         now,
     )
 """
-"""Seeded through the project's own adapter, so this asserts continuity rather
-than reimplementing a schema it would then be free to get wrong."""
-
 READ_IT_BACK = """
 import os, sqlite3
 from datetime import UTC, datetime, timedelta
@@ -77,16 +61,6 @@ def test_the_ledger_takes_the_name_a_run_from_a_checkout_would_give_it(
     configured_environment: dict[str, str],
     ledger_volume: str,
 ) -> None:
-    """Only the directory differs from the default, never the filename.
-
-    ``docs/containerized.md`` tells an operator to mount a checkout's own
-    ``data/`` here to carry on from the history a local run built. That only
-    works while both resolve to one file: a container writing some other name
-    would sit beside the checkout's ledger reporting everything afresh, with
-    two plausible databases in one directory and nothing saying which is live.
-
-    Taken from the source rather than written out, so the two cannot drift.
-    """
     run_image(
         environment=configured_environment,
         mounts={ledger_volume: LEDGER_DIRECTORY},
@@ -101,11 +75,6 @@ def test_the_ledger_takes_the_name_a_run_from_a_checkout_would_give_it(
 def test_a_second_container_keeps_what_the_first_one_left(
     run_image: PackagedRun, ledger_volume: str
 ) -> None:
-    """An incident recorded by one container, read back by the next.
-
-    Without this, every run opens every incident afresh and the re-notify
-    cooldown never suppresses anything.
-    """
     recorded = run_image(
         mounts={ledger_volume: LEDGER_DIRECTORY},
         entrypoint="python",

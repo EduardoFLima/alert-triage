@@ -1,10 +1,3 @@
-"""A guide the platform published becomes a skill the framework can serve.
-
-The framework is strict where the platform is not: a skill's name must be
-kebab-case, its description at most 1024 characters and never empty, and a
-reference is looked up by its path beneath ``references/``.
-"""
-
 from alert_triage.investigation.adapters.adk.skills import skill_from
 from alert_triage.investigation.adapters.datadog.guides import DatadogGuide
 
@@ -28,7 +21,6 @@ def test_a_skill_says_what_the_listing_said_and_holds_the_guide() -> None:
 
 
 def test_a_reference_is_found_by_the_path_the_listing_gave_it() -> None:
-    """The framework strips ``references/`` from the path the model asks for."""
     skill = skill_from(KUBERNETES)
 
     assert skill.resources.get_reference("query-syntax.md") == (

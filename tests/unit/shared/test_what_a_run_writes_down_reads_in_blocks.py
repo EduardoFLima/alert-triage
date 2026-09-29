@@ -1,10 +1,3 @@
-"""A run's account, shaped so a human finds the thing they came looking for.
-
-Every rule here exists for a reader scrolling a terminal: a phase announces
-itself unmistakably, what belongs to it is aligned beneath it, and nothing a
-model said is silently cut short.
-"""
-
 from alert_triage.shared import journal
 
 
@@ -17,7 +10,6 @@ def test_a_phase_announces_itself_in_a_box() -> None:
 
 
 def test_a_box_closes_on_the_line_it_opened() -> None:
-    """A ragged right edge reads as a broken box rather than a heading."""
     written = journal.banner("REPORTING", "checkout")
     lines = [line for line in written.splitlines() if line]
 
@@ -50,7 +42,6 @@ def test_a_detail_names_itself_in_words_rather_than_in_code() -> None:
 
 
 def test_a_detail_nobody_could_state_is_left_out() -> None:
-    """An optional the run does not have is absent, not an empty row."""
     written = journal.banner("INCIDENT", "checkout", hypothesis=None, alerts=4)
 
     assert "hypothesis" not in written
@@ -80,7 +71,6 @@ def test_a_long_value_wraps_under_itself_rather_than_running_on() -> None:
 
 
 def test_a_long_observation_is_given_its_own_lines_and_kept_whole() -> None:
-    """What a specialist observed is the thing a human came to read."""
     observed = "The pods are OOM-killed. " * 20
     written = journal.event("logs_specialist reported", observation=observed)
 
@@ -97,11 +87,6 @@ def test_what_was_said_in_paragraphs_is_read_in_paragraphs() -> None:
 
 
 def test_a_block_opens_on_a_line_of_its_own() -> None:
-    """It sits under the timestamp and level, never beside them.
-
-    The blank line *below* a block is not its business: every record is followed
-    by one, which is the only way a stack trace gets the same courtesy.
-    """
     written = journal.banner("REPORTING", "checkout")
 
     assert written.startswith("\n")
@@ -109,7 +94,6 @@ def test_a_block_opens_on_a_line_of_its_own() -> None:
 
 
 def test_a_block_ends_once_rather_than_trailing_off() -> None:
-    """One blank line separates blocks; two read as something having gone wrong."""
     assert not journal.event("diagnostician reasoning", "One thought.").endswith("\n\n")
 
 

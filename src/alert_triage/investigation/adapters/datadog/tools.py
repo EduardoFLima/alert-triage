@@ -1,16 +1,4 @@
-"""Datadog's tools, each stated once: its name, its toolset, and what it does.
-
-A tool's facts belong to the platform rather than to whichever specialist
-reaches it. Two specialists sharing a tool used to declare it twice and
-describe it twice in nearly the same words, and nothing but a test kept either
-copy honest. Here a specialist picks tools; the toolsets it asks the server for
-and the list its instruction describes are both derived from what it picked,
-so the two cannot disagree.
-
-A description says what the tool does and is true for every caller. How a
-particular specialist should use it — what to ask it for, what to narrow it by
-— stays in that specialist's instruction, beside the list rendered from here.
-"""
+"""A tool's platform facts live once, while specialist usage stays with the crew."""
 
 import textwrap
 from dataclasses import dataclass
@@ -21,22 +9,11 @@ from alert_triage.investigation.domain.specialist import Toolset
 
 @dataclass(frozen=True)
 class DatadogTool:
-    """One tool on Datadog's server.
-
-    Attributes:
-        name: What the server calls it, which is a string that either exists
-            there or does not. Only the credential-gated live run settles which.
-        toolset: The group the server serves it in.
-        description: What it does, as a clause following its name in an
-            instruction's list of tools.
-    """
-
     name: str
     toolset: str
     description: str
 
     def __post_init__(self) -> None:
-        """Reject a tool that could not be permitted, asked for, or told about."""
         for field in ("name", "toolset", "description"):
             if not getattr(self, field).strip():
                 raise ValueError(f"A Datadog tool needs a {field}")
@@ -45,11 +22,7 @@ class DatadogTool:
 CORE = "core"
 KUBERNETES = "kubernetes"
 APM = "apm"
-"""The groups the server serves its tools in, each asked for separately.
-
-``apm`` is in Preview, and reached only where the account has it; which
-specialists reach for it is decided in ``preview``, not here.
-"""
+"""Preview access is decided in ``preview`` before a specialist asks for ``apm``."""
 
 LIST_SKILLS = DatadogTool(
     name="list_datadog_skills",
@@ -61,13 +34,7 @@ LOAD_SKILL = DatadogTool(
     toolset=CORE,
     description="loads one guide, by the name the listing gave it.",
 )
-"""How the platform publishes the guides to how its own tools are queried.
-
-No specialist reaches either. Both are called once, as a run starts, to read
-the guides each specialist is then offered through the framework — so they are
-stated here, beside the rest of the platform's tools, but kept out of the
-crew's catalogue below.
-"""
+"""Guide tools run at startup and are kept out of the crew's catalogue."""
 
 SEARCH_LOGS = DatadogTool(
     name="search_datadog_logs",
@@ -101,13 +68,7 @@ SEARCH_METRICS = DatadogTool(
         "`service:the-service` is how you narrow it to one service's."
     ),
 )
-"""What keeps a guessed metric name from reading as a healthy service.
-
-A metric query naming something the platform has never heard of comes back
-empty, and an empty answer is deliberately not a failure — so without a way to
-ask which metrics a service reports, "this service is fine" and "that name was
-made up" read the same.
-"""
+"""A metric query for a made-up name and a quiet real metric both return empty."""
 GET_METRIC_CONTEXT = DatadogTool(
     name="get_datadog_metric_context",
     toolset=CORE,
@@ -116,12 +77,7 @@ GET_METRIC_CONTEXT = DatadogTool(
         "type and what tags it carries."
     ),
 )
-"""The second half of a metric search, and not a listing of its own.
-
-It takes one metric name and enumerates nothing. Described as though it
-listed a service's metrics, it is asked for exactly that — which it has no
-argument for, so the retrieval is refused.
-"""
+"""It takes one metric name; describing it as a listing makes calls fail."""
 SEARCH_HOSTS = DatadogTool(
     name="search_datadog_hosts",
     toolset=CORE,
@@ -135,11 +91,6 @@ SEARCH_ENTITIES = DatadogTool(
     toolset=CORE,
     description="searches the platform's catalogue of services.",
 )
-"""The catalogue search, answering about a service's identity, ownership and neighbours.
-
-It replaced a dependency lookup that took a service and named what it talked
-to. A search has to be asked a question, so whoever reaches it says what to ask.
-"""
 SEARCH_EVENTS = DatadogTool(
     name="search_datadog_events",
     toolset=CORE,
@@ -191,11 +142,7 @@ ANALYSE_K8S_ROLLOUT = DatadogTool(
         "when it started, and how it went."
     ),
 )
-"""Spelled ``analyse`` where its neighbours are spelled ``analyze``.
-
-It is a string that either exists on the server or does not, and the live run
-is what settles which; do not correct it by eye.
-"""
+"""The server spells this one ``analyse``; do not normalize it by eye."""
 
 LATENCY_BOTTLENECK_SUMMARY = DatadogTool(
     name="apm_latency_bottleneck_summary",
@@ -269,22 +216,11 @@ EVERY_TOOL = (
     DISCOVER_SPAN_TAGS,
     QUERY_TRACE,
 )
-"""The whole catalogue: only tools some specialist permits, and each once."""
 
 WIDTH = 79
-"""How wide a rendered line runs, matching the instructions written by hand."""
 
 
 def toolsets(*tools: DatadogTool) -> tuple[Toolset, ...]:
-    """The toolsets a specialist asks the server for, derived from the tools it picked.
-
-    Args:
-        tools: What the specialist may call, in the order it names them.
-
-    Returns:
-        One toolset per group the tools are served in, in the order each group
-        was first reached, each holding its tools in the order they were picked.
-    """
     grouped: dict[str, list[str]] = {}
     for tool in tools:
         grouped.setdefault(tool.toolset, []).append(tool.name)
@@ -295,19 +231,7 @@ def toolsets(*tools: DatadogTool) -> tuple[Toolset, ...]:
 
 
 def described(*tools: DatadogTool) -> str:
-    """The list of tools an instruction tells a specialist it has.
-
-    Hyphens are not break points: a quoted tag such as `service:the-service`
-    split across lines is read by the model as two things, neither of them a
-    tag.
-
-    Args:
-        tools: The tools to describe, in the order the instruction lists them.
-
-    Returns:
-        One bullet per tool, its name quoted and followed by what it does,
-        wrapped under its bullet.
-    """
+    """Do not split hyphenated tags; the model reads the pieces as separate tags."""
     return "\n".join(
         textwrap.fill(
             f"- `{tool.name}` {tool.description}",

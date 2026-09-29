@@ -80,15 +80,12 @@ def test_the_body_is_carried_verbatim_however_a_richer_medium_would_escape_it() 
 
 @dataclass
 class FakePost:
-    """A POST that never leaves the process, recording what it was asked to send."""
-
     status: int = 202
     answer: bytes = b""
     failure: Exception | None = None
     calls: list[tuple[str, bytes]] = field(default_factory=list)
 
     def __call__(self, url: str, body: bytes) -> tuple[int, bytes]:
-        """Record the call, then answer or fail as configured."""
         self.calls.append((url, body))
         if self.failure is not None:
             raise self.failure
@@ -121,7 +118,6 @@ def test_any_success_status_is_taken_as_delivered(status: int) -> None:
 
 
 def test_a_rejected_post_is_a_delivery_failure_carrying_status_and_body() -> None:
-    """Workflows reports a malformed card as a 4xx with a body worth reading."""
     post = FakePost(status=400, answer=b"Invalid card payload")
 
     with pytest.raises(NotifierError) as raised:
@@ -148,8 +144,6 @@ def test_an_unreachable_destination_is_a_delivery_failure_not_a_quiet_return() -
 
 @dataclass
 class FakeUrlopen:
-    """Stands in for urllib's own opener, so the request itself can be inspected."""
-
     rejection: urllib.error.HTTPError | None = None
     requests: list[urllib.request.Request] = field(default_factory=list)
     timeouts: list[float | None] = field(default_factory=list)
@@ -157,7 +151,6 @@ class FakeUrlopen:
     def __call__(
         self, request: urllib.request.Request, timeout: float | None = None
     ) -> "FakeHttpResponse":
-        """Record the request and its bound, then answer or reject."""
         self.requests.append(request)
         self.timeouts.append(timeout)
         if self.rejection is not None:
@@ -166,19 +159,15 @@ class FakeUrlopen:
 
 
 class FakeHttpResponse:
-    """The little urllib answers back: a status and a body, and no socket."""
-
     status = 202
 
     def __enter__(self) -> "FakeHttpResponse":
-        """Hand back the response, as urllib's own context manager does."""
         return self
 
     def __exit__(self, *exception: object) -> None:
-        """Release the response."""
+        pass
 
     def read(self) -> bytes:
-        """Answer an accepted post's empty body."""
         return b""
 
 
@@ -211,7 +200,6 @@ def test_the_default_post_is_bounded_so_a_hung_destination_cannot_hold_a_run_ope
 def test_the_default_post_reads_a_rejection_rather_than_raising_it_onward(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The status and the explanation arrive together, and no stream is left open."""
     rejection = urllib.error.HTTPError(
         url=WEBHOOK_URL,
         code=400,

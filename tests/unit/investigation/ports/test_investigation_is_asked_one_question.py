@@ -17,8 +17,6 @@ NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
 
 class _Investigator:
-    """Everything the port asks of an implementation, and nothing more."""
-
     def investigate(self, target: InvestigationTarget) -> Diagnosis:
         return _nothing_found()
 
@@ -53,13 +51,11 @@ def test_something_without_the_investigation_is_not_an_investigator() -> None:
 
 
 def test_the_failure_is_defined_beside_the_port() -> None:
-    """'We could not look' and 'we looked and found nothing' are opposite news."""
     with pytest.raises(InvestigatorError):
         raise InvestigatorError("the platform was unreachable")
 
 
 def test_an_investigation_is_asked_about_a_target_and_not_about_an_incident() -> None:
-    """The port's vocabulary is a service, a window, and how much fired in it."""
     target = _target()
 
     assert (target.service, target.window.start, target.alert_count) == (

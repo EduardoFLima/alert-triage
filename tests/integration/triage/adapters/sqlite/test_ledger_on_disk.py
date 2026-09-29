@@ -38,7 +38,6 @@ def _incident() -> Incident:
 def test_an_incident_recorded_to_a_file_survives_the_process_that_wrote_it(
     tmp_path: Path,
 ) -> None:
-    """What makes dedup work across runs: a second process reads the first's record."""
     location = tmp_path / "ledger.db"
 
     writing = sqlite3.connect(location)

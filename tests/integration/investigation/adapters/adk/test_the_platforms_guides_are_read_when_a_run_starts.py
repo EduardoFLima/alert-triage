@@ -1,9 +1,4 @@
-"""The platform's guides are read once, when a run starts, over a real socket.
-
-A fake MCP server stands in for the platform and speaks the way the real one
-was read to: a listing with headers, a load per guide, a load per bundled
-reference, and every call carrying the telemetry the real server requires.
-"""
+"""Read platform guides over the same listing and loading path as a run."""
 
 import logging
 import threading
@@ -55,8 +50,6 @@ LOGS = Specialist(
 
 
 class _Platform:
-    """What the fake was asked, and how it is told to misbehave."""
-
     def __init__(self) -> None:
         self.loads: list[tuple[str, str | None]] = []
         self.refusals: dict[str, int] = {}
@@ -97,7 +90,6 @@ def platform() -> _Platform:
 
 @pytest.fixture
 def serve(free_port: int, platform: _Platform) -> Iterator[str]:
-    """The fake platform over a real socket, for the length of one test."""
     server = uvicorn.Server(
         uvicorn.Config(
             platform.server().streamable_http_app(),
@@ -148,7 +140,6 @@ def test_a_guide_offered_to_the_crew_is_read_with_its_description_and_references
 def test_reading_the_guides_leaves_nothing_on_disk(
     serve: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Guides are the platform's to publish; a run holds them and lets go."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("TMPDIR", str(tmp_path))
@@ -203,7 +194,7 @@ def test_an_unreachable_platform_offers_no_guides_and_says_so_once(
 def test_a_platform_slower_than_the_call_bound_offers_no_guides(
     serve: str, platform: _Platform
 ) -> None:
-    """Waiting on the platform is bounded; letting go of the session costs a little."""
+    """The bound leaves room for the client to close the MCP session."""
     platform.listing_delay_seconds = 6.0
     started = time.monotonic()
 

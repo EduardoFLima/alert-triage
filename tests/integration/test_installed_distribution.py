@@ -16,7 +16,6 @@ BARE_ENVIRONMENT = {"PATH": os.environ.get("PATH", "")}
 
 
 def test_package_is_installed_not_imported_from_the_working_directory() -> None:
-    """The ``src/`` layout only pays off if tests import the installed package."""
     assert metadata.version("alert-triage")
 
     package_root = Path(alert_triage.__file__).parent
@@ -25,7 +24,6 @@ def test_package_is_installed_not_imported_from_the_working_directory() -> None:
 
 
 def _console_script() -> str:
-    """Locate the installed command, preferring the active environment."""
     venv_bin = str(Path(sys.executable).parent)
     executable = shutil.which("alert-triage", path=venv_bin) or shutil.which(
         "alert-triage"
@@ -36,7 +34,6 @@ def _console_script() -> str:
 
 
 def _run(command: list[str], directory: Path) -> subprocess.CompletedProcess[str]:
-    """Run the job as a scheduler would: its own process, its own environment."""
     return subprocess.run(
         command,
         cwd=directory,
@@ -48,7 +45,6 @@ def _run(command: list[str], directory: Path) -> subprocess.CompletedProcess[str
 
 
 def test_the_console_script_is_installed_and_performs_a_run(tmp_path: Path) -> None:
-    """One command, from the installation, with no path into the source tree."""
     result = _run([_console_script()], tmp_path)
 
     assert result.returncode != 0

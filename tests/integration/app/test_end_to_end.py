@@ -33,25 +33,19 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 @dataclass
 class FakeAlertSource:
-    """The platform, as far as a run can tell: whatever this run should fetch."""
-
     alerts: Sequence[Alert] = ()
     asked_since: datetime | None = None
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
-        """Answer with the alerts that fired at or after the bound."""
         self.asked_since = since
         return [alert for alert in self.alerts if alert.fired_at >= since]
 
 
 @dataclass
 class InMemoryLedger:
-    """What the system remembers between runs, kept in a dictionary."""
-
     incidents: dict[str, Incident] = field(default_factory=dict)
 
     def open_incidents(self, service: str, now: datetime) -> Sequence[Incident]:
-        """Offer the incidents on record for the service that are still open."""
         return [
             incident
             for incident in self.incidents.values()
@@ -59,19 +53,15 @@ class InMemoryLedger:
         ]
 
     def record(self, incident: Incident, now: datetime) -> None:
-        """Keep this incident's state, replacing what was held before."""
         self.incidents[incident.id] = incident
 
 
 @dataclass
 class FakeNotifier:
-    """A channel that takes reports, or refuses every one of them."""
-
     accepting: bool = True
     delivered: list[TriageReport] = field(default_factory=list)
 
     def deliver(self, report: TriageReport) -> None:
-        """Take the report, unless this channel is refusing everything."""
         if not self.accepting:
             raise NotifierError("the relay refused the report")
         self.delivered.append(report)
@@ -79,13 +69,11 @@ class FakeNotifier:
 
 @pytest.fixture
 def config(tmp_path: Path) -> ResolvedConfig:
-    """The documented defaults, resolved the way a deployment resolves them."""
     return load_config(tmp_path / "config.yaml", {"SCOPE_OWNER": "sre"})
 
 
 @pytest.fixture
 def new_id() -> Callable[[], str]:
-    """Identifiers that stay unique across the runs of one test."""
     counter = iter(range(1, 100))
     return lambda: f"incident-{next(counter)}"
 
@@ -127,13 +115,10 @@ def _run(
 
 @dataclass
 class FakeInvestigator:
-    """The agent crew, standing in so no model or MCP server is involved."""
-
     outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
     def investigate(self, target: InvestigationTarget) -> Diagnosis:
-        """Answer with the next outcome, so a test spells out a run-by-run arc."""
         self.asked.append(target)
         outcome = self.outcomes.pop(0) if self.outcomes else _nothing_found()
         if isinstance(outcome, InvestigatorError):
@@ -164,7 +149,6 @@ def _findings(observation: str = "checkout is timing out") -> Findings:
 def test_two_runs_open_an_incident_and_then_stay_quiet_about_it(
     config: ResolvedConfig, new_id: Callable[[], str]
 ) -> None:
-    """The whole pipeline, twice: alerts in, one report out, then silence."""
     ledger = InMemoryLedger()
     notifier = FakeNotifier()
     source = FakeAlertSource([_alert("a"), _alert("b", timedelta(minutes=5))])
@@ -204,7 +188,6 @@ def test_an_alert_in_two_overlapping_lookbacks_opens_one_incident(
 
 @contextmanager
 def _on_disk_ledger(path: Path, config: ResolvedConfig) -> Iterator[TriageLedger]:
-    """A ledger over its own connection, closed the way the run's caller closes it."""
     with closing(sqlite3.connect(path)) as connection:
         yield SqliteTriageLedger(
             connection,
@@ -217,7 +200,6 @@ def _on_disk_ledger(path: Path, config: ResolvedConfig) -> Iterator[TriageLedger
 def test_a_report_that_could_not_be_delivered_goes_out_on_the_next_run(
     tmp_path: Path, config: ResolvedConfig, new_id: Callable[[], str]
 ) -> None:
-    """Across two connections to a real database, nothing is owed twice or lost."""
     database = tmp_path / "alert_triage.db"
     source = FakeAlertSource([_alert("a")])
     refusing = FakeNotifier(accepting=False)
@@ -242,7 +224,6 @@ def test_a_report_that_could_not_be_delivered_goes_out_on_the_next_run(
 
 
 def _nothing_found() -> Diagnosis:
-    """What a completed investigation that found nothing hands back."""
     return _diagnosed(
         Findings(consulted=(Signal.LOGS,)), headline="checkout: nothing notable"
     )
@@ -251,7 +232,6 @@ def _nothing_found() -> Diagnosis:
 def _diagnosed(
     findings: Findings, headline: str = "checkout is timing out"
 ) -> Diagnosis:
-    """A diagnosis over findings, worded the way a real investigation words one."""
     return Diagnosis(
         headline=headline,
         account=compose("The service is timing out under load.", findings),

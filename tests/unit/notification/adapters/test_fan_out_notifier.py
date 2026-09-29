@@ -13,14 +13,11 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 @dataclass
 class RecordingChannel:
-    """A channel that remembers every attempt, and fails when told to."""
-
     name: str = "channel"
     failure: Exception | None = None
     attempts: list[TriageReport] = field(default_factory=list)
 
     def deliver(self, report: TriageReport) -> None:
-        """Record the attempt, then fail if this channel was told to."""
         self.attempts.append(report)
         if self.failure is not None:
             raise self.failure
@@ -40,7 +37,6 @@ def _report() -> TriageReport:
 
 
 def test_the_fan_out_is_itself_a_notifier() -> None:
-    """A caller injects one notifier and never learns how many sit behind it."""
     notifier: Notifier = FanOutNotifier([RecordingChannel()])
 
     assert isinstance(notifier, Notifier)
@@ -80,7 +76,6 @@ def test_a_partial_failure_is_surfaced_rather_than_discarded(
 
 
 def test_the_failure_accounts_for_every_channel_not_only_the_last() -> None:
-    """An operator debugging "no reports arrive" needs both reasons at once."""
     channels = [_failing("email", "relay is down"), _failing("teams", "flow rejected")]
 
     with pytest.raises(NotifierError) as raised:
@@ -92,7 +87,6 @@ def test_the_failure_accounts_for_every_channel_not_only_the_last() -> None:
 
 
 def test_a_failing_channel_is_not_retried_in_place() -> None:
-    """Retry is the next run's job: the ledger is the durable retry mechanism."""
     failing = _failing("email", "relay is down")
 
     with pytest.raises(NotifierError):
@@ -104,7 +98,6 @@ def test_a_failing_channel_is_not_retried_in_place() -> None:
 def test_a_channel_failing_in_a_way_the_port_did_not_promise_is_still_survived() -> (
     None
 ):
-    """A channel that raises anything at all must not take the others down with it."""
     reckless = RecordingChannel(name="reckless", failure=RuntimeError("boom"))
     working = RecordingChannel(name="teams")
 
@@ -114,6 +107,5 @@ def test_a_channel_failing_in_a_way_the_port_did_not_promise_is_still_survived()
 
 
 def test_a_fan_out_over_no_channel_at_all_is_refused_when_it_is_built() -> None:
-    """A notifier that can tell nobody anything is a mistake, found at startup."""
     with pytest.raises(ValueError, match="at least one"):
         FanOutNotifier([])

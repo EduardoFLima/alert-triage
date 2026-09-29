@@ -1,10 +1,3 @@
-"""One run, from the alerts it fetched to the incidents it recorded.
-
-The happy path and the arithmetic around it: which window is asked for,
-which instant reaches the records, and what a second run over the same
-inputs decides.
-"""
-
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -43,8 +36,6 @@ CLEAN = "looked, nothing notable"
 
 @dataclass(frozen=True)
 class SuppliedConfig:
-    """Configuration as a value: the port, with no source behind it."""
-
     scope: Scope = field(default_factory=lambda: Scope(owner="sre"))
     grouping: Grouping = field(default_factory=Grouping)
     ingestion: Ingestion = field(default_factory=Ingestion)
@@ -56,14 +47,11 @@ class SuppliedConfig:
 
 @dataclass
 class FakeAlertSource:
-    """The alerts a run is handed, and the bound it asked for them from."""
-
     alerts: Sequence[Alert] = ()
     failure: str | None = None
     asked_since: datetime | None = None
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
-        """Answer with the alerts, remembering what bound was asked for."""
         self.asked_since = since
         if self.failure is not None:
             raise AlertSourceError(self.failure)
@@ -72,8 +60,6 @@ class FakeAlertSource:
 
 @dataclass
 class FakeLedger:
-    """The incidents on record, and the services it refuses to read or write."""
-
     on_record: Sequence[Incident] = ()
     unreadable: frozenset[str] = frozenset()
     unwritable: frozenset[str] = frozenset()
@@ -81,13 +67,11 @@ class FakeLedger:
     recorded: list[tuple[Incident, datetime]] = field(default_factory=list)
 
     def open_incidents(self, service: str, now: datetime) -> Sequence[Incident]:
-        """Offer what is on record for the service, unless it is unreadable."""
         if service in self.unreadable:
             raise TriageLedgerError(f"the ledger is unreadable for {service}")
         return [incident for incident in self.on_record if incident.service == service]
 
     def record(self, incident: Incident, now: datetime) -> None:
-        """Keep the incident, unless its service is one this ledger cannot write."""
         if incident.service in self.unwritable:
             raise TriageLedgerError(f"the ledger is unwritable for {incident.service}")
         self.journal.append(f"recorded {incident.service}")
@@ -95,20 +79,16 @@ class FakeLedger:
 
     @property
     def incidents(self) -> list[Incident]:
-        """The incidents recorded, in the order the run recorded them."""
         return [incident for incident, _ in self.recorded]
 
 
 @dataclass
 class FakeNotifier:
-    """The reports that got out, and the services no channel would accept."""
-
     undeliverable: frozenset[str] = frozenset()
     journal: list[str] = field(default_factory=list)
     delivered: list[TriageReport] = field(default_factory=list)
 
     def deliver(self, report: TriageReport) -> None:
-        """Take the report, unless no channel would accept its service."""
         if report.service in self.undeliverable:
             raise NotifierError(f"no channel accepted the report for {report.service}")
         self.journal.append(f"delivered {report.service}")
@@ -117,17 +97,10 @@ class FakeNotifier:
 
 @dataclass
 class FakeInvestigator:
-    """What an investigation came back with, and how often it was asked.
-
-    ``outcomes`` is consumed one per call, so a test spells out a run-by-run
-    arc — fail, fail, succeed — as the list it reads like.
-    """
-
     outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
     def investigate(self, target: InvestigationTarget) -> Diagnosis:
-        """Answer with the next outcome, remembering what it was asked about."""
         self.asked.append(target)
         outcome = self.outcomes.pop(0) if self.outcomes else _diagnosed(Findings())
         if isinstance(outcome, InvestigatorError):
@@ -137,7 +110,6 @@ class FakeInvestigator:
 
 @pytest.fixture
 def config() -> SuppliedConfig:
-    """The documented defaults; a test varies one with ``dataclasses.replace``."""
     return SuppliedConfig()
 
 
@@ -167,7 +139,6 @@ def _on_record(
 
 
 def _ids() -> Callable[[], str]:
-    """Deterministic identifiers, so a test can name the incident it expects."""
     counter = iter(range(1, 100))
     return lambda: f"incident-{next(counter)}"
 
@@ -175,7 +146,6 @@ def _ids() -> Callable[[], str]:
 def _build_report(
     incident: Incident, diagnosis: Diagnosis | None, env: str
 ) -> TriageReport:
-    """A builder standing in for the one the composition root injects."""
     return TriageReport(
         incident_id=incident.id,
         service=incident.service,
@@ -282,7 +252,7 @@ def test_a_wider_lookback_reaches_correspondingly_further_back(
 def test_the_instant_a_run_is_given_reaches_the_fetch_and_the_records(
     config: SuppliedConfig,
 ) -> None:
-    """One instant, so a slow run cannot decide against two different "now"s."""
+    """One instant keeps a slow run from deciding against two different nows."""
     at = NOON + timedelta(hours=3)
     source = FakeAlertSource([_alert("a")])
     ledger = FakeLedger()
@@ -297,7 +267,7 @@ def test_the_instant_a_run_is_given_reaches_the_fetch_and_the_records(
 def test_a_delivered_report_is_recorded_as_reported_at_the_runs_instant(
     config: SuppliedConfig,
 ) -> None:
-    """The stamp follows the delivery, so a cooldown only ever runs from one."""
+    """The stamp follows delivery, so a cooldown only ever runs from one time."""
     journal: list[str] = []
     ledger = FakeLedger(journal=journal)
     notifier = FakeNotifier(journal=journal)
@@ -312,7 +282,6 @@ def test_a_delivered_report_is_recorded_as_reported_at_the_runs_instant(
 def test_a_failed_delivery_records_the_incident_without_a_new_stamp(
     config: SuppliedConfig,
 ) -> None:
-    """The alerts still belong to the incident; the report is owed again."""
     on_record = _on_record(_alert("a"), last_reported_at=None)
     fresh = _alert("b", timedelta(minutes=5))
     ledger = FakeLedger([on_record])
@@ -359,7 +328,6 @@ def test_two_runs_over_the_same_inputs_reach_the_same_decisions(
 
 
 def _diagnosed(findings: Findings) -> Diagnosis:
-    """What a completed investigation hands the run back."""
     return Diagnosis(
         headline="checkout: something happened",
         account="\n".join(one.observation for one in findings.findings) or CLEAN,

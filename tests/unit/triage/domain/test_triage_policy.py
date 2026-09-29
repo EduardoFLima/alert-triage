@@ -31,7 +31,6 @@ def _group(*alerts: Alert) -> AlertGroup:
 
 
 def _ids() -> Callable[[], str]:
-    """Deterministic identifiers, so a test can name the incident it expects."""
     counter = iter(range(1, 100))
     return lambda: f"incident-{next(counter)}"
 
@@ -46,7 +45,6 @@ def _on_record(*alerts: Alert, incident_id: str = "incident-0") -> Incident:
 
 
 def test_a_group_of_alerts_already_absorbed_continues_its_incident() -> None:
-    """The lookback window is wider than the run interval, so runs overlap."""
     seen = _alert("a")
     incident = _on_record(seen)
 
@@ -71,7 +69,6 @@ def test_a_firing_incident_absorbs_only_the_alerts_it_has_not_seen() -> None:
 
 
 def test_a_burst_straddling_two_runs_is_the_incident_it_would_have_been() -> None:
-    """Continuation is the grouping rule asked again a run later."""
     first_run = [_alert("a"), _alert("b", timedelta(minutes=10))]
     second_run = [_alert("c", timedelta(minutes=25))]
     incident = _on_record(*first_run)
@@ -164,7 +161,6 @@ def test_a_continuation_within_the_cooldown_is_suppressed() -> None:
 
 
 def test_an_incident_due_again_keeps_the_stamp_of_its_last_report() -> None:
-    """Nothing is lost by not stamping: a delivery that fails leaves this stamp."""
     seen = _alert("a")
     fresh = _alert("b", timedelta(minutes=5))
     incident = _on_record(seen)
@@ -218,7 +214,6 @@ def test_the_same_inputs_at_the_same_instant_decide_the_same_way() -> None:
 
 
 def test_an_incident_past_both_the_window_and_the_cooldown_has_closed() -> None:
-    """Closed once it can neither be continued nor suppress a report."""
     incident = _on_record(_alert("a"))
 
     assert is_closed(
@@ -227,7 +222,6 @@ def test_an_incident_past_both_the_window_and_the_cooldown_has_closed() -> None:
 
 
 def test_a_quiet_incident_still_inside_its_cooldown_stays_open() -> None:
-    """So that a re-fire within the cooldown is still suppressed."""
     incident = _on_record(_alert("a"))
 
     assert not is_closed(
@@ -298,7 +292,6 @@ def test_a_newly_opened_incident_is_investigated() -> None:
 
 
 def test_an_incident_inside_its_cooldown_is_not_investigated() -> None:
-    """A suppressed report costs no model spend."""
     incident = _on_record(_alert("a"))
 
     decision = _investigate(
@@ -321,7 +314,6 @@ def test_an_incident_whose_investigation_failed_is_investigated_again() -> None:
 
 
 def test_an_overdue_incident_with_attempts_spent_stays_uninvestigated() -> None:
-    """However many runs handle it: the cost of a broken platform stays bounded."""
     incident = replace(
         _on_record(_alert("a")),
         last_reported_at=None,
@@ -356,15 +348,6 @@ def test_an_attempt_bound_below_one_leaves_an_incident_uninvestigable() -> None:
 
 
 def test_an_incident_never_reported_stays_open_however_quiet_it_goes() -> None:
-    """It still owes a report, and a decision it owes is a decision it affects.
-
-    Before investigation could be silent, an incident was reported on the run
-    that opened it, so ``last_reported_at`` was always set by the time its
-    alerts aged past the window. A failed investigation delivers nothing, so
-    now it can go quiet still owing its report — and closing it there would
-    discard the attempts it had spent and open a fresh incident next run,
-    which is the unbounded spend the attempt bound exists to prevent.
-    """
     never_reported = Incident(
         id="incident-0",
         service="checkout",

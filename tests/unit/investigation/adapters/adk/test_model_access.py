@@ -60,11 +60,7 @@ def test_the_enterprise_platform_is_chosen_over_a_key_that_is_also_set() -> None
 
 
 def test_the_enterprise_variable_is_spelled_as_the_sdk_reads_it() -> None:
-    """The literal name the SDK reads, deliberately not the constant.
-
-    A rename here that ``google-genai`` did not make would silently reach the
-    developer platform for a deployment that authenticates perfectly well.
-    """
+    """A local rename would silently bypass a valid SDK enterprise deployment."""
     access = resolve_model_access(env={"GOOGLE_GENAI_USE_ENTERPRISE": "true"})
 
     assert isinstance(access, EnterprisePlatform)
@@ -99,7 +95,6 @@ def test_a_project_the_environment_does_not_name_is_left_for_discovery() -> None
 
 
 def test_a_blank_project_is_treated_as_unnamed() -> None:
-    """An exported-but-empty name would otherwise be sent as a real project."""
     access = resolve_model_access(
         env={ENTERPRISE_VARIABLE: "true", PROJECT_VARIABLE: ""}
     )
@@ -127,7 +122,6 @@ def test_a_deployment_configuring_neither_way_is_refused_with_both_options_named
 
 
 def test_an_empty_key_is_treated_as_absent() -> None:
-    """An exported-but-blank name would otherwise fail on the first investigation."""
     with pytest.raises(ConfigError, match=API_KEY_VARIABLE):
         resolve_model_access(env={API_KEY_VARIABLE: ""})
 

@@ -1,10 +1,3 @@
-"""Turning a declaration into an agent this framework can actually run.
-
-The declaration is the whole input: what the agent may reach, what it reasons
-on, and which callbacks stand between it and the platform all come from there
-and from the deployment it runs in.
-"""
-
 from typing import Any
 
 import pytest
@@ -25,8 +18,6 @@ from alert_triage.investigation.domain.specialist import Specialist, Toolset
 
 
 class _NamedTool:
-    """A stand-in for the ADK tool the callback is told about."""
-
     def __init__(self, name: str) -> None:
         self.name = name
 
@@ -59,7 +50,6 @@ def _deployment(
     default: str = "a-default-model",
     breakers: CircuitBreakers | None = None,
 ) -> Deployment:
-    """A deployment holding the one provider these declarations name."""
     return Deployment(
         platforms={
             "datadog": PlatformAccess(
@@ -73,7 +63,6 @@ def _deployment(
 
 
 def _over_two_providers(default: str = "a-default-model") -> Deployment:
-    """A deployment holding two providers, each at its own address and key."""
     return Deployment(
         platforms={
             "datadog": PlatformAccess(
@@ -90,7 +79,6 @@ def _over_two_providers(default: str = "a-default-model") -> Deployment:
 
 
 def _permitted(agent: Any) -> list[list[str]]:
-    """The tool names each of an agent's toolsets exposes."""
     return [
         list(names)
         for toolset in agent.tools
@@ -151,7 +139,6 @@ def test_a_specialist_declaring_several_toolsets_gets_one_each() -> None:
 
 
 def test_each_toolset_reaches_the_server_of_the_provider_it_named() -> None:
-    """The whole point of the slice: two toolsets, two servers, one deployment."""
     deployment = _over_two_providers()
 
     logs = connection_for(
@@ -195,11 +182,6 @@ def test_one_specialist_may_gather_from_two_providers_at_once() -> None:
 
 
 def test_a_toolset_naming_a_provider_the_deployment_does_not_hold_is_refused() -> None:
-    """Named rather than guessed.
-
-    Resolving it against whichever server happens to be configured is how a
-    specialist silently queries the wrong platform and reports the answer.
-    """
     with pytest.raises(KeyError, match="deploy_history"):
         connection_for(
             Toolset(provider="deploy_history", name="releases", tools=("list_tags",)),
@@ -245,7 +227,6 @@ def test_a_declaration_naming_its_own_model_beats_the_default() -> None:
 
 
 def test_the_same_declaration_is_unchanged_by_where_it_is_deployed() -> None:
-    """Deployment facts are supplied to a declaration, never written into it."""
     specialist = _specialist()
     here = _deployment(
         endpoint="https://mcp.datadoghq.com/v1/mcp", headers={"DD_API_KEY": "one"}
@@ -261,7 +242,6 @@ def test_the_same_declaration_is_unchanged_by_where_it_is_deployed() -> None:
 
 
 def test_the_connection_bounds_are_set_rather_than_left_to_the_framework() -> None:
-    """ADK's own defaults are 5s to connect and 300s to read; neither is our intent."""
     connection = connection_for(
         Toolset(provider="datadog", name="core", tools=("search_logs",)), _deployment()
     )
@@ -273,7 +253,6 @@ def test_the_connection_bounds_are_set_rather_than_left_to_the_framework() -> No
 
 
 def test_the_configured_call_timeout_is_the_one_a_platform_call_is_held_to() -> None:
-    """Both halves of one bound an operator states once: connecting and reading."""
     connection = connection_for(
         Toolset(provider="datadog", name="core", tools=("search_logs",)),
         _deployment(breakers=CircuitBreakers(mcp_call_timeout_seconds=90)),
@@ -284,7 +263,6 @@ def test_the_configured_call_timeout_is_the_one_a_platform_call_is_held_to() -> 
 
 
 def test_changing_the_call_timeout_leaves_the_other_breakers_alone() -> None:
-    """They bound different things and will be tuned against different evidence."""
     breakers = CircuitBreakers(mcp_call_timeout_seconds=90)
 
     assert breakers.max_tool_calls_per_agent == 12
@@ -293,7 +271,6 @@ def test_changing_the_call_timeout_leaves_the_other_breakers_alone() -> None:
 
 
 def _calls(agent: Any, tool: str = "search_logs") -> Any:
-    """One tool call, driven the way the framework drives one."""
     before: Any = agent.before_tool_callback
     return before(
         tool=_NamedTool(tool), args={"query": "status:error"}, tool_context=None
@@ -301,13 +278,6 @@ def _calls(agent: Any, tool: str = "search_logs") -> Any:
 
 
 def test_a_specialist_is_bounded_by_the_breakers_of_the_deployment_it_runs_in() -> None:
-    """The deployment already carries the bound; building an agent must honour it.
-
-    A caller that holds a deployment holds everything the bound needs. Falling
-    back to the documented default while holding a deployment that says
-    otherwise is how a run silently ignores what an operator configured, and it
-    is silent precisely because a default is a plausible number.
-    """
     deployment = _deployment(breakers=CircuitBreakers(max_tool_calls_per_agent=2))
 
     agent = build_agent(_specialist(), deployment, Retrieved())
@@ -327,12 +297,6 @@ def test_a_deployment_that_states_no_bound_still_gets_the_documented_default() -
 
 
 def test_bounds_passed_in_beat_the_deployments_own() -> None:
-    """One investigation's bounds are shared across its specialists and stateful.
-
-    The manager builds every specialist over a single ``Bounds`` so that the
-    hops they spend are counted once. That instance has to win, or each
-    specialist would get a fresh budget from the deployment.
-    """
     deployment = _deployment(breakers=CircuitBreakers(max_tool_calls_per_agent=9))
     shared = Bounds(CircuitBreakers(max_tool_calls_per_agent=1))
 
@@ -343,7 +307,6 @@ def test_bounds_passed_in_beat_the_deployments_own() -> None:
 
 
 def test_every_specialist_carries_the_evidence_callbacks() -> None:
-    """The gate is registered per agent, closing over this investigation's evidence."""
     retrieved = Retrieved()
 
     agent = build_agent(_specialist(), _deployment(), retrieved)
@@ -368,7 +331,6 @@ def test_the_registered_callback_records_into_this_investigations_evidence() -> 
 
 
 def test_the_callback_admits_only_the_tools_the_declaration_named() -> None:
-    """A framework's own tools go through the same callback and are not evidence."""
     retrieved = Retrieved()
     agent = build_agent(_specialist(), _deployment(), retrieved)
 

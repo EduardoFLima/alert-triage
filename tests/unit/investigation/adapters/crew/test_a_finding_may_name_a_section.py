@@ -1,10 +1,3 @@
-"""A specialist may say which part of the service a finding concerns, from a set.
-
-The bound is what makes this admissible at all: a section outside the set is
-rejected by the schema the model answers through, rather than carried into an
-address a reader would follow.
-"""
-
 import pytest
 from pydantic import ValidationError
 

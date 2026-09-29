@@ -1,10 +1,3 @@
-"""What survives the citation check, and what is dropped before anyone reads it.
-
-Stated against whatever kept the evidence rather than against the adapter that
-keeps it: the discipline is that a citation must resolve, and how a tool result
-came to be keyed is not its business.
-"""
-
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -22,8 +15,6 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
 
 class _Retained:
-    """What one investigation was shown, keyed the way it was offered to cite it."""
-
     def __init__(self, evidence: dict[str, EvidenceItem]) -> None:
         self._evidence = evidence
 
@@ -32,7 +23,6 @@ class _Retained:
 
 
 def _retained(result: dict[str, Any]) -> _Retained:
-    """One retrieval, citable whole as ``call-1`` and item by item beneath it."""
     items = result.get("logs", [])
     evidence = {
         "call-1": EvidenceItem(
@@ -71,7 +61,6 @@ def _cited(
 def test_a_discarded_finding_is_written_down_like_everything_else_a_run_says(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A dropped finding is why a report is thinner than an agent thought."""
     with caplog.at_level(logging.WARNING):
         findings_from(
             [_cited(["call-9/item-4"])], _retained(_logs("OOMKilled")), Signal.LOGS
@@ -159,7 +148,6 @@ def test_a_finding_citing_neither_grain_is_discarded() -> None:
 
 
 def test_a_payload_of_nothing_but_fabrications_is_empty_findings_not_an_error() -> None:
-    """The investigation did run; it just said nothing that survived checking."""
     retrieved = _retained(_logs("first"))
 
     findings = findings_from(

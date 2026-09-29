@@ -1,5 +1,3 @@
-"""An investigator is built with the platform's guides, read once as it is built."""
-
 from typing import Any
 
 import pytest

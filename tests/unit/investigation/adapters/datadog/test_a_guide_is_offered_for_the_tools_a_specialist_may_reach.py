@@ -1,12 +1,3 @@
-"""A specialist is offered the platform's guides that document its own tools.
-
-A guide documents a tool under a heading of its own, the way the platform's
-guides are written. Which guides concern a specialist follows from the tools
-its declaration already names,
-so there is no list of guide names to keep by hand: widening a declaration
-widens its guidance, and a guide the platform renames is still found.
-"""
-
 from pydantic import BaseModel
 
 from alert_triage.investigation.adapters.datadog.guides import (
@@ -45,7 +36,6 @@ def test_a_guide_naming_a_permitted_tool_is_offered() -> None:
 
 
 def test_a_guide_naming_only_other_tools_is_not_offered() -> None:
-    """Reading about a tool it cannot call is what sends a model to call it."""
     guide = _guide("datadog/logs", "### search_datadog_logs\n\nSearch the logs.")
 
     assert guides_for(METRICS, (guide,)) == ()
@@ -70,10 +60,7 @@ def test_a_specialist_with_two_toolsets_is_offered_guides_for_either() -> None:
 
 
 def test_a_guide_mentioning_a_permitted_tool_in_passing_is_not_offered() -> None:
-    """A playbook for another product names common tools without teaching them.
-
-    Offered on a mention, every specialist was handed dozens of such guides.
-    """
+    """A playbook for another product names common tools without teaching them."""
     guide = _guide(
         "datadog/dbm-mysql/investigate",
         "### Slow queries\n\nCorrelate with `get_datadog_metric` and the logs.",

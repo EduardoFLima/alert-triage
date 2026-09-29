@@ -1,10 +1,3 @@
-"""A Datadog guide's name, turned into one an ADK skill accepts.
-
-ADK requires a skill name in lowercase kebab-case; the platform names its
-guides as it likes. The model only ever sees the renamed one, so nothing maps
-it back.
-"""
-
 import pytest
 from google.adk.skills.models import Frontmatter
 

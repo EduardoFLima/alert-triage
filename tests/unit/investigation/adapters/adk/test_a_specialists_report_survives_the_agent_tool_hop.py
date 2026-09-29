@@ -1,11 +1,3 @@
-"""What a specialist reports reaches the findings, not the manager's retelling.
-
-The manager reaches each specialist as a tool, so a specialist's structured
-report arrives as a tool result. It is checked and collected there — before the
-manager reads it — because a finding that went through a model on its way to the
-report is a finding nobody checked.
-"""
-
 from typing import Any
 
 from pydantic import BaseModel
@@ -38,8 +30,6 @@ def _specialist(
 
 
 class _Tool:
-    """What ADK hands a callback in place of the tool it just ran."""
-
     def __init__(self, name: str) -> None:
         self.name = name
 
@@ -75,7 +65,6 @@ def test_what_a_specialist_reported_is_checked_and_collected() -> None:
 
 
 def test_the_manager_reads_the_specialists_report_unchanged() -> None:
-    """The callback collects; it does not stand between the manager and its answer."""
     consulted, _ = _consulted()
     collect = collect_findings_callback(consulted)
     reported = _report("call-1/item-1")
@@ -109,7 +98,6 @@ def test_a_result_from_something_that_is_not_a_specialist_is_left_alone() -> Non
 def test_a_report_the_callback_cannot_read_contributes_nothing_and_does_not_raise() -> (
     None
 ):
-    """A specialist that said nothing legible is not a crashed investigation."""
     consulted, _ = _consulted()
     collect = collect_findings_callback(consulted)
 
@@ -124,7 +112,6 @@ def test_a_report_the_callback_cannot_read_contributes_nothing_and_does_not_rais
 
 
 def test_an_illegible_report_still_counts_as_a_specialist_consulted() -> None:
-    """What was asked is a different fact from what came back legibly."""
     consulted, _ = _consulted()
     collect = collect_findings_callback(consulted)
 
@@ -140,7 +127,6 @@ def test_an_illegible_report_still_counts_as_a_specialist_consulted() -> None:
 
 
 def test_a_report_arriving_as_json_in_a_result_field_is_read() -> None:
-    """The framework may hand a sub-agent's answer over as text rather than a record."""
     import json
 
     consulted, _ = _consulted()

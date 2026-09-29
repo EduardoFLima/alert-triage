@@ -1,11 +1,3 @@
-"""Each finding carries where to go and look at the service, beside its evidence.
-
-Two addresses with two jobs: an evidence item's says where that evidence came
-from, and a finding's says where to look at the service it concerns, opened on
-the section it named. The account renders both and composes neither — how a
-platform addresses a service page is an adapter's knowledge, handed in.
-"""
-
 from datetime import UTC, datetime
 
 from alert_triage.investigation.contract import (
@@ -26,7 +18,6 @@ LOG_LINK = "https://platform/logs?query=service%3Acheckout"
 
 
 def _page(finding: Finding) -> str | None:
-    """A platform's service page, anchored to whatever section the finding named."""
     anchor = "" if finding.section is None else f"#{finding.section.value}"
     return f"https://platform/service/checkout{anchor}"
 
@@ -69,7 +60,6 @@ def test_a_finding_with_no_section_points_at_the_service_as_a_whole() -> None:
 
 
 def test_the_evidences_own_address_is_still_rendered_beside_it() -> None:
-    """Where the evidence came from is not replaced by where to look at the service."""
     lines = _lines(compose("Narrative.", _findings(Section.INFRASTRUCTURE), page=_page))
 
     assert LOG_LINK in lines
@@ -82,7 +72,6 @@ def test_a_finding_the_platform_offers_no_page_for_points_nowhere() -> None:
 
 
 def test_an_account_given_no_page_points_nowhere() -> None:
-    """A deployment with no platform addresses renders findings as it always did."""
     assert SERVICE_PAGE_LABEL not in compose("Narrative.", _findings())
 
 

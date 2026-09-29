@@ -1,16 +1,4 @@
-"""How a declaration becomes an agent this framework can run.
-
-The coordinator that builds an agent from a declaration learns no tool
-signature and no query dialect. That is what makes the crew extensible without
-it changing: the model discovers what its tools take at runtime, from the
-platform's own MCP server, and the instruction that tells it what to look for
-travels with the declaration rather than with the machinery.
-
-Deployment facts — where the platform is, how to authenticate, and what model
-a specialist reasons on unless it says otherwise — are supplied here rather
-than declared. The same declaration runs against two accounts unchanged, which
-is the property that keeps a contributor's specialist portable.
-"""
+"""MCP supplies tool signatures; deployment facts are injected here."""
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -48,57 +36,17 @@ if TYPE_CHECKING:
     )
 
 ModelFor = Callable[[str | None], "str | BaseLlm"]
-"""How a deployment turns what a specialist asked for into a model it can run.
-
-A function rather than a model, because a specialist naming its own model must
-reach it already told how to authenticate — and where that credential comes
-from is the composition root's business, not a declaration's.
-"""
+"""Resolves each specialist's model choice with this deployment's credentials."""
 
 
 @dataclass(frozen=True)
 class PlatformAccess:
-    """One provider's MCP server, and what authenticates against it.
-
-    Attributes:
-        endpoint: The server, without the toolsets it is asked for: each
-            declaration asks for its own.
-        headers: What that server authenticates a request with.
-    """
-
     endpoint: str
     headers: Mapping[str, str]
 
 
 @dataclass(frozen=True)
 class Deployment:
-    """Which providers this deployment holds, and what it reasons with.
-
-    A map rather than the single endpoint and headers this carried before. A
-    specialist's toolsets each name the provider serving them and may name
-    different ones, so the deployment answers a question — *where is this
-    provider* — rather than stating one address every toolset must have come
-    from.
-
-    What a deployment holds is also what it offers: a specialist naming a
-    provider absent from this map cannot gather what it was declared to
-    gather, and the roster leaves it unoffered rather than running it against
-    half its evidence.
-
-    Attributes:
-        platforms: Each provider this deployment configured, by the name a
-            declaration knows it as.
-        model_for: The model a specialist reasons on, given what it asked for.
-        breakers: The bounds an investigation is held to. Carried here rather
-            than passed to each builder because they are a deployment fact
-            travelling with the other deployment facts, and three signatures
-            would otherwise grow to say so.
-        guides: The platform's guides, read once as the run started, from
-            which each specialist is offered those documenting its own tools.
-            A deployment fact rather than a declared one: what the platform
-            publishes changes without any declaration changing.
-    """
-
     platforms: Mapping[str, PlatformAccess]
     model_for: ModelFor
     breakers: CircuitBreakers = field(default_factory=CircuitBreakers)
@@ -108,29 +56,6 @@ class Deployment:
 def connection_for(
     toolset: Toolset, deployment: Deployment
 ) -> "StreamableHTTPConnectionParams":
-    """How to reach one toolset, on the server of the provider it named.
-
-    Args:
-        toolset: The group of tools to ask for, and whose server to ask.
-        deployment: The providers this deployment holds.
-
-    Returns:
-        The connection parameters, bounded by what this deployment configured
-        rather than by the framework's own defaults — five seconds to connect
-        and five minutes to read, neither of which is anybody's intent here.
-
-        One key feeds both halves: connecting and reading are two parts of one
-        bound an operator states once. What it does not cover is the retry ADK
-        makes below this seat, so a call that is retried takes up to twice the
-        stated bound, and the investigation's duration is what bounds the
-        accumulation of those.
-
-    Raises:
-        KeyError: The toolset names a provider this deployment did not
-            configure. Refused rather than resolved against whichever provider
-            happens to be configured — that would be a specialist quietly
-            querying the wrong platform and reporting the answer as its own.
-    """
     from google.adk.tools.mcp_tool.mcp_session_manager import (
         StreamableHTTPConnectionParams,
     )
@@ -152,7 +77,6 @@ def connection_for(
 
 
 def _permitted_tools(specialist: Specialist) -> frozenset[str]:
-    """Every tool this specialist declared, across all its toolsets."""
     return frozenset(tool for toolset in specialist.toolsets for tool in toolset.tools)
 
 
@@ -162,27 +86,6 @@ def build_agent(
     retrieved: Retrieved,
     bounds: Bounds | None = None,
 ) -> "LlmAgent":
-    """Build the agent one declaration describes, for one investigation.
-
-    Args:
-        specialist: What to build.
-        deployment: Where its platform is, how to authenticate, and what it
-            reasons on when it names no model of its own.
-        retrieved: This investigation's evidence, which the callbacks close
-            over so that citations are scoped to this incident.
-        bounds: What this investigation may still do, which the seat before
-            each call reads. One instance is shared across the specialists of
-            an investigation, so that what they spend is counted once. Absent,
-            this deployment's own breakers bound the agent on their own: a
-            caller holding a deployment holds everything the bound needs, and
-            falling back to the documented defaults while holding a deployment
-            that states otherwise is how a run silently ignores what an
-            operator configured.
-
-    Returns:
-        The agent, reaching the tools its declaration named and no others, and
-        offered the platform's guides to those tools where there are any.
-    """
     from google.adk.agents import LlmAgent
     from google.adk.agents.llm_agent import ToolUnion
     from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
@@ -214,17 +117,6 @@ def build_agent(
 
 
 def build_reasoner(reasoner: Reasoner, deployment: Deployment) -> "LlmAgent":
-    """Build an agent that reasons over what it is given and reaches nothing.
-
-    Args:
-        reasoner: What to build.
-        deployment: What it reasons on when it names no model of its own.
-
-    Returns:
-        The agent, with no tools: it is given everything it needs in its prompt.
-        Its one callback writes down what it said, which for an agent that
-        reaches nothing is the whole of its contribution.
-    """
     from google.adk.agents import LlmAgent
 
     return LlmAgent(
@@ -242,50 +134,9 @@ def build_manager(
     consulted: Consulted,
     retrieved: Retrieved,
 ) -> "LlmAgent":
-    """Build the Diagnostician over the crew it may consult.
+    """Specialists stay AgentTools so the manager keeps one reasoning thread.
 
-    Each specialist is wrapped as a tool rather than made a sub-agent to hand
-    off to. Handing off would give the specialist the conversation and take from
-    the manager the thread it is reasoning on, which is the one thing it exists
-    to keep. As tools, the specialists answer and the manager decides what to
-    ask next.
-
-    Their summarisation is deliberately not skipped. Skipping it sets
-    ``skip_summarization`` on the consultation's result, which ``is_final_response``
-    reports as final, which ends the manager's turn — the framework's loop runs
-    ``while True`` until the last event is final. A manager whose turn ends on
-    its first answer cannot consult a second specialist, cannot reason across
-    what came back, and cannot produce its schema at all. Asking for the raw
-    answer that way costs the whole conversation, and buys nothing: the report
-    is collected in ``after_tool_callback``, before anything the model does with
-    it.
-
-    The budget it is told and the budget it is held to are one value, read from
-    the ``Consulted`` it was given: the instruction states ``bounds.hops`` and
-    the callback enforces it, so a configured budget cannot leave the reasoning
-    planning against a different one.
-
-    Its three callbacks are the ones a manager needs and a specialist does not.
-    One bounds how many questions this incident may cost. One keeps each
-    specialist's report — checked — before the manager reads it. One writes
-    down what it said between the two, which is the only account of why it asked
-    what it asked. And one keeps a
-    specialist's failure to that specialist: unhandled, a tool error re-raises
-    and ends the investigation, so one agent answering in prose where its schema
-    was asked for would cost every other agent's work. The manager reaches no
-    platform of its own, so none of the three contends with the evidence
-    callbacks its specialists carry.
-
-    Args:
-        crew: The specialists to offer, every one of them.
-        deployment: Where their platform is, how to authenticate, and what an
-            agent reasons on when it names no model of its own.
-        consulted: This investigation's record of what was asked.
-        retrieved: This investigation's evidence, which the specialists' own
-            callbacks close over.
-
-    Returns:
-        The manager, reaching its specialists and nothing else.
+    ADK marks skip-summarized tool results final, so callbacks collect raw reports.
     """
     from google.adk.agents import LlmAgent
     from google.adk.tools.agent_tool import AgentTool

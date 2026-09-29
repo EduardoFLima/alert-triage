@@ -1,11 +1,3 @@
-"""What a reader is shown beneath the prose, reproduced as it was retrieved.
-
-These assertions moved here from triage when the report's body did. They are the
-same assertions: an account states what was found, shows the records behind it,
-says what it did and did not examine, and renders an address whole on a line of
-its own. Where they live changed; what they establish did not.
-"""
-
 from datetime import UTC, datetime, timedelta
 
 from alert_triage.investigation.contract import (
@@ -67,7 +59,6 @@ def _found(
 
 
 def _evidence_lines(account: str) -> list[str]:
-    """The indented lines beneath a finding, which is where evidence renders."""
     return [line.strip() for line in account.splitlines() if line.startswith("    ")]
 
 
@@ -87,7 +78,6 @@ def test_an_account_carries_the_evidence_behind_each_finding() -> None:
 
 
 def test_an_account_says_how_often_the_pattern_occurred() -> None:
-    """The count is what survives when only a handful of records travel with it."""
     assert "47" in _account(_found(_finding(occurrences=47)))
 
 
@@ -98,12 +88,10 @@ def test_an_account_carries_what_the_agent_wrote_above_the_evidence() -> None:
 
 
 def test_an_investigation_that_found_nothing_notable_says_so() -> None:
-    """Not an empty section: 'we looked and it is clean' is the news."""
     assert "nothing notable" in _account(_found()).lower()
 
 
 def test_an_investigation_that_found_nothing_names_the_signals_it_consulted() -> None:
-    """'Nothing notable' is only interpretable against the scope it covered."""
     account = _account(_found()).lower()
 
     for signal in EVERY_SIGNAL:
@@ -118,7 +106,6 @@ def test_an_account_claims_no_signal_that_was_not_consulted() -> None:
 
 
 def test_the_account_of_what_was_examined_follows_what_was_consulted() -> None:
-    """It tracks the investigation, not the crew a deployment happens to declare."""
     alone = _account(_found(consulted=(Signal.LOGS,)))
     whole = _account(_found(consulted=EVERY_SIGNAL))
 
@@ -128,14 +115,12 @@ def test_the_account_of_what_was_examined_follows_what_was_consulted() -> None:
 
 
 def test_an_investigation_that_consulted_nobody_says_no_signal_was_examined() -> None:
-    """Distinct from 'nothing notable': one looked, the other never did."""
     account = _account(_found(consulted=())).lower()
 
     assert "no signal was examined" in account
 
 
 def test_an_account_reads_an_aggregate_with_no_instant() -> None:
-    """A flame graph concerns a window, not a moment; it is still evidence."""
     aggregate = EvidenceItem(
         id="call-2",
         instant=None,
@@ -162,7 +147,6 @@ def test_an_investigation_that_could_not_see_everything_says_so() -> None:
 
 
 def test_an_incomplete_investigation_that_found_nothing_still_says_so() -> None:
-    """The dangerous account: nothing found, and part of the looking never happened."""
     findings = Findings(
         retrieval_failures=("the log search was refused",), consulted=EVERY_SIGNAL
     )
@@ -176,7 +160,6 @@ def test_a_complete_investigation_carries_no_incompleteness_note() -> None:
 
 
 def test_evidence_carrying_an_address_renders_it_on_its_own_line() -> None:
-    """A reader who wants to see the finding for themselves goes from here."""
     findings = _found(
         _finding(examples=(_item(summary="container OOMKilled", url=LOG_LINK),))
     )
@@ -188,14 +171,12 @@ def test_evidence_carrying_an_address_renders_it_on_its_own_line() -> None:
 
 
 def test_evidence_with_no_address_renders_exactly_as_it_did_before() -> None:
-    """No address is a complete answer, and the account notes no absence."""
     findings = _found(_finding(examples=(_item(summary="OOMKilled"),)))
 
     assert _evidence_lines(_account(findings)) == [f"{NOON.isoformat()} OOMKilled"]
 
 
 def test_an_address_is_rendered_whole_beside_a_summary_that_was_shortened() -> None:
-    """The failure this exists to fix: half a URL still reads as a link."""
     shortened = f"{'word ' * 60}…"
     findings = _found(_finding(examples=(_item(summary=shortened, url=LOG_LINK),)))
 
@@ -207,7 +188,6 @@ def test_an_address_is_rendered_whole_beside_a_summary_that_was_shortened() -> N
 
 
 def test_an_aggregates_address_stands_on_a_line_of_its_own_too() -> None:
-    """An item with no instant is an aggregate, and is still somewhere to go."""
     aggregate = EvidenceItem(
         id="call-1",
         instant=None,
@@ -239,7 +219,6 @@ def test_a_composed_account_says_plainly_when_there_was_no_hypothesis() -> None:
 
 
 def test_a_composed_account_shows_the_same_evidence_a_written_one_does() -> None:
-    """The fallback is the renderer with nothing written above it, not other code."""
     findings = _found(_finding(examples=(_item(summary="container OOMKilled"),)))
 
     assert _evidence_lines(without_words(None, None, findings)) == _evidence_lines(
@@ -248,7 +227,6 @@ def test_a_composed_account_shows_the_same_evidence_a_written_one_does() -> None
 
 
 def test_a_written_account_states_the_confidence_whatever_the_agent_wrote() -> None:
-    """An instruction to state it is a request; a reader needs a guarantee."""
     account = compose(
         "The pods keep dying under load.", _found(_finding()), Confidence.MEDIUM
     )
@@ -266,7 +244,6 @@ def test_the_stated_confidence_is_the_one_the_investigation_reached() -> None:
 
 
 def test_an_account_with_no_confidence_states_none() -> None:
-    """There was no hypothesis to weigh, and inventing a level would be worse."""
     account = compose("Nothing conclusive.", _found(_finding()), None)
 
     for level in Confidence:

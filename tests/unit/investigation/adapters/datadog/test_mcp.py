@@ -11,12 +11,10 @@ def test_the_endpoint_is_derived_from_the_default_site() -> None:
 
 
 def test_the_endpoint_follows_a_non_default_site() -> None:
-    """A region is a deployment fact; pointing at another one changes no code."""
     assert mcp_endpoint("datadoghq.eu") == "https://mcp.datadoghq.eu/v1/mcp"
 
 
 def test_the_endpoint_asks_for_no_toolset_of_its_own() -> None:
-    """What a specialist may reach is its declaration's business, not this one's."""
     assert "toolsets" not in mcp_endpoint("datadoghq.com")
 
 

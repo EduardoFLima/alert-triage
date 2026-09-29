@@ -1,16 +1,3 @@
-"""The one place concrete adapters are named, built, and handed to the run.
-
-Everything the pipeline depends on is resolved here and injected there, which
-is what keeps ``run`` free of any integration and what makes swapping one — a
-second platform, another channel, a different store — a change to this module
-alone.
-
-Nothing is fetched until everything is assembled, and each piece refuses over
-what it alone needs: a deployment missing its scope, its only notification
-channel, or the credential its investigations reason on stops here, rather
-than fetching alerts it could tell nobody about or investigate.
-"""
-
 import os
 import sqlite3
 import uuid
@@ -70,23 +57,7 @@ def execute(
     env: Mapping[str, str] | None = None,
     config_path: Path = DEFAULT_CONFIG_PATH,
 ) -> RunOutcome:
-    """Build everything one run needs, run it, and let go of what it opened.
-
-    Args:
-        now: The instant the run decides against, taken once by the caller.
-        env: Environment the deployment facts are read from. Defaults to the
-            process's.
-        config_path: Where the optional config file would be.
-
-    Returns:
-        What the run handled, delivered, and could not do.
-
-    Raises:
-        ConfigError: The deployment is not configured well enough to run —
-            the scope is missing, a platform or model credential is absent, or
-            no channel is configured. Nothing is fetched and nothing is
-            delivered.
-    """
+    """Assemble everything before fetching, so setup failures spend no work."""
     config = load_config(config_path, env)
     datadog_connection = resolve_connection(env)
     notifier = resolve_notifier(env)
@@ -120,28 +91,7 @@ def execute(
 
 
 def resolve_notifier(env: Mapping[str, str] | None = None) -> FanOutNotifier:
-    """Assemble the notification channels the environment configured, or refuse.
-
-    Which channels exist is a consequence of what the environment configured,
-    so this is where the individual ``resolve_*`` functions meet. It belongs to
-    the composition root rather than to any channel: naming sibling adapters is
-    what a wiring layer is for, and no adapter should know which others a
-    deployment happens to have.
-
-    Args:
-        env: Environment to read from. Defaults to the process's.
-
-    Returns:
-        A notifier delivering to every configured channel. A deployment with
-        one channel gets a fan-out over one, so nothing downstream is shaped by
-        how many a deployment happens to have.
-
-    Raises:
-        ConfigError: No channel is configured, or one of them is configured
-            only in part. A run that can investigate but can tell nobody what
-            it found has no reason to start, and finding that out here beats
-            finding it out when the first report is due.
-    """
+    """Refuse deployments that can investigate but tell nobody what they found."""
     environment = os.environ if env is None else env
     channels = _configured_channels(environment)
     if not channels:
@@ -154,7 +104,6 @@ def resolve_notifier(env: Mapping[str, str] | None = None) -> FanOutNotifier:
 
 
 def _configured_channels(env: Mapping[str, str]) -> list[Notifier]:
-    """Build a channel for each set of settings the environment supplied."""
     channels: list[Notifier] = []
     email = resolve_email_settings(env)
     if email is not None:
@@ -171,54 +120,11 @@ def build_investigator(
     investigation: Investigation,
     breakers: CircuitBreakers | None = None,
 ) -> Investigator:
-    """Assemble the agent crew over the platform it gathers evidence from.
-
-    A named function rather than an inline construction so that a test can
-    substitute the one adapter that would otherwise reach both a model and an
-    MCP server, exactly as it already substitutes the alert source and the
-    notifier.
-
-    What is supplied here is a deployment: where the platform is, what
-    authenticates against it, and how an agent reaches the model it reasons on.
-    No tool is named — which tools a specialist may reach is its declaration's
-    business, and adding one changes nothing here. Nor is any routing: which
-    specialists an incident needs is the manager's decision, made per incident,
-    and this only says which ones exist to be chosen from.
-
-    The platform's guides are read here, once, for the crew being built, and
-    held in the deployment for the run. Here because this runs before any alert
-    is fetched, so the reading sits outside every investigation's bounds.
-
-    The model's credential is checked here rather than beside the other
-    startup checks because this is what needs it: a deployment that stops
-    building an investigator stops needing a key, and a check kept somewhere
-    that merely remembers to run it would outlive what it guards.
-
-    Args:
-        env: Environment the model's credential is read from, or ``None`` for
-            the process's.
-        datadog_connection: Where Datadog is and how to authenticate.
-        investigation: How an investigation reasons.
-        breakers: The bounds an investigation is held to. This is the only
-            place they are named: the deployment reads the platform call
-            timeout from them, and the investigator holds the rest. Absent, the
-            documented defaults.
-
-    Returns:
-        The investigator a run is handed.
-
-    Raises:
-        ConfigError: The model has no credential, or a specialist was
-            configured that nobody declared. Refused while the run is still
-            being assembled, so no alert is fetched and no attempt is spent
-            discovering it — and refused on the same value the model is then
-            built from, so the two cannot disagree.
-    """
+    """Build guides and model access before any alert is fetched."""
     access = resolve_model_access(env)
     default = build_model(investigation.model, access)
 
     def _model_for(named: str | None) -> "str | BaseLlm":
-        """The model a specialist reasons on, built where it named its own."""
         return default if named is None else build_model(named, access)
 
     deployment = Deployment(
@@ -246,10 +152,5 @@ def build_investigator(
 
 
 def _new_id() -> str:
-    """Name a newly opened incident.
-
-    A random UUID rather than anything derived from the alerts: an incident
-    keeps its name while it absorbs more of them, and two runs must never
-    arrive at the same name for two different problems.
-    """
+    """Use a random name because incidents grow as new alerts join them."""
     return str(uuid.uuid4())

@@ -62,7 +62,6 @@ def test_the_message_is_addressed_from_the_sender_to_every_recipient() -> None:
 
 
 def test_the_message_is_plain_text_because_the_body_is() -> None:
-    """The report carries no formatting, so the mail claims none."""
     message = render(_report(), _settings())
 
     assert message.get_content_type() == "text/plain"
@@ -77,12 +76,10 @@ def test_the_body_survives_characters_a_richer_medium_would_escape() -> None:
 
 
 def test_the_adapter_builds_the_standard_library_s_message_type() -> None:
-    """The package is named ``email``; the message type must be the stdlib's."""
     assert isinstance(render(_report(), _settings()), EmailMessage)
 
 
 def test_the_adapter_imports_the_standard_library_email_not_its_own_package() -> None:
-    """Absolute imports save this, and a relative import would break it silently."""
     notifier = importlib.import_module(
         "alert_triage.notification.adapters.email.notifier"
     )
@@ -93,8 +90,6 @@ def test_the_adapter_imports_the_standard_library_email_not_its_own_package() ->
 
 @dataclass
 class FakeSmtp:
-    """A submission server that records what it was asked to do, and no socket."""
-
     fail_on: str | None = None
     failure: Exception = field(default_factory=lambda: smtplib.SMTPException("refused"))
     started_tls: bool = False
@@ -103,11 +98,9 @@ class FakeSmtp:
     closed: bool = False
 
     def __call__(self) -> "FakeSmtp":
-        """Stand in for the factory the notifier opens a connection through."""
         return self
 
     def __enter__(self) -> "FakeSmtp":
-        """Hand back the connection the notifier submits over."""
         return self
 
     def __exit__(
@@ -116,21 +109,17 @@ class FakeSmtp:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Record that the notifier released the connection."""
         self.closed = True
 
     def starttls(self) -> None:
-        """Secure the connection, or fail as a relay without STARTTLS does."""
         self._maybe_fail("starttls")
         self.started_tls = True
 
     def login(self, username: str, password: str) -> None:
-        """Record the credentials the notifier authenticated with."""
         self._maybe_fail("login")
         self.logins.append((username, password))
 
     def send_message(self, message: EmailMessage) -> None:
-        """Accept the message, as a relay that is working would."""
         self._maybe_fail("send_message")
         self.sent.append(message)
 
@@ -211,7 +200,6 @@ def test_an_unreachable_server_is_a_delivery_failure_not_a_quiet_return() -> Non
 
 
 def test_a_relay_that_does_not_offer_starttls_still_receives_the_report() -> None:
-    """A plain local relay is a deployment this project explicitly anticipates."""
     smtp = FakeSmtp(
         fail_on="starttls", failure=smtplib.SMTPNotSupportedError("no STARTTLS")
     )
@@ -223,7 +211,6 @@ def test_a_relay_that_does_not_offer_starttls_still_receives_the_report() -> Non
 
 
 def test_a_password_is_never_sent_over_a_connection_that_stayed_in_the_clear() -> None:
-    """Secrecy is required exactly when there is a secret to keep."""
     smtp = FakeSmtp(
         fail_on="starttls", failure=smtplib.SMTPNotSupportedError("no STARTTLS")
     )

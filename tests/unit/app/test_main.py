@@ -12,7 +12,6 @@ from alert_triage.configuration.port import ConfigError
 
 
 def _executes(outcome: RunOutcome) -> object:
-    """A composition root that runs, remembering the instant it was given."""
 
     def execute(*, now: datetime, **_: object) -> RunOutcome:
         instants.append(now)
@@ -67,7 +66,6 @@ def test_a_run_opens_and_closes_its_own_account(
 def test_how_much_a_run_says_is_settled_before_it_says_anything(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Configured from the same environment the run itself is resolved from."""
     asked: list[object] = []
 
     def configure(env: object) -> int:
@@ -122,7 +120,6 @@ def test_the_failures_a_run_could_not_avoid_name_their_stage_and_service(
 def test_the_run_is_given_the_environment_the_env_file_contributed_to(
     monkeypatch: pytest.MonkeyPatch, repository_root: Path
 ) -> None:
-    """Reading the .env file happens once, here, and nothing below knows of it."""
     assert resolve_environment(
         repository_root / ".env.missing", {"ONLY": "process"}
     ) == {"ONLY": "process"}

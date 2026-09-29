@@ -68,7 +68,6 @@ def test_spent_attempts_survive_a_round_trip(tmp_path: Path, attempts: int) -> N
 def test_a_ledger_written_before_attempts_were_tracked_still_opens(
     tmp_path: Path,
 ) -> None:
-    """No backfill and no migration step: an existing file opens and works."""
     path = tmp_path / "ledger.db"
     with closing(sqlite3.connect(path)) as seeding:
         seeding.executescript(BEFORE_ATTEMPTS_WERE_TRACKED)

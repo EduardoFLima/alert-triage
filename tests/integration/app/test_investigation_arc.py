@@ -1,10 +1,3 @@
-"""The retry arc across real runs and a real ledger file.
-
-The unit tests decide one run at a time. What these check is the thing no
-single run can show: that the attempt an incident spends survives the process
-that spent it, so silence is bounded and the report always eventually arrives.
-"""
-
 import sqlite3
 from collections.abc import Iterator, Sequence
 from contextlib import closing, contextmanager
@@ -41,7 +34,6 @@ class FakeAlertSource:
     alerts: Sequence[Alert] = ()
 
     def fetch_since(self, since: datetime) -> Sequence[Alert]:
-        """Answer with the alerts still inside the run's lookback."""
         return [alert for alert in self.alerts if alert.fired_at >= since]
 
 
@@ -50,19 +42,15 @@ class FakeNotifier:
     delivered: list[TriageReport] = field(default_factory=list)
 
     def deliver(self, report: TriageReport) -> None:
-        """Take the report, as a channel that accepted it would."""
         self.delivered.append(report)
 
 
 @dataclass
 class FakeInvestigator:
-    """One outcome per run, so a test spells its arc out as a list."""
-
     outcomes: list[Diagnosis | InvestigatorError] = field(default_factory=list)
     asked: list[InvestigationTarget] = field(default_factory=list)
 
     def investigate(self, target: InvestigationTarget) -> Diagnosis:
-        """Answer with the next outcome in the arc this test spelled out."""
         self.asked.append(target)
         outcome = self.outcomes.pop(0) if self.outcomes else _nothing_found()
         if isinstance(outcome, InvestigatorError):
@@ -123,7 +111,6 @@ def _run(
     investigator: FakeInvestigator,
     at: datetime,
 ) -> RunOutcome:
-    """One run in its own connection, as a scheduled process would be."""
     with _ledger(database, config) as ledger:
         return run(
             source=FakeAlertSource([_alert("a")]),
@@ -199,7 +186,6 @@ def test_three_failures_end_in_the_alerts_going_out_without_findings(
 def test_a_fourth_run_neither_investigates_nor_reports_again(
     tmp_path: Path, config: ResolvedConfig
 ) -> None:
-    """The cost of a broken platform stays bounded however long it stays broken."""
     database = tmp_path / "alert_triage.db"
     notifier = FakeNotifier()
     investigator = FakeInvestigator([InvestigatorError("down")] * 3)
@@ -242,7 +228,6 @@ def test_the_attempts_spent_are_the_ones_read_back_from_the_ledger(
 def test_a_successful_investigation_is_reported_on_the_first_run(
     tmp_path: Path, config: ResolvedConfig
 ) -> None:
-    """Nothing about retrying delays the ordinary case."""
     database = tmp_path / "alert_triage.db"
     notifier = FakeNotifier()
     investigator = FakeInvestigator([_diagnosed(_findings("checkout is timing out"))])
@@ -267,7 +252,6 @@ def _run_with_bound(
 def test_a_single_attempt_reports_without_findings_straight_away(
     tmp_path: Path, config: ResolvedConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An operator who wants no retrying gets the old behavior back."""
     from dataclasses import replace as replace_dataclass
 
     from alert_triage.configuration.settings import Investigation
@@ -284,7 +268,6 @@ def test_a_single_attempt_reports_without_findings_straight_away(
 
 
 def _nothing_found() -> Diagnosis:
-    """What a completed investigation that found nothing hands back."""
     return _diagnosed(
         Findings(consulted=(Signal.LOGS,)), headline="checkout: nothing notable"
     )
@@ -293,7 +276,6 @@ def _nothing_found() -> Diagnosis:
 def _diagnosed(
     findings: Findings, headline: str = "checkout is timing out"
 ) -> Diagnosis:
-    """A diagnosis over findings, worded the way a real investigation words one."""
     return Diagnosis(
         headline=headline,
         account=compose("The service is timing out under load.", findings),

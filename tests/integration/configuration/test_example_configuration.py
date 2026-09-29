@@ -1,10 +1,3 @@
-"""The shipped examples, checked against the schema they claim to describe.
-
-An example that has drifted is worse than none: an operator copies it, and
-learns from a startup failure that a key was renamed. These read the real
-files from the repository root rather than a fixture.
-"""
-
 from dataclasses import fields
 from pathlib import Path
 
@@ -79,14 +72,12 @@ CONNECTION_VARIABLES = (
 
 
 def _override_names(section: str, cls: type[object]) -> list[str]:
-    """The environment variable each key of a section is overridable by."""
     return [f"{section}_{field.name}".upper() for field in fields(cls)]  # type: ignore[arg-type]
 
 
 def test_the_example_config_is_a_config_the_loader_accepts(
     config_example: Path,
 ) -> None:
-    """Copied to config.yaml unedited, it has to start a run rather than fail one."""
     config = load_config(config_example, env={})
 
     assert config.scope.owner
@@ -138,14 +129,12 @@ def test_the_example_env_file_names_every_behavior_override(
 def test_the_example_env_file_names_how_much_a_run_says(
     variable: str, env_example: Path
 ) -> None:
-    """An operator looking for the account they are not being shown finds it."""
     assert variable in env_example.read_text()
 
 
 def test_the_example_env_file_supplies_nothing_by_being_copied_unedited(
     env_example: Path,
 ) -> None:
-    """Every optional name stays commented out, so defaults remain the defaults."""
     environment = resolve_environment(env_example, {})
 
     assert set(environment) == {
@@ -160,5 +149,4 @@ def test_the_example_env_file_supplies_nothing_by_being_copied_unedited(
 def test_the_example_config_names_every_specialist_that_may_be_given_a_model(
     specialist: str, config_example: Path
 ) -> None:
-    """The example is the only place an operator learns what may be named."""
     assert specialist in config_example.read_text()

@@ -1,10 +1,3 @@
-"""The email channel against a real SMTP server in this process.
-
-The unit tests drive rendering and every failure path against fakes. What is
-left to prove is that what the adapter submits is something a real server on
-the other end of a real socket accepts — the part a fake cannot answer for.
-"""
-
 import email
 from collections.abc import Iterator
 from email.message import Message
@@ -20,8 +13,6 @@ from alert_triage.notification.ports.notifier import NotifierError
 
 
 class _Collector:
-    """An SMTP handler that keeps what a real client actually submitted."""
-
     def __init__(self) -> None:
         self.messages: list[Message] = []
         self.recipients: list[list[str]] = []
@@ -38,11 +29,6 @@ class _Collector:
 
 @pytest.fixture
 def smtp_server(free_port: int) -> Iterator[tuple[_Collector, int]]:
-    """A real SMTP server on a loopback port, torn down with the test.
-
-    The controller verifies startup by connecting to the port it was given, so
-    it cannot be handed 0 and asked to discover one.
-    """
     collector = _Collector()
     controller = Controller(collector, hostname="127.0.0.1", port=free_port)
     controller.start()
@@ -80,6 +66,5 @@ def test_a_report_submitted_over_a_real_socket_arrives_intact(
 def test_a_relay_that_is_not_listening_is_a_delivery_failure(
     free_port: int, report: TriageReport
 ) -> None:
-    """Nothing is bound to the port, so this is a real connection refusal."""
     with pytest.raises(NotifierError):
         EmailNotifier(_settings(port=free_port)).deliver(report)

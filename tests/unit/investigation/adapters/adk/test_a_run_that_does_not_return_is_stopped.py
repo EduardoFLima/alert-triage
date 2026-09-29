@@ -1,16 +1,3 @@
-"""The backstop under the deadline: a model that hangs between tool calls.
-
-Stage one declines calls once the bound has elapsed, which needs the reasoning
-to still be making calls. A model that stops responding makes none, reaches no
-callback, and would run until something else ended it — so the run itself is
-bounded too.
-
-What has to survive that is everything gathered before it. ``Retrieved`` and
-``Consulted`` are owned by the investigator and handed into the run rather than
-created inside it, which is what makes a cancelled run leave a partial account
-rather than nothing at all.
-"""
-
 import asyncio
 from typing import Any
 

@@ -1,18 +1,3 @@
-"""The infrastructure specialist, declared: its tools, its instruction, and its schema.
-
-Resource pressure comes from metrics and hosts on ``core``; the workload the
-service runs as comes from ``kubernetes``, where the deployment has one. The
-second toolset is the reason this specialist is the one that forced the empty
-answer to stop counting as a failure: a service on virtual machines has no
-container workload, and the platform says so by answering that there are none.
-
-That answer is a fact about the deployment. It is told to the model here in as
-many words, because a model asked to find a workload that does not exist will
-otherwise keep asking for it, or report its absence as something wrong with the
-service. The system draws the same distinction on the way in, where an empty
-answer is retained as a retrieval that found nothing.
-"""
-
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.crew.specialists.section import (
@@ -49,14 +34,6 @@ INFRASTRUCTURE_TOOLS = (
     DESCRIBE_K8S_RESOURCE,
     ANALYSE_K8S_ROLLOUT,
 )
-"""The tools this specialist may reach, and the only ones.
-
-They span two toolsets, ``core`` and ``kubernetes``, asked for separately
-rather than as one connection: the group is how the platform organises its
-tools, and a specialist declaring which group it reaches for what is a
-specialist whose live check says which half is missing.
-"""
-
 INFRASTRUCTURE_INSTRUCTION = f"""
 You are an infrastructure specialist doing the first-pass investigation a
 knowledgeable engineer would do for a service that has started alerting.
@@ -172,4 +149,3 @@ INFRASTRUCTURE_SPECIALIST = Specialist(
     output_schema=ReportedFindings,
     toolsets=toolsets(*INFRASTRUCTURE_TOOLS),
 )
-"""The infrastructure specialist as the crew sees it: one declaration, nothing else."""

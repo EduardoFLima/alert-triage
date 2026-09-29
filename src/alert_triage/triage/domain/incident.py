@@ -1,12 +1,3 @@
-"""The Incident entity: an alert group that has been given a lasting identity.
-
-Grouping recomputes an ``AlertGroup`` from whatever alerts a run fetched, so a
-group is only ever a statement about one run. An incident is the same problem
-observed across runs: it is named once, absorbs the alerts that keep arriving
-for it, and remembers when it was last reported. That is what makes "already
-reported" a statement about a problem rather than about a set of alert ids.
-"""
-
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -19,23 +10,7 @@ from alert_triage.triage.domain.alert import Alert
 
 @dataclass(frozen=True)
 class Incident:
-    """One problem on one service, tracked from the run that first saw it.
-
-    Attributes:
-        id: Identifier generated when the incident opened. Opaque, and never
-            derived from the alerts, so absorbing new ones leaves it alone.
-        service: Service tag shared by every alert in the incident.
-        alerts: The alerts absorbed so far, oldest first.
-        last_reported_at: When the incident was last reported, or ``None``
-            while it has never been reported.
-        closed_at: When the incident was observed to have closed, or ``None``
-            while it is still open. Stamped once, so retuning the cooldown
-            cannot move a closure that already happened.
-        investigation_attempts: How many investigations of this incident have
-            failed since a report about it was last delivered. Zero means
-            nothing is outstanding; it is what bounds retrying, and it survives
-            between runs because a retry spans them.
-    """
+    """One named problem across runs, not just one run's alert ids."""
 
     id: str
     service: str
@@ -45,7 +20,6 @@ class Incident:
     investigation_attempts: int = 0
 
     def __post_init__(self) -> None:
-        """Reject an incident with no alerts, rather than one spanning no window."""
         if not self.alerts:
             raise ValueError(
                 "An incident is the alerts absorbed into it: it needs at least "
@@ -55,36 +29,10 @@ class Incident:
 
     @property
     def window(self) -> Window:
-        """The stretch of time the incident's alerts span.
-
-        What an investigation asks the observability platform about: evidence
-        is wanted around the alerts, not around the run that happened to fetch
-        them.
-        """
+        """Evidence is wanted around the alerts, not the run that fetched them."""
         return Window(start=self.alerts[0].fired_at, end=self.alerts[-1].fired_at)
 
     def investigation_target(self, scope: Scope) -> InvestigationTarget:
-        """This incident stated as something an investigation can be asked about.
-
-        The translation lives here because this is where an incident is in
-        hand. What crosses is a service, a window, a volume, whether the
-        deployment declared that service critical, and the environment it
-        watches — an investigation has no use
-        for the aggregate behind them, and knowing about it would tie every
-        specialist to this project's model.
-
-        Args:
-            scope: What the run watches, which is what says whether this
-                incident's service was declared critical and which environment
-                it was observed in. Read here rather than by the investigation,
-                so that no specialist consults configuration to learn how urgent
-                its subject is or where to look. The environment comes from the
-                scope rather than from each alert because the fetch asked for
-                no other, so it is constant within a deployment.
-
-        Returns:
-            The target to investigate.
-        """
         return InvestigationTarget(
             service=self.service,
             window=self.window,
@@ -94,16 +42,7 @@ class Incident:
         )
 
     def absorb(self, alerts: Iterable[Alert]) -> "Incident":
-        """Take in the alerts of this incident that are not recorded yet.
-
-        Args:
-            alerts: Alerts a run grouped for this incident, re-delivered ones
-                included — an ingestion window wider than the run interval
-                guarantees some of them have been seen before.
-
-        Returns:
-            The incident with the new alerts absorbed, keeping its identity.
-        """
+        """Ignore re-delivered alerts from overlapping ingestion windows."""
         recorded = {_identity(alert) for alert in self.alerts}
         new = tuple(alert for alert in alerts if _identity(alert) not in recorded)
         if not new:
@@ -111,42 +50,23 @@ class Incident:
         return replace(self, alerts=self.alerts + new)
 
     def reported(self, at: datetime) -> "Incident":
-        """Record that the incident has just been reported, restarting its cooldown.
-
-        A delivered report also ends any round of retrying, whatever that
-        report carried: either it carried findings, or it was the last-resort
-        report sent once the attempts ran out. Either way there is nothing left
-        to retry, and the incident earns a fresh allowance if its alerts
-        outlast the cooldown.
-        """
+        """Restart cooldown and end retrying, whatever the report carried."""
         return replace(self, last_reported_at=at, investigation_attempts=0)
 
     def investigation_failed(self) -> "Incident":
-        """Record that an investigation of this incident did not complete.
-
-        Spends one of the incident's attempts. Only a failure spends one: an
-        investigation that succeeded costs nothing, so a report that then fails
-        to deliver leaves the retry owed rather than consuming it.
-        """
+        """Only investigation failures spend attempts; delivery failures do not."""
         return replace(self, investigation_attempts=self.investigation_attempts + 1)
 
     def closed(self, at: datetime) -> "Incident":
-        """Record that the incident was observed closed at this instant."""
         return replace(self, closed_at=at)
 
     def shares_an_alert_with(self, alerts: Iterable[Alert]) -> bool:
-        """Whether any of these alerts is one this incident already absorbed."""
         recorded = {_identity(alert) for alert in self.alerts}
         return any(_identity(alert) in recorded for alert in alerts)
 
 
 def _identity(alert: Alert) -> object:
-    """What makes two alerts the same alert.
-
-    The reporting platform's identifier when there is one — that is what stays
-    stable across the runs whose windows overlap. Without one, an alert is only
-    recognisable by being identical in every respect.
-    """
+    """Prefer the platform id because it stays stable across overlapping runs."""
     return alert.source_id or alert
 
 

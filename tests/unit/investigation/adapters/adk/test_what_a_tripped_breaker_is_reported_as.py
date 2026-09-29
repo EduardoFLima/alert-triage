@@ -1,19 +1,3 @@
-"""A bound that was reached is an account cut short, never one that came back clean.
-
-An investigation stopped by a breaker is on the same footing as one whose
-retrieval partly failed: what it holds is no less true for the bound having been
-reached, and an incomplete automated triage is itself a reason a human should
-look sooner. So it completes, its report is delivered, and it does not spend one
-of the incident's attempts.
-
-The exception is a trip that produced nothing at all. "We ran out of budget and
-learned nothing" is not worth a message while there is still an attempt left to
-learn something, so that raises and the incident is investigated again. It stays
-deliberately distinct from a manager that *chose* to consult nobody, which is an
-ordinary result: being stopped from asking and deciding not to ask are different
-facts, and the refusal wording exists to keep them apart.
-"""
-
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -76,8 +60,6 @@ def _finding() -> dict[str, Any]:
 
 
 def _keeps_asking(*, gathers: bool) -> Any:
-    """A manager that spends its budget and keeps going, with or without evidence."""
-
     def _run(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
     ) -> dict[str, Any]:
@@ -98,7 +80,6 @@ def _keeps_asking(*, gathers: bool) -> Any:
 def _asks_nobody(
     crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
 ) -> dict[str, Any]:
-    """A manager that chose not to consult anyone, which is an ordinary result."""
     return {}
 
 
@@ -131,7 +112,6 @@ def test_a_trip_with_findings_still_delivers_its_report() -> None:
 
 
 def test_the_report_says_which_bound_was_reached() -> None:
-    """Not merely that it was incomplete: a reader has to tell the two apart."""
     diagnosis = _investigator(
         _keeps_asking(gathers=True), CircuitBreakers(max_agent_hops=2)
     ).investigate(_target())

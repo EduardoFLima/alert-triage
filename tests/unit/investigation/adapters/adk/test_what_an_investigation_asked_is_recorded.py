@@ -1,11 +1,3 @@
-"""What was asked is a fact of its own, kept apart from what was retrieved.
-
-A specialist nobody consulted and a specialist that looked and found nothing are
-opposite pieces of news, and only a record of what was asked can tell them
-apart. ``Retrieved`` cannot: it holds evidence, and a consultation that gathered
-none looks exactly like a consultation that never happened.
-"""
-
 from typing import Any
 
 from pydantic import BaseModel

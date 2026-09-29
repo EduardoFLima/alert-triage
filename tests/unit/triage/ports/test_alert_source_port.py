@@ -10,12 +10,9 @@ SINCE = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
 @dataclass(frozen=True)
 class InMemoryAlertSource:
-    """What a test double for the port looks like: alerts, no platform."""
-
     alerts: list[Alert] = field(default_factory=list)
 
     def fetch_since(self, since: datetime) -> list[Alert]:
-        """Return the held alerts that fired at or after ``since``."""
         return [alert for alert in self.alerts if alert.fired_at >= since]
 
 
@@ -31,7 +28,6 @@ def test_the_port_yields_domain_alerts_from_the_requested_instant() -> None:
 
 
 def test_the_fetch_is_synchronous() -> None:
-    """The port makes ordinary blocking calls; no caller needs an event loop."""
     assert not inspect.iscoroutinefunction(InMemoryAlertSource.fetch_since)
     assert not inspect.iscoroutinefunction(AlertSource.fetch_since)
 

@@ -1,10 +1,3 @@
-"""A section a specialist named reaches the finding, and one it made up does not.
-
-The schema already bounds what a model may answer, but a report crosses an
-agent-tool hop as a plain record, so the discipline is enforced again where a
-finding is built: a member of the set is kept, and anything else is no section.
-"""
-
 from typing import Any
 
 import pytest
@@ -32,7 +25,6 @@ def test_a_section_from_the_set_is_kept() -> None:
 
 @pytest.mark.parametrize("unrecognised", ["the graphs tab", "", 7, None, ["logs"]])
 def test_a_section_outside_the_set_is_no_section(unrecognised: object) -> None:
-    """Treated as absent rather than refused: the finding itself still stands."""
     assert _section_of({"section": unrecognised}) is None
 
 

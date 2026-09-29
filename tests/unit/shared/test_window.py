@@ -15,7 +15,6 @@ def test_a_window_carries_the_instants_it_spans() -> None:
 
 
 def test_a_window_may_span_a_single_instant() -> None:
-    """One alert is a real incident, and it spans no time at all."""
     assert Window(start=NOON, end=NOON).start == NOON
 
 

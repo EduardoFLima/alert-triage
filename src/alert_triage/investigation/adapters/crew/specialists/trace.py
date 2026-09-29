@@ -1,31 +1,3 @@
-"""The trace specialist, declared: its tools, its instruction, and its schema.
-
-An order between its tools: spans are searched to find a request worth looking
-at, and a trace is fetched by the identifier that search returned. Stating the
-order in the instruction is what stops the specialist asking for a trace it has
-no identifier for.
-
-Where the account has Datadog's Preview ``apm`` toolset, a third step follows:
-the spans within that trace are ranked rather than read. "Which operation
-dominated" is a question about ordering a trace's spans by the time they own,
-and answering it by reading a whole waterfall is both unreliable on a deep
-trace and expensive in context. Without Preview the specialist reads the
-waterfall, which is what it has always done and is the one thing ``core`` can
-still offer here.
-
-This is the specialist whose signal a model can fake most convincingly. A
-plausible account of where a slow request spends its time can be written
-without retrieving anything, and would be indistinguishable from a finding to
-everyone downstream. So the instruction says in as many words that a typical
-request is not a finding, and the schema — like every specialist's — offers
-nowhere to write a waterfall into.
-
-Its quieter failure is the opposite one: a span query filtering on a facet the
-service does not carry returns nothing, which reads exactly like a service with
-nothing slow. So it is told not to guess a facet whether or not it has the
-Preview tool that makes checking one cheap.
-"""
-
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.crew.specialists.section import (
@@ -55,16 +27,7 @@ from alert_triage.investigation.contract import (
 from alert_triage.investigation.domain.specialist import Specialist
 
 _TRACE_TOOLS = (SEARCH_SPANS, GET_TRACE)
-"""The trace tools every account has, whatever its Preview access."""
-
 _PREVIEW_TOOLS = (DISCOVER_SPAN_TAGS, QUERY_TRACE)
-"""Asking which facets a service's spans carry, and ranking within a trace.
-
-Both exist only in the Preview toolset. The first is what makes a guessed
-facet cheap to check; without it the specialist is still told not to guess,
-and checks against the spans it has seen instead.
-"""
-
 _INSTRUCTION_TEMPLATE = """\
 You are a trace specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
@@ -154,12 +117,10 @@ returned.""".strip("\n")
 
 
 def _tools(preview: bool) -> tuple[DatadogTool, ...]:
-    """The tools this specialist may call, given what the account may reach."""
     return (*_TRACE_TOOLS, *(_PREVIEW_TOOLS if preview else ()))
 
 
 def _instruction(preview: bool) -> str:
-    """What this specialist is asked, given whether it can rank within a trace."""
     return _INSTRUCTION_TEMPLATE.format(
         TOOLS=described(*_tools(preview)),
         AN_EMPTY_ANSWER=AN_EMPTY_ANSWER,
@@ -202,16 +163,6 @@ class ReportedFindings(BaseModel):
 
 
 def trace_specialist(*, preview: bool) -> Specialist:
-    """Declare the trace specialist for an account with or without Preview access.
-
-    Args:
-        preview: Whether the account may reach the ``apm`` toolset, and so may
-            rank a trace's spans rather than reading the waterfall.
-
-    Returns:
-        The declaration, reaching only tools the account can actually call and
-        instructed only in what those tools can establish.
-    """
     return Specialist(
         name="trace_specialist",
         signal=Signal.TRACE,
@@ -222,7 +173,4 @@ def trace_specialist(*, preview: bool) -> Specialist:
 
 
 TRACE_SPECIALIST = trace_specialist(preview=APM_TOOLSET_AVAILABLE)
-"""The trace specialist as the crew sees it: one declaration, nothing else."""
-
 TRACE_INSTRUCTION = TRACE_SPECIALIST.instruction
-"""What the specialist is asked, for the access this deployment actually has."""

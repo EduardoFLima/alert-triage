@@ -15,7 +15,6 @@ def _write(tmp_path: Path, body: str) -> Path:
 def test_the_file_supplements_the_process_environment_without_overriding_it(
     tmp_path: Path,
 ) -> None:
-    """A .env file is a convenience for a laptop, never an override of a deployment."""
     path = _write(
         tmp_path,
         "DD_API_KEY=from-the-file\nDD_APP_KEY=from-the-file\n",
@@ -52,7 +51,6 @@ ALERT_TRIAGE_EMAIL_TO="sre@example.com,oncall@example.com"
 def test_a_name_the_file_leaves_unset_is_absent_rather_than_empty(
     tmp_path: Path,
 ) -> None:
-    """An unset name must not shadow the same name exported by the process."""
     path = _write(tmp_path, "DD_SITE\n")
 
     environment = resolve_environment(path, {"DD_SITE": "datadoghq.eu"})
@@ -72,6 +70,5 @@ def test_the_environment_is_read_from_the_process_by_default(
 
 
 def test_the_file_is_looked_for_beside_the_run_by_default() -> None:
-    """Relative, so the file belongs to the checkout a run is started from."""
     assert DEFAULT_ENV_FILE.name == ".env"
     assert not DEFAULT_ENV_FILE.is_absolute()

@@ -20,7 +20,6 @@ RETENTION = timedelta(days=30)
 
 @pytest.fixture
 def connection() -> Iterator[sqlite3.Connection]:
-    """An in-process database: no filesystem, so this stays a unit test."""
     open_connection = sqlite3.connect(":memory:")
     yield open_connection
     open_connection.close()
@@ -69,7 +68,6 @@ def test_a_recorded_incident_is_read_back_as_it_was_recorded(
 def test_a_service_with_nothing_on_record_reads_back_empty(
     connection: sqlite3.Connection,
 ) -> None:
-    """A first run against fresh storage is not an error."""
     ledger = _ledger(connection)
 
     assert ledger.open_incidents("checkout", NOON) == []
@@ -100,7 +98,6 @@ def test_recording_an_incident_again_replaces_what_was_held(
 def test_timestamps_come_back_timezone_aware_in_utc(
     connection: sqlite3.Connection,
 ) -> None:
-    """A naive datetime escaping here would blow up inside cooldown arithmetic."""
     elsewhere = timezone(timedelta(hours=2))
     fired_at = datetime(2026, 8, 7, 14, 0, tzinfo=elsewhere)
     incident = Incident(
@@ -151,7 +148,6 @@ def test_only_the_open_incident_is_offered_beside_retained_history(
 def test_the_instant_an_incident_closed_is_stamped_once(
     connection: sqlite3.Connection,
 ) -> None:
-    """Retuning the cooldown must not move a closure that already happened."""
     closed_at = _long_after_closing()
     _ledger(connection).record(_incident(), NOON)
     _ledger(connection).open_incidents("checkout", closed_at)
@@ -209,7 +205,6 @@ def test_an_incident_closed_longer_ago_than_retention_is_deleted(
 def test_a_read_that_fails_is_not_reported_as_an_empty_ledger(
     connection: sqlite3.Connection,
 ) -> None:
-    """An empty result would look exactly like 'nothing reported yet'."""
     ledger = _ledger(connection)
     connection.close()
 
@@ -230,7 +225,6 @@ def test_a_write_that_fails_does_not_complete_silently(
 def test_retained_history_decides_as_though_the_record_were_deleted(
     connection: sqlite3.Connection,
 ) -> None:
-    """The arriving run re-delivers an alert the retained incident absorbed."""
     at = _long_after_closing()
     retaining = _ledger(connection)
     retaining.record(_incident(), NOON)
@@ -261,11 +255,6 @@ def test_retained_history_decides_as_though_the_record_were_deleted(
 def test_a_naive_timestamp_is_read_back_as_an_instant_in_utc(
     connection: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A source that lost its offset must not leak a naive datetime through.
-
-    Pinned away from UTC on purpose: a naive value read as the machine's own
-    local time would shift the instant, and every cooldown measured from it.
-    """
     monkeypatch.setenv("TZ", "America/New_York")
     time.tzset()
 

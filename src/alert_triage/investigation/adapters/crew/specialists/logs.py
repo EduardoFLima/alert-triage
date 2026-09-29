@@ -1,20 +1,3 @@
-"""The Logs specialist, declared: its tools, its instruction, and its schema.
-
-The instruction names Datadog's log tools and Datadog's query dialect, and
-that is deliberate rather than a leak. The model composes the query, a query
-dialect is not translatable between platforms, and the boundary that pretended
-otherwise is what this slice removed. A second platform's logs specialist is a
-declaration of its own — a contribution, not a migration.
-
-Everything here is a module constant so that what the specialist asks for can
-be asserted by a unit test without constructing an agent or reaching a model.
-
-The output schema is the other half of the evidence discipline described in
-``evidence``. There is no field an agent could write a log line into: it
-reports what it observed and cites the identifiers of what it was shown, at
-either grain.
-"""
-
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.adapters.crew.specialists.section import (
@@ -35,13 +18,6 @@ from alert_triage.investigation.contract import (
 from alert_triage.investigation.domain.specialist import Specialist
 
 LOG_TOOLS = (SEARCH_LOGS, ANALYZE_LOGS)
-"""The log tools this specialist may reach, and the only ones.
-
-Widening this is a word in the tuple. It is also the one thing a fake cannot
-verify — that these names exist and that the filter admits them is what the
-credential-gated live run is for.
-"""
-
 LOGS_INSTRUCTION = f"""
 You are a logs specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
@@ -137,4 +113,3 @@ LOGS_SPECIALIST = Specialist(
     output_schema=ReportedFindings,
     toolsets=toolsets(*LOG_TOOLS),
 )
-"""The Logs specialist as the crew sees it: one declaration, nothing else."""

@@ -1,11 +1,3 @@
-"""Where a reader goes to see for themselves what a retrieval returned.
-
-An address is derived from the payload, the tool, and the arguments it was
-called with, never from what a specialist wrote. Both grains are covered: an item the
-payload identifies, and the retrieval it came from, which is the fallback for an
-item the payload does not identify.
-"""
-
 from datetime import UTC, datetime
 from urllib.parse import parse_qs, urlparse
 
@@ -15,7 +7,6 @@ NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 ONE_PM = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
 
 LOG_SEARCH = "search_datadog_logs"
-"""The tool every address below is built for, the Log Explorer's own."""
 
 SEARCH = {
     "query": "service:checkout status:error",
@@ -52,7 +43,6 @@ def test_a_payload_naming_an_item_is_addressed_as_that_item() -> None:
 
 
 def test_an_items_address_still_carries_the_search_that_produced_it() -> None:
-    """An address that degrades to the right search never leads nowhere."""
     retrieval = _links().to_retrieval(LOG_SEARCH, SEARCH)
 
     address = _links().to_item(LOG_SEARCH, {"id": "AQAAA-log-1"}, retrieval)
@@ -62,7 +52,6 @@ def test_an_items_address_still_carries_the_search_that_produced_it() -> None:
 
 
 def test_a_payload_naming_no_item_is_addressed_as_its_retrieval() -> None:
-    """A reader lands on the search that produced it rather than nowhere."""
     retrieval = _links().to_retrieval(LOG_SEARCH, SEARCH)
 
     assert (
@@ -83,7 +72,6 @@ def test_a_retrievals_address_carries_the_query_it_was_called_with() -> None:
 
 
 def test_a_query_is_encoded_rather_than_pasted_into_the_address() -> None:
-    """A raw space or colon in a URL is what makes a link stop opening."""
     address = _links().to_retrieval(
         LOG_SEARCH, {"query": "service:checkout status:error"}
     )
@@ -109,7 +97,6 @@ def test_the_window_is_pinned_so_the_address_outlives_the_moment() -> None:
 
 
 def test_a_window_given_in_epoch_milliseconds_is_read_as_it_was_meant() -> None:
-    """The tool takes what the model gives it, which is not always an instant."""
     address = _links().to_retrieval(
         LOG_SEARCH,
         {
@@ -135,7 +122,6 @@ def test_a_window_nothing_can_be_made_of_is_left_off_rather_than_invented() -> N
 
 
 def test_a_retrieval_with_no_query_is_still_addressed() -> None:
-    """A tool called with something this adapter cannot read is still evidence."""
     address = _links().to_retrieval(LOG_SEARCH, {})
 
     assert address is not None

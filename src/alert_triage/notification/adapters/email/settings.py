@@ -1,12 +1,3 @@
-"""Where mail goes and how to submit it.
-
-Deliberately not part of the YAML-backed configuration, on the rule the
-Datadog credentials and the ledger path already follow: a relay, a sender, and
-a recipient list change when the same triage behavior runs for a different
-team, while what the system watches and how it groups stay identical. A key
-naming any of them written into ``config.yaml`` is inert.
-"""
-
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -28,21 +19,6 @@ RECIPIENT_SEPARATOR = ","
 
 @dataclass(frozen=True)
 class EmailSettings:
-    """The deployment facts needed to submit mail for one deployment.
-
-    Attributes:
-        host: Hostname of the submission server. Its presence is what
-            activates the channel.
-        port: Submission port.
-        sender: Address every report is sent from.
-        recipients: Addresses every report is sent to. Never empty.
-        username: Account to authenticate as, or ``None`` for a relay that
-            wants no authentication.
-        password: Password for that account. Paired with the username: one
-            without the other is a configuration error, not an unauthenticated
-            send.
-    """
-
     host: str
     port: int
     sender: str
@@ -52,7 +28,6 @@ class EmailSettings:
 
     @property
     def credentials(self) -> tuple[str, str] | None:
-        """The pair to log in with, or ``None`` when the relay wants none."""
         if self.username is None or self.password is None:
             return None
         return self.username, self.password
@@ -61,23 +36,6 @@ class EmailSettings:
 def resolve_email_settings(
     env: Mapping[str, str] | None = None,
 ) -> EmailSettings | None:
-    """Resolve the email channel from the environment, or find it inactive.
-
-    The host is what activates the channel. Saying nothing at all leaves it
-    off, which is a decision; saying some of it and not the rest is a mistake,
-    and is refused rather than quietly ignored.
-
-    Args:
-        env: Environment to read from. Defaults to the process's.
-
-    Returns:
-        The channel's settings, or ``None`` when the environment configured no
-        email channel at all.
-
-    Raises:
-        ConfigError: The channel is configured only in part, or a value cannot
-            be read as what it has to be.
-    """
     environment = os.environ if env is None else env
     supplied = {
         variable: value
@@ -108,7 +66,6 @@ _EMAIL_VARIABLES = (
 
 
 def _required(supplied: Mapping[str, str], variable: str) -> str:
-    """Read a setting the channel cannot be activated without."""
     value = supplied.get(variable)
     if value is None:
         raise ConfigError(
@@ -121,7 +78,6 @@ def _required(supplied: Mapping[str, str], variable: str) -> str:
 
 
 def _paired(supplied: Mapping[str, str], variable: str, partner: str) -> str | None:
-    """Read one half of the credential pair, refusing a half that stands alone."""
     value = supplied.get(variable)
     if value is None and partner in supplied:
         raise ConfigError(
@@ -132,7 +88,6 @@ def _paired(supplied: Mapping[str, str], variable: str, partner: str) -> str | N
 
 
 def _recipients(supplied: Mapping[str, str]) -> tuple[str, ...]:
-    """Read the recipient list, which one variable carries comma-separated."""
     listed = _required(supplied, EMAIL_TO_VARIABLE)
     recipients = tuple(
         address.strip()
@@ -147,7 +102,6 @@ def _recipients(supplied: Mapping[str, str]) -> tuple[str, ...]:
 
 
 def _port(supplied: Mapping[str, str]) -> int:
-    """Read the submission port, which unlike the rest has a documented default."""
     port = supplied.get(SMTP_PORT_VARIABLE)
     if port is None:
         return DEFAULT_SMTP_PORT

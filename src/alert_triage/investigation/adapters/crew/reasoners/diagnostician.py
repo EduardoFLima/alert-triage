@@ -1,22 +1,3 @@
-"""The Diagnostician, declared: what it decides, what it concludes, and on what.
-
-It is the crew's manager as well as its reasoner. Each specialist reaches it as
-a tool, so calling one, reading what came back, and choosing the next from it all
-happen on the one thread it is reasoning on — which is the whole point. Handing
-control to a specialist instead would cost it that thread.
-
-It is deliberately platform-neutral. It names no tool, composes no query, and
-learns no dialect: it asks specialists, and which platform those specialists
-query is their business. That is why it lives beside the machinery rather than
-under a platform, and why a deployment swapping Datadog for something else keeps
-this declaration unchanged.
-
-The output schema is the last place the evidence discipline still applies. There
-is no field a hypothesis could smuggle a log line into: what a reader is shown is
-the findings the specialists' own reports were checked into, and this adds a
-conclusion over them rather than an account of them.
-"""
-
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -28,20 +9,6 @@ _LEVELS = ", ".join(level.value for level in Confidence)
 
 
 def diagnostician_instruction(hops: int) -> str:
-    """What the Diagnostician is asked to do, given the budget it actually has.
-
-    A function of the budget rather than a constant beside it, because the
-    number the reasoning is told and the number that is enforced must be one
-    value. A manager planning against eight questions while six are enforced
-    would spend its last two on a plan it cannot finish, and neither half of
-    that disagreement is visible from the other.
-
-    Args:
-        hops: How many specialist consultations this investigation may make.
-
-    Returns:
-        The instruction, stating that budget.
-    """
     return f"""
 You are the diagnostician for a service that has started alerting. You do the
 first-pass triage a knowledgeable engineer would do if they had the time, and
@@ -121,20 +88,6 @@ class Diagnosed(BaseModel):
 
 
 def diagnostician(hops: int) -> Reasoner:
-    """The Diagnostician as the investigation sees it, told what it may spend.
-
-    A function where its siblings are module constants, because this is the one
-    declaration that needs a configured number. Being told the budget is also
-    what keeps this declaration from reaching into the machinery for it: a
-    declaration that imports the framework running it is a declaration that
-    cannot outlive the framework.
-
-    Args:
-        hops: How many specialist consultations this investigation may make.
-
-    Returns:
-        The declaration, stating that budget and nothing else about the run.
-    """
     return Reasoner(
         name="diagnostician",
         instruction=diagnostician_instruction(hops),

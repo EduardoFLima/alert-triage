@@ -61,7 +61,6 @@ def test_an_attempt_bound_below_one_is_refused(tmp_path: Path) -> None:
 
 
 def test_a_credential_under_investigation_is_refused_by_name(tmp_path: Path) -> None:
-    """Ignoring it would leave an operator believing a credential was supplied."""
     path = _write(tmp_path, SCOPED + "\ninvestigation:\n  api_key: sk-secret\n")
 
     with pytest.raises(ConfigError, match="api_key"):
@@ -71,7 +70,6 @@ def test_a_credential_under_investigation_is_refused_by_name(tmp_path: Path) -> 
 def test_the_attempt_bound_and_circuit_breakers_resolve_apart(
     tmp_path: Path,
 ) -> None:
-    """One bounds what happens inside an investigation; the other bounds them."""
     breakers_changed = load_config(
         _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_agent_hops: 9\n"),
         env={},

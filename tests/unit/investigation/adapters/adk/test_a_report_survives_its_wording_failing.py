@@ -1,11 +1,3 @@
-"""A report is worth more than its prose, and the prose is the last thing added.
-
-Everything a report carries was gathered before any of it was worded, so losing
-it to the wording would be the worst trade this investigation could make. The
-fallback is not emergency code: it is the same renderer with nothing written
-above it.
-"""
-
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -121,7 +113,6 @@ def test_a_wording_failure_still_delivers_the_report() -> None:
 def test_a_wording_failure_says_what_it_cost_and_what_was_done_instead(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """It costs the prose and nothing else, which a reader should not have to infer."""
 
     def _explodes(brief: str) -> dict[str, Any]:
         raise RuntimeError("the model refused")
@@ -155,7 +146,6 @@ def test_a_composed_account_still_states_the_conclusion() -> None:
 
 
 def test_a_headline_spanning_lines_is_flattened_rather_than_refused() -> None:
-    """A channel needs one line; losing the report over a stray newline is worse."""
 
     def _wraps(brief: str) -> dict[str, Any]:
         return {"headline": "checkout is\nout of memory", "narrative": "The pods die."}
@@ -166,7 +156,6 @@ def test_a_headline_spanning_lines_is_flattened_rather_than_refused() -> None:
 
 
 def test_an_investigation_that_spent_its_questions_still_concludes() -> None:
-    """The findings already in hand are no less true for the budget running out."""
 
     def _keeps_asking(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str
@@ -203,11 +192,6 @@ def test_an_investigation_that_spent_its_questions_still_concludes() -> None:
 
 
 def test_an_investigation_cut_short_is_reported_as_cut_short() -> None:
-    """Not as one that chose to stop: it wanted to ask more and could not.
-
-    It has findings in hand, which is what separates this from the trip that
-    learned nothing: that one is investigated again rather than reported.
-    """
 
     def _keeps_asking(
         crew: Any, consulted: Consulted, retrieved: Retrieved, prompt: str

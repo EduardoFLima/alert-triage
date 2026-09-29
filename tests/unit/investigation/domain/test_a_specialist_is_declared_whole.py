@@ -1,9 +1,3 @@
-"""A specialist is data: everything that makes one is in its declaration.
-
-A declaration that could not run as one is rejected where it is written rather
-than when an agent is built from it.
-"""
-
 import pytest
 from pydantic import BaseModel
 
@@ -70,7 +64,6 @@ def test_a_toolset_without_a_provider_is_rejected() -> None:
 
 
 def test_one_specialist_may_declare_toolsets_on_different_providers() -> None:
-    """Two providers, one declaration: the case the old shape could not express."""
     specialist = Specialist(
         name="apm_specialist",
         signal=Signal.APM,

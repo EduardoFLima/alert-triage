@@ -98,6 +98,11 @@ been shown to fail has not been shown to enforce anything.
 
 - Names carry the intent; a comment that restates the code is a naming
   failure. Comment *why*, not *what*.
+- A docstring is the exception, not the default. Write one only where the
+  name and signature cannot say it, keep it to a line or two, and leave out
+  `Args:` / `Returns:` sections that repeat the parameter names. A test's name
+  is its documentation; a test docstring earns its place only by giving a
+  reason the name cannot.
 - Small functions, one level of abstraction each, no boolean parameters that
   select behavior.
 - Handle errors where there is enough context to decide; do not catch and

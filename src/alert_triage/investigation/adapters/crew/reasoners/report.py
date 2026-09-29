@@ -1,17 +1,3 @@
-"""The Report agent, declared: what a reader is told, in words rather than records.
-
-Kept a separate agent from the Diagnostician on purpose. How well an
-investigation reasons and how well it is worded are different qualities, they
-fail in different ways, and tuning one through the other is how a report ends up
-reading beautifully about the wrong thing.
-
-It writes prose and nothing else. The evidence a reader checks the prose against
-is rendered underneath it from the items the platform actually returned, so this
-agent has no field to write a log line into and no reason to want one. That is
-the evidence discipline surviving its last hop: the writer characterises, the
-renderer reproduces.
-"""
-
 from pydantic import BaseModel, Field
 
 from alert_triage.investigation.domain.reasoner import Reasoner
@@ -82,4 +68,3 @@ REPORT_WRITER = Reasoner(
     instruction=REPORT_INSTRUCTION,
     output_schema=Worded,
 )
-"""The Report agent as the investigation sees it: one declaration, nothing else."""

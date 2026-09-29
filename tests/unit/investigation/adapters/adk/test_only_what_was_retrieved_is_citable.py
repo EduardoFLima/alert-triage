@@ -1,10 +1,3 @@
-"""What the model may cite is exactly what the platform was seen to return.
-
-Every tool result passes through ``Retrieved`` on its way to the model, which
-keeps it and hands back the identifiers it may be cited by. A failed retrieval
-is recorded and refused rather than kept, because it evidences nothing.
-"""
-
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -97,7 +90,6 @@ def test_a_citation_to_a_call_that_was_never_made_resolves_to_nothing() -> None:
 
 
 def test_each_investigation_starts_with_nothing_citable() -> None:
-    """An identifier from an earlier incident must not resolve in a later one."""
     earlier = Retrieved()
     earlier.retain_evidence("search_logs", _logs("first"))
 
@@ -117,7 +109,6 @@ def test_a_refused_retrieval_is_recorded_and_replaced_with_a_refusal() -> None:
 
 
 def test_a_refused_retrieval_is_not_citable_as_evidence() -> None:
-    """A failure evidences nothing, however the model chooses to read it."""
     retrieved = Retrieved()
     retrieved.refuse_evidence("the platform refused the log search")
 
@@ -139,12 +130,6 @@ def test_failures_and_successes_accumulate_side_by_side() -> None:
 
 
 class _Links:
-    """A platform's addresses, standing in for the one bound to a real site.
-
-    It records which tool each address was asked for, which is the one thing a
-    platform needs to know about a retrieval that its arguments cannot say.
-    """
-
     def __init__(self) -> None:
         self.asked_for: list[str] = []
         self.environments: list[str | None] = []
@@ -236,7 +221,6 @@ def test_items_resolve_to_evidence_carrying_the_address_the_linker_built() -> No
 
 
 def test_a_retrieval_kept_without_a_linker_addresses_nothing() -> None:
-    """Evidence with no address is still evidence, which is what this describes."""
     retrieved = Retrieved()
 
     retrieved.retain_evidence("search_logs", _logs("first"))

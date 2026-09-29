@@ -1,12 +1,3 @@
-"""The infrastructure specialist's declaration: what it may reach and what it is asked.
-
-The specialist whose signal a deployment may genuinely not have. A service on
-virtual machines has no container workload, and the platform says so by
-answering that there are none. The instruction has to tell the model that this
-is an answer, because a model told to find the workload will otherwise keep
-asking, or report the absence as something wrong.
-"""
-
 from alert_triage.investigation.adapters.crew.specialists.infrastructure import (
     INFRASTRUCTURE_INSTRUCTION,
     INFRASTRUCTURE_SPECIALIST,
@@ -48,7 +39,6 @@ def test_the_declaration_permits_the_tools_it_needs_and_no_others() -> None:
 
 
 def test_the_declaration_can_analyse_a_workloads_rollout() -> None:
-    """Spelled `analyse`, where its catalogue neighbours are spelled `analyze`."""
     kubernetes = next(
         toolset
         for toolset in INFRASTRUCTURE_SPECIALIST.toolsets
@@ -60,12 +50,6 @@ def test_the_declaration_can_analyse_a_workloads_rollout() -> None:
 
 
 def test_the_instruction_asks_the_listing_tool_which_metrics_are_reported() -> None:
-    """The failure this prevents: metric context asked to enumerate a service.
-
-    Asked for everything a service reports it has no such argument, so a model
-    told to ask it that sends `*` as the metric name and the platform refuses
-    the retrieval.
-    """
     assert "ask `search_datadog_metrics` which metrics" in _flowed()
 
 
@@ -89,7 +73,6 @@ def test_the_instruction_asks_for_the_workload_state_and_its_restarts() -> None:
 
 
 def test_a_rollout_is_analysed_for_a_workload_that_was_searched_for() -> None:
-    """Its arguments are a cluster, a namespace and a name only a search supplies."""
     flowed = _flowed()
 
     assert "search before you analyse" in flowed
@@ -106,7 +89,6 @@ def test_the_rollout_is_reported_beside_the_restarts_and_not_as_a_cause() -> Non
 
 
 def test_the_instruction_says_an_absent_signal_is_an_answer_not_a_failure() -> None:
-    """A service that is not on containers is not a retrieval that broke."""
     flowed = _flowed()
 
     assert "does not have" in flowed
@@ -126,7 +108,6 @@ def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
 
 
 def test_a_failed_retrieval_and_an_absent_signal_are_told_apart() -> None:
-    """The two the model must never conflate, distinguished where it reads them."""
     flowed = _flowed()
 
     assert flowed.index("does not have") != flowed.index("the retrieval did not run")

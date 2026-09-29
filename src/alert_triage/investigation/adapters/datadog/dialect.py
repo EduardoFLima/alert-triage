@@ -1,16 +1,4 @@
-"""How a Datadog metric query is written, taught once for every specialist asking one.
-
-Shared rather than repeated, unusually for a specialist's instruction. What a
-specialist looks for is its own; this is the platform's grammar, identical for
-anything querying metrics on it, and the two specialists that do were drifting
-into different half-accounts of it. A rule stated twice is a rule that can be
-corrected once.
-
-Every line here was written against a live account's rejections rather than
-from memory. The model reaches for log-query syntax when it writes a metric
-query — they look alike and are not — and each paragraph below is one 400 it
-came back with.
-"""
+"""Metric grammar is shared because Datadog rejects log-query habits here."""
 
 AN_EMPTY_ANSWER = """
 An empty answer is about what you asked, not about the service. It means what
@@ -20,12 +8,7 @@ does, and the two readings are opposite findings. Before you report that
 something was quiet, be sure what you asked about is something the service
 reports.
 """.strip()
-"""What an empty answer means, for every specialist whose query can name a guess.
-
-The principle only. Which listing a specialist checks its guess against is its
-own, because the specialists hold different ones — and one holds none at all
-unless the account has Preview, and is told the principle regardless.
-"""
+"""Shared principle; each specialist decides how to check whether a name exists."""
 
 IN_THE_ENVIRONMENT = """
 Scope every query to the service you were told about and to the environment you
@@ -34,13 +17,7 @@ more than one environment, and evidence drawn from another is not evidence
 about this incident. Where you were told no environment, scope by the service
 alone.
 """.strip()
-"""Where every query is confined, for every specialist asking one.
-
-Told to the model rather than enforced by rewriting its tool arguments: a
-rewrite hides what was actually asked, and a metric carrying no ``env`` tag
-would come back empty for a reason nobody could see. An empty answer is then
-explained by ``AN_EMPTY_ANSWER``, which is where that case already lives.
-"""
+"""Instruction rather than rewrite, so the run still shows what was asked."""
 
 _METRIC_QUERY_GRAMMAR = """
 A metric query is an aggregator, a metric name, and a scope in braces:
@@ -72,4 +49,3 @@ METRIC_QUERY_DIALECT = f"""{_METRIC_QUERY_GRAMMAR}
 
 {IN_THE_ENVIRONMENT} Ask about the window you were given rather than a period
 of your own choosing."""
-"""What a specialist writing a metric query needs to know, and nothing else."""

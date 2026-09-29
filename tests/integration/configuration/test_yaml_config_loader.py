@@ -80,7 +80,6 @@ def test_the_services_the_file_names_are_the_services_in_scope(
 def test_a_service_listed_with_no_settings_is_in_scope_and_not_critical(
     tmp_path: Path,
 ) -> None:
-    """An entry is only worth writing to declare a service critical."""
     path = _write(tmp_path, SCOPED + "\n  services:\n    checkout:\n")
 
     config = load_config(path, env={})
@@ -124,7 +123,6 @@ def test_an_unknown_key_within_a_service_entry_is_rejected(tmp_path: Path) -> No
 
 
 def test_services_alone_satisfy_scope(tmp_path: Path) -> None:
-    """A run that watches named services needs no owner to watch them within."""
     path = _write(tmp_path, "scope:\n  services:\n    checkout: {}\n")
 
     config = load_config(path, env={})
@@ -141,7 +139,6 @@ def test_neither_owner_nor_services_refuses_to_start(tmp_path: Path) -> None:
 
 
 def test_an_empty_services_mapping_does_not_satisfy_scope(tmp_path: Path) -> None:
-    """Watching no service is never what an operator meant by naming none."""
     path = _write(tmp_path, "scope:\n  services: {}\n")
 
     with pytest.raises(ConfigError, match=r"scope\.services"):
@@ -151,7 +148,6 @@ def test_an_empty_services_mapping_does_not_satisfy_scope(tmp_path: Path) -> Non
 def test_the_environment_alone_declares_the_services_in_scope(
     tmp_path: Path,
 ) -> None:
-    """A deployment with no config file can still scope by service."""
     config = load_config(
         tmp_path / "absent.yaml", env={"SCOPE_SERVICES": "checkout,payments"}
     )
@@ -163,7 +159,6 @@ def test_the_environment_alone_declares_the_services_in_scope(
 def test_the_environment_replaces_the_files_services_rather_than_merging(
     tmp_path: Path,
 ) -> None:
-    """An operator who names a set gets that set, not that set plus the file's."""
     path = _write(
         tmp_path,
         SCOPED
@@ -217,7 +212,6 @@ def test_a_criticality_that_is_neither_yes_nor_no_names_the_variable(
 def test_the_environment_can_stand_a_service_down_from_critical(
     tmp_path: Path,
 ) -> None:
-    """The override adjusts an entry in both directions, as every override does."""
     path = _write(
         tmp_path,
         SCOPED
@@ -289,7 +283,6 @@ def test_scope_environment_defaults_resolves_and_environment_wins(
 
 
 def test_an_environment_alone_does_not_satisfy_scope(tmp_path: Path) -> None:
-    """Defaulted to production, env would otherwise watch all of production."""
     path = _write(tmp_path, "scope:\n  env: prod\n")
 
     with pytest.raises(ConfigError, match="requires an owner, services, or both"):
@@ -438,7 +431,6 @@ datadog:
 def test_connection_keys_in_the_file_are_refused_rather_than_read(
     tmp_path: Path,
 ) -> None:
-    """`config.yaml` is behavior only, and a credential written there is refused."""
     path = _write(tmp_path, SCOPED + CONNECTION_KEYS_IN_FILE)
 
     with pytest.raises(ConfigError, match="datadog"):
@@ -460,12 +452,6 @@ def test_an_unknown_config_key_is_reported_rather_than_ignored(
 def test_a_config_still_declaring_max_mcp_retries_is_refused(
     tmp_path: Path,
 ) -> None:
-    """The key was removed; naming it is how a deployment learns nothing read it.
-
-    How many times a platform call is retried is owned by the agent framework's
-    own client, with no seam an operator's value could reach. Refusing by name
-    is the loudest answer available and the one the unknown-key path exists for.
-    """
     path = _write(tmp_path, SCOPED + "\ncircuit_breakers:\n  max_mcp_retries: 5\n")
 
     with pytest.raises(ConfigError, match="max_mcp_retries"):
@@ -475,7 +461,6 @@ def test_a_config_still_declaring_max_mcp_retries_is_refused(
 def test_the_retired_retry_key_has_no_environment_override_either(
     tmp_path: Path,
 ) -> None:
-    """A variable nothing derives resolves nothing, rather than resolving quietly."""
     path = _write(tmp_path, SCOPED)
 
     config = load_config(
@@ -493,7 +478,6 @@ def test_the_retired_retry_key_has_no_environment_override_either(
 def test_a_config_still_declaring_critical_services_is_refused(
     tmp_path: Path,
 ) -> None:
-    """The section was removed; naming it is how a deployment learns it moved."""
     path = _write(tmp_path, SCOPED + "\ncritical_services:\n  checkout: {}\n")
 
     with pytest.raises(ConfigError, match="critical_services"):
@@ -611,7 +595,6 @@ ledger_storage:
 def test_a_ledger_location_in_the_file_is_not_where_records_are_kept(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Where a database lives is a deployment fact; `config.yaml` is behavior."""
     monkeypatch.chdir(tmp_path)
     path = _write(tmp_path, SCOPED + LEDGER_LOCATION_IN_FILE)
 

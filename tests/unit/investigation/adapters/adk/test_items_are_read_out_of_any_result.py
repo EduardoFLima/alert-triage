@@ -1,9 +1,3 @@
-"""Reading discrete, citable items out of whatever a tool happened to return.
-
-No per-tool knowledge: a result is a list, a list in an envelope, or one thing,
-and the third degrades to something citable whole rather than to an error.
-"""
-
 from datetime import UTC, datetime
 
 from alert_triage.investigation.adapters.adk.normalisation import items_from
@@ -33,7 +27,6 @@ def test_items_wrapped_in_a_recognised_envelope_are_found() -> None:
 
 
 def test_the_envelope_is_not_itself_an_item() -> None:
-    """Two items from a wrapped pair, not three: the wrapper evidences nothing."""
     items = items_from(
         {"data": [{"message": "first"}, {"message": "second"}]}, "call-1"
     )
@@ -42,7 +35,6 @@ def test_the_envelope_is_not_itself_an_item() -> None:
 
 
 def test_a_result_with_no_readable_items_yields_none_rather_than_an_error() -> None:
-    """A tool nobody anticipated degrades to a citable aggregate."""
     assert items_from({"flame_graph": {"root": {"self_time_ms": 42}}}, "call-1") == ()
 
 
@@ -121,7 +113,6 @@ def test_a_single_word_too_long_to_keep_is_still_shortened() -> None:
 
 
 def test_items_are_found_inside_a_structured_tool_result() -> None:
-    """The protocol's own wrapping is not evidence either."""
     items = items_from(
         {"structuredContent": {"logs": [{"message": "first"}]}, "isError": False},
         "call-1",
@@ -145,7 +136,6 @@ def test_a_tool_result_that_is_prose_has_no_items() -> None:
 
 
 def test_items_are_found_under_the_protocols_own_wrapper() -> None:
-    """A tool answering with a list has it wrapped, because content is an object."""
     items = items_from(
         {"structuredContent": {"result": [{"message": "first"}]}}, "call-1"
     )
@@ -154,7 +144,6 @@ def test_items_are_found_under_the_protocols_own_wrapper() -> None:
 
 
 def test_an_item_carries_the_address_a_linker_builds_for_its_payload() -> None:
-    """The address is derived from what was retrieved, by whoever knows how."""
     items = items_from(
         [{"id": "log-1", "message": "first"}, {"id": "log-2", "message": "second"}],
         "call-1",
@@ -168,7 +157,6 @@ def test_an_item_carries_the_address_a_linker_builds_for_its_payload() -> None:
 
 
 def test_an_item_read_without_a_linker_has_no_address() -> None:
-    """Reading items is platform-blind; addressing them is not."""
     (item,) = items_from([{"message": "OOMKilled"}], "call-1")
 
     assert item.url is None

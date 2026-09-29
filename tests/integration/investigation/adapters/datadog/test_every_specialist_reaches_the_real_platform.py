@@ -1,17 +1,7 @@
-"""Confirms every declaration against the real platform and a real model.
+"""Exercise every crew declaration against real Datadog and a real model.
 
-Everything else about the investigation is exercised offline, against a fake
-MCP server and a scripted model. Three things cannot be: that the tool names in
-a declaration exist on Datadog's server, that the filter admits them, and that
-a model given the instruction actually calls them. A fake proves none of those,
-because a fake is built from the same assumptions the declaration is.
-
-Parameterised over the crew rather than naming one specialist, so a specialist
-added later cannot ship without its tool names confirmed against the real
-server. It costs a model call and at least one platform call per specialist,
-and per toolset a specialist declares, which is a developer's cost rather than
-CI's: it needs real credentials and is skipped without them, so CI and a fresh
-clone stay green.
+Live calls confirm tool names, guide coverage, and model-initiated calls that
+fakes cannot prove; the suite skips without credentials.
 """
 
 import asyncio
@@ -79,14 +69,7 @@ from alert_triage.triage.adapters.datadog.connection import (
 
 
 def _a_model_can_be_reached() -> bool:
-    """Whether this environment can reach a model at all, by either route.
-
-    Asked of the resolver rather than restated here. A deployment on the
-    enterprise platform holds no key and is no less able to run these; naming
-    ``GOOGLE_API_KEY`` in the gate would skip it for lacking something it is
-    not supposed to have. Deferring keeps the gate agreeing with the thing it
-    guards, including the alternate name the resolver already accepts.
-    """
+    """Let the resolver decide whether API-key or enterprise auth can run."""
     try:
         resolve_model_access()
     except ConfigError:
@@ -108,51 +91,28 @@ pytestmark = pytest.mark.skipif(
 )
 
 SERVICE = os.environ.get("ALERT_TRIAGE_LIVE_SERVICE", "checkout")
-"""A service in the account under test. A quiet one is a valid answer."""
-
 ENVIRONMENT = os.environ.get("ALERT_TRIAGE_LIVE_ENV", Scope.DEFAULT_ENV)
-"""The environment that service runs in, which every query is confined to."""
-
 DECLARED_TOOLSETS = [
     (specialist.name, toolset) for specialist in CREW for toolset in specialist.toolsets
 ]
-"""Every toolset the crew declares, named by the specialist that declared it.
-
-Per toolset rather than per specialist: a specialist reaching two of them opens
-a connection to each, and a failure has to say which half of it is missing.
-"""
 
 
 _log = logging.getLogger(__name__)
 
 
 def _deployment() -> Deployment:
-    """The deployment a real run would assemble, bounds and guides included.
-
-    The breakers are read the way a run reads them, so an override in the
-    environment or the config file governs this suite too. Built with the
-    defaults instead, a specialist here would stop at the default call budget
-    whatever the developer had configured.
-
-    The guides are the ones a run would read for this crew, so what a real
-    model is offered here is what it would be offered in production.
-    """
+    """Use configured breakers and the guides a production run would offer."""
     return replace(_unguided_deployment(), guides=_guides())
 
 
 @cache
 def _guides() -> tuple[DatadogGuide, ...]:
-    """The platform's guides, read once for the whole module as a run reads them.
-
-    Reading them costs a call per guide the platform publishes, which is
-    worth paying once here rather than once per test.
-    """
+    """Share the live guide listing; each published guide costs a call."""
     return fetch_guides(CREW, _unguided_deployment())
 
 
 @cache
 def _unguided_deployment() -> Deployment:
-    """The deployment before its guides are read, built once so they are too."""
     connection = resolve_connection()
     breakers = load_config(DEFAULT_CONFIG_PATH).circuit_breakers
     model = build_model(Investigation.DEFAULT_MODEL, resolve_model_access())
@@ -188,7 +148,7 @@ def _target() -> InvestigationTarget:
 def test_every_declared_tool_exists_and_the_filter_admits_it(
     specialist: str, declared: Toolset
 ) -> None:
-    """The one thing no fake can establish: that these names are real."""
+    """Only the real server can confirm these tool names."""
     toolset = McpToolset(
         connection_params=connection_for(declared, _deployment()),
         tool_filter=list(declared.tools),
@@ -205,13 +165,7 @@ def test_every_declared_tool_exists_and_the_filter_admits_it(
 def test_every_specialist_is_offered_a_guide_to_its_tools(
     specialist: Specialist,
 ) -> None:
-    """The one thing no fake establishes: that real guides document these tools.
-
-    Matching is by a guide's headings, which the platform can reshape; a
-    specialist offered nothing is back to writing queries from memory, and
-    nothing else in a run would say so. Run with ``--log-cli-level=INFO`` to
-    see which guides each is offered.
-    """
+    """The platform can reshape guide headings; no guide means guessing queries."""
     offered = guides_for(specialist, _deployment().guides)
 
     _log.info(
@@ -226,7 +180,7 @@ def test_every_specialist_is_offered_a_guide_to_its_tools(
     "specialist", CREW, ids=[specialist.name for specialist in CREW]
 )
 def test_a_real_model_given_the_instruction_calls_them(specialist: Specialist) -> None:
-    """A quiet service is a valid answer; what must not happen is no retrieval."""
+    """A quiet service may find nothing, but it still has to retrieve."""
     retrieved = Retrieved()
 
     asyncio.run(
@@ -240,12 +194,7 @@ def test_a_real_model_given_the_instruction_calls_them(specialist: Specialist) -
 
 
 class _Recorded:
-    """This account's addresses, noting which tool each retrieval address was for.
-
-    A retrieval's address is judged against the tool that produced it: a Log
-    Explorer address is right for a log search and a lie under a metric, and
-    nothing in the address itself says which it was built for.
-    """
+    """Pair each retrieval address with the tool that produced it."""
 
     def __init__(self, links: DatadogLinks) -> None:
         self._links = links
@@ -283,7 +232,6 @@ class _Recorded:
 
 
 def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:
-    """One real consultation, kept with this account's addresses attached."""
     links = _Recorded(DatadogLinks(resolve_connection().web_host))
     retrieved = Retrieved(link=links, service=SERVICE, env=ENVIRONMENT)
     asyncio.run(
@@ -301,13 +249,7 @@ def _investigated(specialist: Specialist) -> tuple[Retrieved, _Recorded]:
 def test_each_retrieval_address_opens_rather_than_404s_or_is_absent(
     specialist: Specialist, answers: Callable[[str], bool]
 ) -> None:
-    """A unit test asserts the string; only Datadog says whether it is a route.
-
-    Every retrieval rather than ``call-1``, which is as likely to be the
-    platform's guide to its own grammar as it is evidence. Both outcomes are
-    specified: a tool with an address template gets an address that opens, and one
-    without gets none. A Log Explorer address for a metric is neither.
-    """
+    """Only Datadog can say whether an address template opens the right route."""
     retrieved, links = _investigated(specialist)
 
     assert retrieved.retrievals >= 1
@@ -323,14 +265,7 @@ def test_each_retrieval_address_opens_rather_than_404s_or_is_absent(
 def test_a_findings_service_page_opens_rather_than_404s(
     section: Section | None, answers: Callable[[str], bool]
 ) -> None:
-    """The section is the one part of an address the reasoning chooses.
-
-    What this can establish is that the page each section is anchored on opens.
-    It cannot establish that the anchor lands anywhere in particular: a browser
-    resolves a fragment and the server never sees one, so no status code speaks
-    to it. A wrong anchor degrades to the top of the right page, which is why
-    the choice was admissible — and why confirming one is a human's look.
-    """
+    """Fragments never reach the server, so this only proves the page opens."""
     links = DatadogLinks(resolve_connection().web_host)
 
     address = links.to_service(SERVICE, _target().window, section, ENVIRONMENT)
@@ -340,13 +275,7 @@ def test_a_findings_service_page_opens_rather_than_404s(
 
 
 def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
-    """The design's open question, answered by a real payload rather than a guess.
-
-    Per-item addressing is the optimisation and the retrieval's own address is
-    the fallback, so a payload naming an item under none of the keys this
-    adapter reads is a finding to fold back into ``ITEM_KEYS`` — not a broken
-    link. What this records is which of them a live payload actually uses.
-    """
+    """A missing item key is feedback for ITEM_KEYS, not a broken link."""
     retrieved, links = _investigated(LOGS_SPECIALIST)
 
     item = next(
@@ -370,14 +299,7 @@ def test_what_key_a_live_log_payload_identifies_an_item_by() -> None:
 def test_a_real_diagnostician_routes_over_the_real_crew(
     answers: Callable[[str], bool],
 ) -> None:
-    """The one thing no fake settles: whether a manager actually chooses.
-
-    A stub manager proves the routing is wired; it cannot prove a model given
-    the instruction consults anybody, that a specialist's structured report
-    survives the agent-tool hop, or that a confidence level comes back in the
-    declared set. All three are what this establishes, and what tasks 8.3 to 8.6
-    record the numbers from.
-    """
+    """Only a live model proves the manager chooses and returns a valid report."""
     retrieved = Retrieved()
     consulted = Consulted(offered=CREW, retrieved=retrieved)
 

@@ -1,11 +1,3 @@
-"""An address opens the kind of thing its retrieval came from, or there is none.
-
-What produced a retrieval depends on which tool was called, so the tool is what
-an address is routed on. A tool with no address template known for it answers
-``None``: a Log Explorer search built for a metric query looks like an answer
-and is an empty page, and a reader cannot tell it from a genuinely empty one.
-"""
-
 from datetime import UTC, datetime
 
 import pytest
@@ -36,10 +28,8 @@ FROM_MS = int(NOON.timestamp() * 1000)
 TO_MS = int(ONE_PM.timestamp() * 1000)
 
 CHECKOUT = "checkout"
-"""The service the investigation holds, which every service-scoped address carries."""
 
 UNPLACED_TOOL = "apm_query_trace"
-"""A tool the crew reaches that no address template is known for."""
 
 SEARCH = {
     "query": "service:checkout status:error",
@@ -54,7 +44,6 @@ METRIC_QUERY = {
 }
 
 HALF_A_WINDOW = {"from": NOON.isoformat()}
-"""One end of a window and not the other, which is no window an address can carry."""
 
 
 def _links() -> DatadogLinks:
@@ -76,7 +65,6 @@ def test_a_metric_retrieval_is_addressed_as_the_services_own_apm_page() -> None:
 
 @pytest.mark.parametrize("tool", sorted(APM_SERVICE_TOOLS))
 def test_every_apm_tool_opens_the_services_page(tool: str) -> None:
-    """A metric, a metric search, a metric's context, the catalogue — one page."""
     assert _links().to_retrieval(tool, METRIC_QUERY, CHECKOUT) == _links().to_retrieval(
         "get_datadog_metric", METRIC_QUERY, CHECKOUT
     )
@@ -128,7 +116,6 @@ def test_an_event_retrieval_is_addressed_as_the_event_explorer_over_the_service(
 
 
 def test_an_apm_address_drops_both_ends_of_an_unreadable_window() -> None:
-    """One end of a window is a period the evidence was not gathered over."""
     address = _links().to_retrieval("get_datadog_metric", HALF_A_WINDOW, CHECKOUT)
 
     assert address == "https://app.datadoghq.com/apm/entity/service%3Acheckout"
@@ -167,7 +154,6 @@ def test_a_log_analysis_is_addressed_as_the_search_it_ran_over() -> None:
 
 
 def test_an_item_from_a_tool_with_no_address_template_inherits_no_log_address() -> None:
-    """Not even the item-named fallback: there is no search for it to be in."""
     address = _links().to_item(
         UNPLACED_TOOL, {"id": "series-1", "name": "system.cpu.user"}, None
     )
@@ -196,11 +182,7 @@ EVERY_DECLARATION = (
     *(apm_specialist(preview=preview) for preview in (True, False)),
     *(trace_specialist(preview=preview) for preview in (True, False)),
 )
-"""The crew as declared for an account with Preview access and one without.
-
-``CREW`` is built for one of the two, and a tool reached only by the other is
-still a tool a deployment's evidence comes from.
-"""
+"""Includes both Preview branches because deployments may differ."""
 
 DECLARED_TOOLS = sorted(
     {
@@ -217,7 +199,6 @@ DECLARED_TOOLS = sorted(
 def test_every_tool_the_crew_reaches_is_addressed_or_deliberately_not(
     tool: str,
 ) -> None:
-    """A specialist widened later must not lose its addresses unnoticed."""
     assert (tool in ADDRESSED) != (tool in UNADDRESSED)
 
 
@@ -233,7 +214,6 @@ def test_a_tool_recorded_as_addressed_is_given_one(tool: str) -> None:
 
 @pytest.mark.parametrize("tool", sorted(ADDRESSED | UNADDRESSED))
 def test_every_tool_recorded_is_one_the_crew_still_reaches(tool: str) -> None:
-    """A record for a tool nobody declares is a decision about nothing."""
     assert tool in DECLARED_TOOLS
 
 
@@ -249,7 +229,6 @@ def test_a_service_scoped_retrieval_with_no_service_has_no_address(tool: str) ->
 
 
 def test_a_service_is_encoded_into_the_path_rather_than_pasted() -> None:
-    """A slash in a service name would otherwise start a path segment of its own."""
     address = _links().to_retrieval("get_datadog_metric", HALF_A_WINDOW, "web/api")
 
     assert address == "https://app.datadoghq.com/apm/entity/service%3Aweb%2Fapi"
@@ -259,7 +238,6 @@ def test_a_service_is_encoded_into_the_path_rather_than_pasted() -> None:
 def test_an_item_from_a_service_scoped_tool_is_addressed_as_its_retrieval(
     tool: str,
 ) -> None:
-    """Naming an item on the page is the Log Explorer's grammar, not every view's."""
     retrieval = _links().to_retrieval(tool, HALF_A_WINDOW, CHECKOUT)
 
     address = _links().to_item(tool, {"id": "host-1"}, retrieval, CHECKOUT)
@@ -290,7 +268,6 @@ def test_a_findings_service_page_with_no_section_has_no_anchor() -> None:
 
 @pytest.mark.parametrize("section", list(Section))
 def test_every_section_has_an_anchor_on_the_service_page(section: Section) -> None:
-    """A member with no anchor would be a choice the reasoning makes for nothing."""
     address = _links().to_service(CHECKOUT, WINDOW, section)
 
     assert address is not None
@@ -302,7 +279,6 @@ def test_a_findings_service_page_needs_a_service() -> None:
 
 
 PROD = "prod"
-"""The environment an investigation's target states, where it states one."""
 
 
 def test_a_log_search_is_not_rewritten_to_the_environment() -> None:

@@ -1,10 +1,3 @@
-"""The APM specialist's declaration: what it may reach and what it is asked.
-
-Everything here is read off module constants. What a declaration permits and
-what its instruction names have to agree, and the cheapest way for them to
-disagree is a copy-paste, so both directions are asserted.
-"""
-
 from alert_triage.investigation.adapters.crew.specialists.apm import (
     APM_INSTRUCTION,
     APM_SPECIALIST,
@@ -34,7 +27,6 @@ PREVIEW_TOOLS = {
 
 
 def test_without_preview_it_reaches_the_core_toolset_alone() -> None:
-    """An account without Preview must not be told it has a tool it cannot call."""
     without = apm_specialist(preview=False)
 
     assert {toolset.name for toolset in without.toolsets} == {"core"}
@@ -51,11 +43,9 @@ def test_without_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
 
 
 RETIRED_TOOL = "search_datadog_service_dependencies"
-"""Deprecated by the platform in favour of its catalogue search."""
 
 
 def test_no_declaration_permits_or_names_the_retired_dependency_tool() -> None:
-    """A tool the platform stops serving comes back as a refused retrieval."""
     for preview in (False, True):
         declared = apm_specialist(preview=preview)
 
@@ -72,11 +62,6 @@ def test_both_declarations_reach_the_catalogue() -> None:
 
 
 def test_the_instruction_says_what_to_ask_the_catalogue_for() -> None:
-    """A search handed over as a lookup is searched for the service and nothing else.
-
-    The retired tool took a service and answered with its neighbours; the
-    catalogue has to be asked, so the line describing it names the ask.
-    """
     for preview in (False, True):
         instruction = apm_specialist(preview=preview).instruction
         described = instruction[instruction.index("`search_datadog_entities`") :]
@@ -88,7 +73,6 @@ def test_the_instruction_says_what_to_ask_the_catalogue_for() -> None:
 
 
 def test_without_preview_no_preview_tool_is_permitted_or_named() -> None:
-    """The gate: a tool the server would refuse comes back as a failed retrieval."""
     without = apm_specialist(preview=False)
 
     assert not PREVIEW_TOOLS & _permitted(without)
@@ -96,7 +80,6 @@ def test_without_preview_no_preview_tool_is_permitted_or_named() -> None:
 
 
 def test_without_preview_deploy_correlation_survives_through_events() -> None:
-    """The one Preview capability core can still answer, coarsely."""
     without = apm_specialist(preview=False)
 
     assert "search_datadog_events" in _permitted(without)
@@ -123,12 +106,6 @@ def test_with_preview_it_permits_the_tools_it_needs_and_no_others() -> None:
 
 
 def test_the_instruction_asks_the_listing_tool_which_metrics_exist() -> None:
-    """The failure this prevents: metric context asked to enumerate a service.
-
-    Asked for a whole service's metrics it has no such argument, so a model
-    told to ask it that sends `*` as the metric name and the platform refuses
-    the retrieval.
-    """
     flowed = " ".join(APM_INSTRUCTION.lower().split())
 
     assert "ask `search_datadog_metrics` which metrics" in flowed
@@ -158,7 +135,6 @@ def test_the_instruction_asks_for_the_golden_signals() -> None:
 
 
 def test_the_instruction_teaches_the_platforms_metric_query_dialect() -> None:
-    """A query dialect does not translate, so the specialist is taught this one."""
     assert "avg:" in APM_INSTRUCTION
     assert "service:checkout" in APM_INSTRUCTION
 
@@ -171,7 +147,6 @@ def test_the_instruction_asks_for_single_hop_dependency_evidence() -> None:
 
 
 def test_the_instruction_forbids_investigating_the_neighbour_in_its_own_right() -> None:
-    """A neighbour is context for this service, not a second investigation."""
     lowered = APM_INSTRUCTION.lower()
 
     assert "do not investigate" in lowered
@@ -185,7 +160,6 @@ def test_the_instruction_asks_what_changed_close_to_the_alerts() -> None:
 
 
 def test_the_instruction_forbids_naming_a_change_as_the_cause() -> None:
-    """A coincidence in time is something observed, not a conclusion."""
     lowered = APM_INSTRUCTION.lower()
 
     assert "coincidence" in lowered or "do not name" in lowered
@@ -197,7 +171,6 @@ def test_the_instruction_asks_for_both_citation_grains() -> None:
 
 
 def test_the_aggregate_example_does_not_assume_the_catalogues_grain() -> None:
-    """Whether the catalogue answers in discrete entities is a live question."""
     for preview in (False, True):
         flowed = " ".join(apm_specialist(preview=preview).instruction.split())
 
@@ -205,7 +178,6 @@ def test_the_aggregate_example_does_not_assume_the_catalogues_grain() -> None:
 
 
 def test_the_instruction_forbids_concluding_from_a_failed_retrieval() -> None:
-    """A failure is not a healthy service, in either direction."""
     lowered = APM_INSTRUCTION.lower()
 
     assert "failed" in lowered

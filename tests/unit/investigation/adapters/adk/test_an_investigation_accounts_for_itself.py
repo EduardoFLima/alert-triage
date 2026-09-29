@@ -1,12 +1,3 @@
-"""What an investigation writes down as it happens, for whoever reads it after.
-
-An investigation is the part of a run nobody can reconstruct afterwards: which
-specialist was asked, what it was asked for, what the platform actually
-answered, and what the specialist made of it. Each of those is written down at
-the moment it happens, and the observation — the one thing a human came to
-read — is never shortened.
-"""
-
 import logging
 from typing import Any
 
@@ -171,7 +162,6 @@ def test_what_the_platform_answered_is_written_down_next_to_what_was_asked(
 def test_a_platform_answer_too_long_to_read_is_shortened(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A single log search would otherwise be the whole run's output."""
     with caplog.at_level(logging.INFO, logger=TOOL_CALL_LOGGER):
         keep_evidence_callback(Retrieved(), PERMITTED, "logs_specialist")(
             tool=_Tool("search_datadog_logs"),

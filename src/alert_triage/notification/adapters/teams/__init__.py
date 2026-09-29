@@ -1,5 +1,3 @@
-"""Teams adapters: a ``Notifier`` implementation that posts to Microsoft Teams."""
-
 from alert_triage.notification.adapters.teams.http import (
     TIMEOUT_SECONDS,
     Post,

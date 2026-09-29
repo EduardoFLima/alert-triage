@@ -1,11 +1,3 @@
-"""A reasoner is an instruction and a schema; a specialist is those plus its reach.
-
-Keeping them separate types is what protects the specialist invariant. What an
-APM agent *is* includes what it may ask, so a declaration with no toolsets is
-not a specialist — and relaxing ``Specialist`` to admit one would erase the one
-thing that makes a specialist declaration trustworthy.
-"""
-
 import pytest
 from pydantic import BaseModel
 
@@ -51,7 +43,6 @@ def test_a_reasoner_without_a_name_is_refused() -> None:
 
 
 def test_a_reasoner_without_an_instruction_is_refused() -> None:
-    """Without one it reasons about nothing, which is the specialist rule again."""
     with pytest.raises(ValueError, match="instruction"):
         Reasoner(name="diagnostician", instruction="   ", output_schema=_Answer)
 

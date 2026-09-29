@@ -1,13 +1,3 @@
-"""An agent's own words, on their way past to whoever is reading the log.
-
-What the Diagnostician says between consultations is the account of why it
-asked what it asked, and it is the one thing the consultation record does not
-keep: that holds what was asked and what came back, not the thread joining
-them. What the Report agent says is the report itself, taking shape. The
-callback watches and never intervenes, so a run reads the same whether anyone
-is listening or not.
-"""
-
 import logging
 from typing import Any
 
@@ -17,8 +7,6 @@ from alert_triage.investigation.adapters.adk.reasoning import log_reasoning
 
 
 class _Part:
-    """A stand-in for one part of the response ADK hands over."""
-
     def __init__(self, text: str | None = None) -> None:
         self.text = text
 
@@ -29,8 +17,6 @@ class _Content:
 
 
 class _Response:
-    """A stand-in for the model response, in the shapes ADK produces."""
-
     def __init__(
         self, parts: list[_Part] | None = None, *, partial: bool = False
     ) -> None:
@@ -89,7 +75,6 @@ def test_a_streamed_fragment_is_not_logged(caplog: pytest.LogCaptureFixture) -> 
 def test_a_part_carrying_no_text_is_not_logged(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A consultation is a part with no words in it, and is logged where it is made."""
     with caplog.at_level(logging.INFO):
         _after(_Response([_Part(None), _Part("")]))
 

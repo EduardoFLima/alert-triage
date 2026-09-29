@@ -1,10 +1,3 @@
-"""A Datadog tool's facts, stated once for every specialist that reaches it.
-
-What a tool is called, which toolset serves it, and what it does are facts
-about the platform, not choices a specialist makes. Two specialists that share a
-tool used to state them twice, so one could drift without the other noticing.
-"""
-
 import pytest
 
 from alert_triage.investigation.adapters.datadog.mcp import DATADOG
@@ -37,7 +30,6 @@ def test_a_tool_holds_its_name_its_toolset_and_what_it_does() -> None:
     ("name", "toolset", "description"),
 )
 def test_a_tool_missing_any_of_them_is_rejected(blank: str) -> None:
-    """A nameless tool cannot be permitted, and an undescribed one cannot be told."""
     fields = {
         "name": "get_datadog_metric",
         "toolset": "core",
@@ -50,7 +42,6 @@ def test_a_tool_missing_any_of_them_is_rejected(blank: str) -> None:
 
 
 def test_tools_are_asked_for_by_the_toolset_serving_them() -> None:
-    """A declaration picks tools; which group each is in is not its to say."""
     assert toolsets(METRIC, WORKLOADS, HOSTS) == (
         Toolset(
             provider=DATADOG,
@@ -95,7 +86,6 @@ def test_a_long_description_wraps_under_its_bullet() -> None:
 
 
 def test_a_quoted_span_is_never_split_across_lines() -> None:
-    """A tool or a query split mid-quote is one the model reads as two."""
     long = DatadogTool(
         "search_datadog_metrics",
         "core",

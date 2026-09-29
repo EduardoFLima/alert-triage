@@ -1,10 +1,3 @@
-"""The callback standing between a tool result and the model about to read it.
-
-A result from a declared tool is kept and replaced with its citable form; one
-that failed is refused in terms nothing can misread; anything the specialist
-never declared passes through untouched.
-"""
-
 from typing import Any
 
 from alert_triage.investigation.adapters.adk.evidence import (
@@ -17,8 +10,6 @@ from alert_triage.shared.window import Window
 
 
 class _Tool:
-    """A stand-in for the ADK tool the callback is told about."""
-
     def __init__(self, name: str = "search_datadog_logs") -> None:
         self.name = name
 
@@ -53,7 +44,6 @@ def test_a_successful_result_is_retained_and_replaced_with_its_citable_form() ->
 
 
 def test_the_model_is_never_handed_the_result_the_platform_returned() -> None:
-    """What the model reads is what it may cite, and nothing else."""
     retrieved = Retrieved()
     result = _result("OOMKilled")
 
@@ -104,7 +94,6 @@ def test_a_refused_retrieval_is_never_citable() -> None:
 
 
 def test_a_refusal_cannot_be_read_as_a_search_that_found_nothing() -> None:
-    """The gate: a failure the model reads as silence is the opposite finding."""
     retrieved = Retrieved()
 
     offered = _after(retrieved, {"isError": True, "content": []})
@@ -114,7 +103,6 @@ def test_a_refusal_cannot_be_read_as_a_search_that_found_nothing() -> None:
 
 
 def test_an_error_key_takes_the_same_path_as_a_server_side_error() -> None:
-    """This is the shape ADK converts an exception into."""
     retrieved = Retrieved()
 
     offered = _after(retrieved, {"error": "MCP tool execution failed: 403"})
@@ -125,7 +113,6 @@ def test_an_error_key_takes_the_same_path_as_a_server_side_error() -> None:
 
 
 def test_a_result_that_found_nothing_is_not_a_failure() -> None:
-    """A quiet service is a result; only a broken retrieval is a failure."""
     retrieved = Retrieved()
 
     offered = _after(retrieved, _result())
@@ -162,7 +149,6 @@ def test_the_failure_names_the_tool_that_could_not_be_reached() -> None:
 
 
 def test_a_tool_the_specialist_never_declared_passes_through_untouched() -> None:
-    """A framework's own tool is not the platform, so its result is not evidence."""
     retrieved = Retrieved()
 
     offered = _after(retrieved, {"result": "response set"}, _Tool("set_model_response"))
@@ -173,7 +159,6 @@ def test_a_tool_the_specialist_never_declared_passes_through_untouched() -> None
 
 
 def test_a_framework_tool_that_fails_is_not_a_failed_retrieval() -> None:
-    """Nothing was retrieved, so nothing about the platform can be concluded."""
     retrieved = Retrieved()
 
     _after(retrieved, {"error": "transfer refused"}, _Tool("transfer_to_agent"))
@@ -182,8 +167,6 @@ def test_a_framework_tool_that_fails_is_not_a_failed_retrieval() -> None:
 
 
 class _Args:
-    """Keeps which tool a retrieval was addressed for, and what it was called with."""
-
     def __init__(self) -> None:
         self.seen: list[tuple[Any, Any]] = []
 
@@ -214,7 +197,6 @@ class _Args:
 
 
 def test_what_keeps_a_result_is_told_the_tools_name_and_arguments() -> None:
-    """The query is in them, and the tool says how it is addressed."""
     links = _Args()
     retrieved = Retrieved(link=links)
 
@@ -227,7 +209,6 @@ def test_what_keeps_a_result_is_told_the_tools_name_and_arguments() -> None:
 
 
 def test_a_failed_retrieval_is_still_refused_rather_than_addressed() -> None:
-    """Nothing was retrieved, so there is nothing to go and look at."""
     links = _Args()
     retrieved = Retrieved(link=links)
 
@@ -239,7 +220,6 @@ def test_a_failed_retrieval_is_still_refused_rather_than_addressed() -> None:
 
 
 def test_the_model_is_shown_no_address_it_could_copy_into_a_finding() -> None:
-    """The one field a reader trusts most, kept out of the one place least trusted."""
     retrieved = Retrieved(link=_Args())
 
     offered = _after(retrieved, _result("OOMKilled"))

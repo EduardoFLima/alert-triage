@@ -26,7 +26,6 @@ def test_it_is_asked_to_explain_what_the_hypothesis_rests_on() -> None:
 
 
 def test_it_is_forbidden_from_reproducing_the_evidence() -> None:
-    """The evidence is rendered from what was retrieved, beneath what it writes."""
     lowered = REPORT_INSTRUCTION.lower()
 
     assert "do not reproduce" in lowered
@@ -41,7 +40,6 @@ def test_it_is_forbidden_from_stating_a_confidence_the_diagnosis_did_not() -> No
 
 
 def test_it_is_asked_to_say_when_the_service_was_declared_critical() -> None:
-    """A reader deciding whether to get out of bed is owed the deployment's own word."""
     lowered = REPORT_INSTRUCTION.lower()
 
     assert "critical" in lowered

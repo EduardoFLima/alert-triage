@@ -1,14 +1,3 @@
-"""A ``TriageLedger`` backed by SQLite, over the standard library's ``sqlite3``.
-
-Everything storage-shaped stops here: the queries, the ISO-8601 text the
-timestamps are kept as, and the driver's own exceptions. What leaves is
-``Incident`` values, or a ``TriageLedgerError``. The tables those queries run
-against are in ``schema``.
-
-Instants are normalised to UTC on the way in and returned timezone-aware, so
-no naive datetime ever escapes into cooldown arithmetic.
-"""
-
 import sqlite3
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -22,13 +11,7 @@ from alert_triage.triage.ports.ledger import TriageLedgerError
 
 
 class SqliteTriageLedger:
-    """The incidents on record, kept in a SQLite database.
-
-    The connection is injected rather than opened here, exactly as the Datadog
-    adapter takes an already-configured client: resolving where the database
-    lives belongs to the composition root, and injecting it is what lets these
-    tests run against ``:memory:`` with no filesystem.
-    """
+    """The connection is injected so tests can use ``:memory:``."""
 
     def __init__(
         self,
@@ -38,21 +21,6 @@ class SqliteTriageLedger:
         cooldown: timedelta,
         retention: timedelta,
     ) -> None:
-        """Bind the ledger to a connection, creating its schema if it is new.
-
-        Args:
-            connection: An open connection to the ledger's database.
-            window: The grouping window, which bounds continuation and so is
-                half of what decides an incident has closed.
-            cooldown: How long a report suppresses the next one — the other
-                half.
-            retention: How long a closed incident is kept for a human to
-                consult before it is deleted.
-
-        Raises:
-            TriageLedgerError: The schema could not be established, so nothing
-                that follows could be believed.
-        """
         self._connection = connection
         self._window = window
         self._cooldown = cooldown
@@ -63,7 +31,6 @@ class SqliteTriageLedger:
             self._connection.commit()
 
     def _add_missing_columns(self) -> None:
-        """Bring a table created by an earlier version up to the current shape."""
         for statement in ADDED_COLUMNS:
             try:
                 self._connection.execute(statement)
@@ -72,13 +39,6 @@ class SqliteTriageLedger:
                     raise
 
     def open_incidents(self, service: str, now: datetime) -> Sequence[Incident]:
-        """Retrieve the still-open incidents on record for a service.
-
-        Incidents that have gone quiet are stamped closed as they are found,
-        and are filtered out here rather than handed over for a caller to
-        remember to skip. A record kept for a human to read is therefore
-        unable to influence a decision.
-        """
         with _translated(f"read the incidents on record for {service!r}"):
             rows = self._connection.execute(
                 "SELECT id, service, last_reported_at, closed_at, "
@@ -95,24 +55,12 @@ class SqliteTriageLedger:
             return still_open
 
     def record(self, incident: Incident, now: datetime) -> None:
-        """Record an incident's state as of this run.
-
-        History past its retention period is deleted in the same transaction:
-        this is the only moment the ledger is already open and writing, so
-        growth is bounded by the very event that causes it.
-        """
         with _translated(f"record incident {incident.id!r}"):
             self._write(incident)
             self._forget_beyond_retention(now)
             self._connection.commit()
 
     def _close_if_quiet(self, incident: Incident, now: datetime) -> bool:
-        """Stamp an incident closed if it has gone quiet, and say whether it had.
-
-        Stamped rather than derived on each read: an incident closed at a
-        moment, and retuning the cooldown afterwards must not move when that
-        was and so age the record into deletion early.
-        """
         if not is_closed(
             incident, now=now, window=self._window, cooldown=self._cooldown
         ):
@@ -124,7 +72,6 @@ class SqliteTriageLedger:
         return True
 
     def _forget_beyond_retention(self, now: datetime) -> None:
-        """Delete the incidents that closed longer ago than history is kept."""
         cutoff = _as_text(now - self._retention)
         self._connection.execute(
             "DELETE FROM incident_alerts WHERE incident_id IN "
@@ -137,7 +84,6 @@ class SqliteTriageLedger:
         )
 
     def _write(self, incident: Incident) -> None:
-        """Write an incident and its alerts, replacing what was held before."""
         self._connection.execute(
             "INSERT INTO incidents "
             "(id, service, last_reported_at, closed_at, investigation_attempts) "
@@ -175,7 +121,6 @@ class SqliteTriageLedger:
         )
 
     def _incident(self, row: tuple[str, str, str | None, str | None, int]) -> Incident:
-        """Rebuild one incident from its row and the alerts absorbed into it."""
         incident_id, service, last_reported_at, closed_at, attempts = row
         return Incident(
             id=incident_id,
@@ -187,7 +132,6 @@ class SqliteTriageLedger:
         )
 
     def _alerts(self, incident_id: str) -> tuple[Alert, ...]:
-        """Read the alerts absorbed into one incident, oldest first."""
         rows = self._connection.execute(
             "SELECT source_id, service, fired_at, title, link FROM incident_alerts "
             "WHERE incident_id = ? ORDER BY fired_at",
@@ -207,12 +151,7 @@ class SqliteTriageLedger:
 
 @contextmanager
 def _translated(attempt: str) -> Iterator[None]:
-    """Turn the driver's failures into the port's own, at the boundary.
-
-    Past here a caller catches ``TriageLedgerError`` and never learns SQLite
-    was involved — and, more to the point, never mistakes a failed read for a
-    quiet period.
-    """
+    """Keep SQLite failures from reading as a quiet period."""
     try:
         yield
     except sqlite3.Error as error:
@@ -222,24 +161,20 @@ def _translated(attempt: str) -> Iterator[None]:
 
 
 def _as_text(instant: datetime | None) -> str | None:
-    """Store an instant as ISO-8601 UTC text, since SQLite has no datetime type."""
     if instant is None:
         return None
     return _to_utc(instant).isoformat()
 
 
 def _as_instant(text: str | None) -> datetime | None:
-    """Read back an instant that the schema allows to be absent."""
     return None if text is None else _as_utc(text)
 
 
 def _as_utc(text: str) -> datetime:
-    """Read back a stored instant, timezone-aware, in UTC."""
     return _to_utc(datetime.fromisoformat(text))
 
 
 def _to_utc(instant: datetime) -> datetime:
-    """Express an instant in UTC, so instants from any source compare alike."""
     if instant.tzinfo is None:
         return instant.replace(tzinfo=UTC)
     return instant.astimezone(UTC)

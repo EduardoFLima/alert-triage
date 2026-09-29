@@ -1,11 +1,3 @@
-"""A specialist is offered the platform's guides for its own tools, and no others.
-
-The guides reach it through the framework's skill toolset: a menu of their
-names and descriptions in its prompt, and a load for the text of one it
-chooses. Nothing in its declaration changes, and nothing it loads is a
-retrieval from the platform.
-"""
-
 import asyncio
 from types import SimpleNamespace
 from typing import Any
@@ -88,7 +80,6 @@ def _guidance(agent: LlmAgent) -> SkillToolset:
 
 
 NO_CONTEXT: Any = SimpleNamespace()
-"""A call's context, which offering the menu never reads."""
 
 METRICS_SPECIALIST = _specialist("get_datadog_metric")
 GUIDED = _deployment(METRICS_GUIDE, LOGS_GUIDE)
@@ -101,7 +92,6 @@ def test_a_specialist_holds_only_the_guides_for_its_own_tools() -> None:
 
 
 def test_it_may_only_load_a_guide_or_one_of_its_references() -> None:
-    """Listing is left out: the menu is in its prompt, and a script is not ours."""
     guidance = _guidance(_built(METRICS_SPECIALIST, GUIDED))
 
     assert {tool.name for tool in asyncio.run(guidance.get_tools())} == {
@@ -127,7 +117,6 @@ def test_the_guides_it_holds_are_named_and_described_in_its_prompt() -> None:
 
 
 def test_its_instruction_is_its_declarations_and_holds_no_guide() -> None:
-    """A guide's text reaches it only when it asks for that guide."""
     agent = _built(METRICS_SPECIALIST, GUIDED)
 
     assert agent.instruction == METRICS_SPECIALIST.instruction
@@ -135,7 +124,6 @@ def test_its_instruction_is_its_declarations_and_holds_no_guide() -> None:
 
 
 def _load(agent: LlmAgent, tool: str, **args: str) -> Any:
-    """Ask the agent's guidance for something, the way the framework would."""
     (loader,) = [
         loaded
         for loaded in asyncio.run(_guidance(agent).get_tools())
@@ -167,7 +155,6 @@ def test_a_reference_of_an_offered_guide_is_given_by_its_path() -> None:
 
 
 def test_a_guide_it_was_not_offered_is_refused_by_name() -> None:
-    """The platform publishes it; this specialist's toolset does not hold it."""
     loaded = _load(
         _built(METRICS_SPECIALIST, GUIDED), "load_skill", skill_name="datadog-logs"
     )
@@ -181,7 +168,6 @@ class _Named:
 
 
 def _through_callbacks(agent: LlmAgent, tool: str, response: Any) -> Any:
-    """One call through the seats a specialist's calls cross, before and after."""
     before: Any = agent.before_tool_callback
     after: Any = agent.after_tool_callback
     args = {"skill_name": "datadog-metrics"}
@@ -232,5 +218,4 @@ def test_a_refused_load_does_not_mark_the_investigation_incomplete() -> None:
 def test_a_specialist_offered_no_guide_is_told_of_no_skills(
     deployment: Deployment,
 ) -> None:
-    """An empty menu still carries the framework's instruction to go and use one."""
     assert _skill_toolsets(_built(METRICS_SPECIALIST, deployment)) == []

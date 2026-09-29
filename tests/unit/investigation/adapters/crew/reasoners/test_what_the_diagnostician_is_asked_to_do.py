@@ -33,7 +33,6 @@ def test_it_is_asked_to_choose_the_next_specialist_from_the_last_ones_answer() -
 
 
 def test_it_may_go_back_to_a_specialist_with_a_narrower_question() -> None:
-    """Re-asking is the manager's best move, not a loop to be avoided."""
     lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
 
     assert "narrower question" in lowered
@@ -45,12 +44,6 @@ def test_it_is_told_the_questions_are_budgeted() -> None:
 
 
 def test_it_states_the_budget_it_was_given_rather_than_one_of_its_own() -> None:
-    """What the manager is told and what is enforced must never disagree.
-
-    A configurable budget is what makes the disagreement possible for the first
-    time, so the instruction is a function of the number rather than a constant
-    that happens to match it today.
-    """
     assert "3 consultations" in diagnostician_instruction(3)
     assert "11 consultations" in diagnostician_instruction(11)
     assert diagnostician_instruction(3) != diagnostician_instruction(11)
@@ -101,7 +94,6 @@ def test_it_recommends_no_action() -> None:
 
 
 def test_its_schema_offers_no_field_evidence_could_be_written_into() -> None:
-    """It concludes over checked findings; it never carries evidence of its own."""
     fields = set(Diagnosed.model_fields)
 
     assert fields == {"hypothesis", "confidence"}
@@ -123,27 +115,12 @@ def test_its_schema_admits_only_the_declared_confidence_levels() -> None:
 
 
 def test_its_schema_accepts_exactly_the_levels_the_contract_declares() -> None:
-    """The other half of the equality the test above establishes.
-
-    Validating every declared level catches one added to ``Confidence`` and not
-    to the schema. It cannot catch the reverse — a level the schema admits that
-    the contract never declared — because nothing there iterates the schema. A
-    reader is promised one of the declared levels and an evaluation harness
-    scores against them, so the two sets have to be the same set rather than
-    one containing the other.
-    """
     admitted = get_args(Diagnosed.model_fields["confidence"].annotation)
 
     assert set(admitted) == {level.value for level in Confidence}
 
 
 def test_it_is_told_one_specialist_is_rarely_the_whole_picture() -> None:
-    """The framework injects "call set_model_response after any tools you need".
-
-    Read beside an instruction that says stop as soon as you can, a model takes
-    the first answer it gets and finalises. So the instruction has to say what
-    "enough" means rather than leave it to be inferred.
-    """
     lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
 
     assert "one specialist" in lowered
@@ -165,11 +142,6 @@ def test_it_is_told_not_to_finalise_while_a_signal_is_still_worth_asking() -> No
 
 
 def test_it_is_told_an_empty_answer_rules_a_signal_out_rather_than_explaining() -> None:
-    """Nothing found is a reason to keep asking.
-
-    The alerts fired, so a clean signal moves the cause elsewhere rather than
-    accounting for it.
-    """
     lowered = DIAGNOSTICIAN_INSTRUCTION.lower()
 
     assert "reports nothing" in lowered

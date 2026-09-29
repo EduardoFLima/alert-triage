@@ -36,12 +36,10 @@ def test_the_environment_is_read_from_the_process_by_default(
 
 
 def test_the_webhook_url_has_no_config_file_to_be_read_from() -> None:
-    """The resolver takes an environment and nothing else: there is no file path."""
     assert list(inspect.signature(resolve_teams_webhook_url).parameters) == ["env"]
 
 
 def test_a_webhook_url_written_into_the_config_file_has_nowhere_to_land() -> None:
-    """No resolved config section names a webhook, so a shared file cannot carry one."""
     sections = {field.name for field in fields(ResolvedConfig)}
 
     assert not sections & {"teams", "webhook", "notification", "notifications"}

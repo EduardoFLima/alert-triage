@@ -32,7 +32,6 @@ def test_an_evidence_item_carries_what_a_human_needs_to_recognise_it() -> None:
 
 
 def test_an_evidence_item_keeps_the_payload_the_platform_returned() -> None:
-    """A summary is for reading; the payload is what was actually retrieved."""
     payload = {"message": "OOMKilled", "attributes": {"pod": "checkout-7f"}}
 
     item = EvidenceItem(
@@ -48,7 +47,6 @@ def test_an_evidence_item_without_a_summary_evidences_nothing() -> None:
 
 
 def test_an_evidence_item_carries_the_address_of_the_thing_itself() -> None:
-    """A reader who wants to see the evidence goes where the item says."""
     item = EvidenceItem(
         id="call-1/item-1",
         instant=NOON,
@@ -61,12 +59,10 @@ def test_an_evidence_item_carries_the_address_of_the_thing_itself() -> None:
 
 
 def test_an_evidence_item_the_platform_cannot_address_has_no_url() -> None:
-    """No address is a complete answer: evidence without one is still evidence."""
     assert _item().url is None
 
 
 def test_an_evidence_item_may_have_no_instant() -> None:
-    """An aggregate concerns a window rather than a moment; it is still evidence."""
     item = EvidenceItem(
         id="call-1", instant=None, summary="a flame graph", payload={"spans": []}
     )
@@ -91,7 +87,6 @@ def test_a_finding_carries_its_signal_observation_count_and_examples() -> None:
 
 
 def test_a_finding_cannot_claim_something_it_shows_nothing_for() -> None:
-    """Evidence is what separates a finding from an assertion."""
     with pytest.raises(ValueError, match="example"):
         Finding(
             signal=Signal.LOGS,
@@ -109,7 +104,6 @@ def test_a_finding_needs_an_observation_to_be_about_anything() -> None:
 
 
 def test_a_finding_cannot_have_seen_less_than_it_shows() -> None:
-    """An occurrence count below the examples is a contradiction, not a detail."""
     with pytest.raises(ValueError, match="occurrences"):
         Finding(
             signal=Signal.LOGS,
@@ -155,7 +149,6 @@ def test_findings_with_something_in_them_are_notable_and_complete() -> None:
 
 
 def test_empty_findings_are_a_complete_result_with_nothing_notable() -> None:
-    """An investigation that ran and found nothing notable is not a failure."""
     nothing = Findings()
     explicit = Findings(findings=())
 
@@ -167,7 +160,6 @@ def test_empty_findings_are_a_complete_result_with_nothing_notable() -> None:
 
 
 def test_retrieval_failures_make_findings_incomplete_without_hiding_them() -> None:
-    """Could not see all of it is not the same news as looked and it was clean."""
     found = _finding()
     findings = Findings(
         findings=(found,), retrieval_failures=("the metrics search was refused",)
@@ -187,7 +179,6 @@ def test_incompleteness_is_independent_of_whether_anything_was_found() -> None:
 
 
 def test_every_signal_a_specialist_reports_under_is_named() -> None:
-    """One member per specialist: a finding says which dimension it came from."""
     assert {signal.value for signal in Signal} == {
         "logs",
         "apm",
@@ -209,7 +200,6 @@ def test_a_finding_names_the_signal_it_was_drawn_from() -> None:
 
 
 def test_a_finding_names_no_section_unless_it_is_given_one() -> None:
-    """Defaulted, so every finding built before sections existed still builds."""
     unsectioned = Finding(
         signal=Signal.INFRASTRUCTURE,
         observation="checkout was rolled out",
@@ -229,6 +219,5 @@ def test_a_finding_names_no_section_unless_it_is_given_one() -> None:
 
 
 def test_a_section_is_drawn_from_a_closed_set() -> None:
-    """A choice from a closed set can be checked; a written one cannot."""
     with pytest.raises(ValueError):
         Section("the bit with the graphs")

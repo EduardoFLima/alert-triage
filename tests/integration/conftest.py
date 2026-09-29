@@ -1,5 +1,3 @@
-"""Fixtures shared by the integration tests, whatever they exercise."""
-
 import socket
 import urllib.error
 import urllib.request
@@ -8,28 +6,15 @@ from collections.abc import Callable
 import pytest
 
 ANSWER_TIMEOUT_SECONDS = 30.0
-"""How long a page is given to answer before the check gives up on it."""
 
 
 @pytest.fixture
 def answers() -> Callable[[str], bool]:
-    """Whether the platform serves a page at an address this project built.
-
-    A fixture rather than a helper module, so the check travels the way every
-    other shared piece of these tests does.
-    """
     return _answers
 
 
 def _answers(address: str) -> bool:
-    """Follow one address and say whether the platform served anything.
-
-    The one thing no fake establishes: that a URL form this project composes
-    is a route the platform actually accepts. A redirect to a login page is an
-    answer — these are UI addresses and the check holds no session — so what
-    is being ruled out is the 404 that a route built from the wrong kind of
-    identifier returns.
-    """
+    """Treat login redirects as answers; only a 404 rejects the route shape."""
     request = urllib.request.Request(address, method="GET")
     try:
         with urllib.request.urlopen(request, timeout=ANSWER_TIMEOUT_SECONDS) as answer:
@@ -42,7 +27,6 @@ def _answers(address: str) -> bool:
 
 @pytest.fixture
 def free_port() -> int:
-    """A port nothing is listening on, found by binding one and letting it go."""
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
@@ -50,14 +34,7 @@ def free_port() -> int:
 
 @pytest.fixture
 def free_ports() -> tuple[int, int]:
-    """Two ports nothing is listening on, reserved at the same time.
-
-    Asking ``free_port`` twice would not do: a fixture is resolved once per
-    test, so two servers wanting a port each would be handed the same one and
-    the second would fail to bind. Both probes are held open until both ports
-    have been chosen, which is also what stops the OS offering the same port
-    twice.
-    """
+    """Hold both probes open so the OS cannot offer the same port twice."""
     with socket.socket() as one, socket.socket() as other:
         one.bind(("127.0.0.1", 0))
         other.bind(("127.0.0.1", 0))

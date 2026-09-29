@@ -1,16 +1,3 @@
-"""One run: recent alerts, taken as far as a delivered report, and then out.
-
-The pipeline depends on ports and the domain alone — it never learns which
-platform answered, where the ledger keeps its records, or how many channels a
-report went to. That is what makes a complete run exercisable with three
-substitutes and no I/O at all, and it is why the wiring lives next door in
-``composition``.
-
-Nothing here reads a clock. The instant a run decides against is an argument,
-taken once by the entrypoint, so the lookback bound, every cooldown decision,
-and every recorded timestamp are the same "now".
-"""
-
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,20 +23,10 @@ from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 _log = logging.getLogger(__name__)
 
 ReportBuilder = Callable[[Incident, Diagnosis | None, str], TriageReport]
-"""How an incident and what was learned about it become the report.
-
-``None`` means no investigation of the incident ever completed, which is the
-only case the report of last resort is for. The last argument is the
-environment the run watches, which a report names beside the service.
-Deliberately a callable rather than a port: a port earns its keep once report
-generation can fail in a way a caller has to tell apart from the failures it
-already handles, and the builders this run is handed cannot fail at all.
-"""
+"""``None`` means no investigation completed, so the report is last resort."""
 
 
 class Stage(StrEnum):
-    """The steps of a run, named so a failure says which one it happened in."""
-
     FETCH = "fetching alerts"
     READ = "reading the ledger"
     INVESTIGATE = "investigating the incident"
@@ -59,54 +36,28 @@ class Stage(StrEnum):
 
 @dataclass(frozen=True)
 class RunFailure:
-    """Something a run set out to do and could not.
-
-    Attributes:
-        stage: The step that failed.
-        service: The service being handled, or empty for a failure that
-            happened before there was one — a fetch concerns every service.
-        detail: What the port said, for a human reading the run's account.
-    """
-
     stage: Stage
     service: str
     detail: str
 
     def __str__(self) -> str:
-        """Name the stage, the service, and what went wrong, in one line."""
         service = f" for {self.service}" if self.service else ""
         return f"{self.stage}{service}: {self.detail}"
 
 
 @dataclass(frozen=True)
 class RunOutcome:
-    """What one run did, in the terms a scheduler and a human both read.
-
-    Attributes:
-        groups: How many same-incident groups the run handled.
-        delivered: How many reports a channel accepted.
-        failures: What the run could not do, in the order it happened.
-    """
-
     groups: int = 0
     delivered: int = 0
     failures: tuple[RunFailure, ...] = ()
 
     @property
     def successful(self) -> bool:
-        """Whether the run did everything it set out to do."""
         return not self.failures
 
 
 @dataclass(frozen=True)
 class _Handled:
-    """What handling one group came to.
-
-    Attributes:
-        delivered: Whether a report about the group was delivered.
-        failures: What handling the group could not do.
-    """
-
     delivered: bool = False
     failures: tuple[RunFailure, ...] = ()
 
@@ -122,23 +73,7 @@ def run(
     now: datetime,
     new_id: Callable[[], str],
 ) -> RunOutcome:
-    """Take the recent alerts as far as a delivered report, once.
-
-    Args:
-        source: Where the alerts to triage come from.
-        ledger: What the system remembers between runs.
-        notifier: Where a report is delivered.
-        investigator: What looks into an incident before it is reported.
-        build_report: How an incident and its findings become the report.
-        config: The resolved settings the run is driven by.
-        now: The instant this run decides against.
-        new_id: Supplies the identifier a newly opened incident is named with.
-
-    Returns:
-        What the run handled, what it delivered, and what it could not do. A
-        failure while handling one group leaves the others their reports; a
-        failed fetch ends the run, because there is nothing to work on.
-    """
+    """A failed fetch ends the run; later failures cost only their group."""
     try:
         fetched = source.fetch_since(now - config.ingestion.lookback)
     except AlertSourceError as error:
@@ -185,11 +120,7 @@ def _handle(
     now: datetime,
     new_id: Callable[[], str],
 ) -> _Handled:
-    """Take one group from what is on record to a recorded incident.
-
-    Only the port failures a group can suffer are caught, and each is contained
-    here so the groups after this one still get their reports.
-    """
+    """Port failures stay contained so later groups can still be reported."""
     _log.info(
         journal.banner(
             "INCIDENT",
@@ -272,11 +203,7 @@ def _handle(
 def _investigated(
     decision: TriageDecision, *, investigator: Investigator, scope: Scope
 ) -> tuple[Diagnosis | None, RunFailure | None]:
-    """Investigate the incident if it is owed one, and say what came back.
-
-    A failure here is reported but never fatal: it costs the incident an
-    attempt and its findings, not its place in the run.
-    """
+    """A failed investigation costs an attempt, not the incident's place in the run."""
     incident = decision.incident
     if not decision.should_investigate:
         return None, None
@@ -314,17 +241,9 @@ def _delivered(
     build_report: ReportBuilder,
     env: str,
 ) -> tuple[bool, RunFailure | None]:
-    """Deliver a report worth sending, and say whether a channel took it.
+    """Send failed investigations only once retries are spent.
 
-    A completed investigation is worth sending — including one that found
-    nothing, which says the signals it consulted were examined and were clean. A failed
-    investigation is not: "these alerts fired and we could not look at them"
-    carries nothing a team can act on, so it
-    waits for the retry. Once the attempts are spent that wait would be
-    forever, so the alerts go out without findings rather than not at all.
-
-    A report that did not get out leaves the incident unstamped, so the next
-    run owes it again: a cooldown must never run from a report nobody received.
+    A failed delivery leaves the incident unstamped so the cooldown cannot start.
     """
     _log.info(journal.banner("REPORTING", incident.service))
 
@@ -364,24 +283,17 @@ def _delivered(
 
 
 def _spanned(group: AlertGroup) -> str:
-    """The stretch the group's alerts fired across, as a reader reads a window."""
     return _between(group.alerts[0].fired_at, group.alerts[-1].fired_at)
 
 
 def _between(start: datetime, end: datetime) -> str:
-    """One window, stated once and the same way wherever a run states one."""
     return f"{start.isoformat()} → {end.isoformat()}"
 
 
 def _recorded(
     incident: Incident, ledger: TriageLedger, now: datetime
 ) -> RunFailure | None:
-    """Record the incident, whether or not its report got out.
-
-    The alerts belong to it either way: dropping them would leave the next run
-    to re-derive a group this one has already seen, and possibly open a second
-    incident for it.
-    """
+    """Record undelivered incidents so the next run does not reopen their alerts."""
     try:
         ledger.record(incident, now)
     except TriageLedgerError as error:

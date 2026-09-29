@@ -1,13 +1,4 @@
-"""The platform's guides, read once as a run starts and held for it in memory.
-
-Read here rather than on the first investigation so that the reading is outside
-every investigation's bounds: a slow platform costs the run a late start, not an
-incident its tool budget. Only guides some specialist in the crew is offered are
-kept, and only their references are read.
-
-A run whose guides cannot be read still runs. Guidance helps a specialist write
-a query; it is not evidence, and its absence is no reason to investigate less.
-"""
+"""Guides are read before investigations so slowness spends no incident budget."""
 
 import asyncio
 import logging
@@ -36,20 +27,14 @@ if TYPE_CHECKING:
 _log = logging.getLogger(__name__)
 
 Pause = Callable[[float], Awaitable[None]]
-"""How to wait before asking again; a test hands in one that does not."""
 
 LOAD_ATTEMPTS = 3
 REFUSED_LOAD_PAUSE_SECONDS = 10.0
-"""How a refused load is met.
-
-The server refuses a burst — on the account first read, about forty-five loads
-in quick succession — with an error result rather than a delay, and a pause of
-seconds is enough for it to answer again.
-"""
+"""Guide bursts can get error refusals; a short pause lets the platform recover."""
 
 
 class _RefusedError(Exception):
-    """The platform answered a guide call with an error."""
+    pass
 
 
 def fetch_guides(
@@ -57,20 +42,7 @@ def fetch_guides(
     deployment: Deployment,
     pause: Pause = asyncio.sleep,
 ) -> tuple[DatadogGuide, ...]:
-    """Every guide some specialist in the crew is offered, with its references.
-
-    Args:
-        crew: The specialists this run may consult; whose tools decide which
-            guides are kept, and whose toolsets decide which the platform shows.
-        deployment: Where the platform is, and how long one call may take.
-        pause: How to wait before asking again after a refusal.
-
-    Returns:
-        The guides, in the order the platform listed them. None where the crew
-        reaches no Datadog toolset, or where the platform could not be read —
-        which is logged once, as a warning, rather than raised: whatever went
-        wrong, the run is better investigating unguided than not at all.
-    """
+    """Guide failures log and continue: guidance is helpful, not evidence."""
     toolsets = sorted(
         {
             toolset.name
@@ -98,7 +70,6 @@ async def _fetch(
     toolsets: str,
     pause: Pause,
 ) -> tuple[DatadogGuide, ...]:
-    """Read the listing, each guide, and the references of those offered."""
     from google.adk.tools.mcp_tool.mcp_session_manager import MCPSessionManager
 
     manager = MCPSessionManager(
@@ -138,7 +109,6 @@ async def _guide(
     bound: timedelta,
     pause: Pause,
 ) -> DatadogGuide | None:
-    """One guide's text, or ``None`` where the platform keeps refusing it."""
     text = await _patiently(
         session, guide_arguments(listed.name), bound, pause, listed.name
     )
@@ -154,7 +124,6 @@ async def _with_references(
     bound: timedelta,
     pause: Pause,
 ) -> DatadogGuide:
-    """The guide with every reference it bundles that the platform would give."""
     references: dict[str, str] = {}
     for path in listed.references:
         text = await _patiently(
@@ -176,7 +145,6 @@ async def _patiently(
     pause: Pause,
     what: str,
 ) -> str | None:
-    """A load, asked again after a pause while refused, up to the attempts allowed."""
     for attempt in range(1, LOAD_ATTEMPTS + 1):
         try:
             return await _call(session, LOAD_SKILL.name, arguments, bound)
@@ -199,7 +167,6 @@ async def _call(
     arguments: dict[str, object],
     bound: timedelta,
 ) -> str:
-    """One call's text, bounded; an error result is raised as a refusal."""
     from mcp.types import TextContent
 
     result = await session.call_tool(tool, arguments, read_timeout_seconds=bound)

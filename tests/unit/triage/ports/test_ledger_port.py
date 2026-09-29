@@ -11,12 +11,9 @@ NOON = datetime(2026, 8, 7, 12, 0, tzinfo=UTC)
 
 @dataclass
 class InMemoryTriageLedger:
-    """What a test double for the port looks like: incidents, no storage."""
-
     incidents: list[Incident] = field(default_factory=list)
 
     def open_incidents(self, service: str, now: datetime) -> list[Incident]:
-        """Return the incidents on record for a service that are still open."""
         return [
             incident
             for incident in self.incidents
@@ -24,7 +21,6 @@ class InMemoryTriageLedger:
         ]
 
     def record(self, incident: Incident, now: datetime) -> None:
-        """Hold the incident's state as of this run."""
         self.incidents = [held for held in self.incidents if held.id != incident.id]
         self.incidents.append(incident)
 
@@ -57,7 +53,6 @@ def test_a_service_with_nothing_on_record_is_a_success_not_a_failure() -> None:
 
 
 def test_the_ledger_is_synchronous() -> None:
-    """The port makes ordinary blocking calls; no caller needs an event loop."""
     assert not inspect.iscoroutinefunction(InMemoryTriageLedger.record)
     assert not inspect.iscoroutinefunction(TriageLedger.open_incidents)
     assert not inspect.iscoroutinefunction(TriageLedger.record)
@@ -68,7 +63,6 @@ def test_a_ledger_failure_has_one_error_type_to_catch() -> None:
 
 
 def test_the_port_speaks_only_the_domain_s_vocabulary() -> None:
-    """No storage type appears in the signatures a caller programs against."""
     annotations = [
         parameter.annotation
         for method in (TriageLedger.open_incidents, TriageLedger.record)
