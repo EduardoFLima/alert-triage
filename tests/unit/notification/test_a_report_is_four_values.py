@@ -54,4 +54,4 @@ def test_a_report_is_a_value_and_cannot_be_edited_after_the_fact() -> None:
     report = _report()
 
     with pytest.raises(FrozenInstanceError):
-        report.subject = "something else"  # type: ignore[assignment]
+        report.subject = "something else"  # type: ignore[misc]

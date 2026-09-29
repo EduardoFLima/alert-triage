@@ -24,6 +24,8 @@ CREWED = pytest.mark.parametrize(
     "specialist", CREW, ids=[specialist.name for specialist in CREW]
 )
 
+# Tool names and their parameters look alike (`analyze_datadog_logs` takes
+# `use_log_patterns`), so a tool is whatever some specialist in the crew declares.
 DECLARED_ANYWHERE = {
     tool for one in CREW for toolset in one.toolsets for tool in toolset.tools
 }

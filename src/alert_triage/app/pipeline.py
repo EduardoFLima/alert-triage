@@ -23,7 +23,10 @@ from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 _log = logging.getLogger(__name__)
 
 ReportBuilder = Callable[[Incident, Diagnosis | None, str], TriageReport]
-"""``None`` means no investigation completed, so the report is last resort."""
+"""Takes the incident, its diagnosis, and the environment the run watches.
+
+``None`` means no investigation completed, so the report is last resort.
+"""
 
 
 class Stage(StrEnum):

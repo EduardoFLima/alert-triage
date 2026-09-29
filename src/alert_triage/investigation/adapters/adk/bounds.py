@@ -1,4 +1,7 @@
-"""Bounds are enforced before calls, before refused work can spend budget."""
+"""Bounds that decline a call before it is made, rather than count it after.
+
+A tally taken afterwards has already paid for the work it meant to prevent.
+"""
 
 import logging
 import time
@@ -17,7 +20,11 @@ CALL_DECLINED = (
     "give your final answer now, in the shape you were asked for, reporting "
     "what the calls that did happen show."
 )
-"""Verbose so a bound is not mistaken for an empty platform answer."""
+"""Verbose so a bound is not mistaken for an empty platform answer.
+
+It also tells the specialist to answer now: told only that a call failed, it
+tries another, and runs out of turns in prose its output schema cannot parse.
+"""
 
 Clock = Callable[[], float]
 """Monotonic so wall-clock changes cannot move a deadline."""

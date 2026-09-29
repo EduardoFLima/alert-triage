@@ -67,6 +67,7 @@ class Consulted:
 
     @property
     def order(self) -> tuple[str, ...]:
+        """A specialist asked twice appears twice: this is cost, not coverage."""
         return tuple(self._order)
 
     @property

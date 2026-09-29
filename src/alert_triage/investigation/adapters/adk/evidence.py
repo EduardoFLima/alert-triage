@@ -66,6 +66,8 @@ class Retrieved:
     def __init__(
         self, link: Links | None = None, service: str = "", env: str | None = None
     ) -> None:
+        # The service comes from the target, not a tool's arguments: each tool
+        # names a service its own way.
         self._evidence: dict[str, EvidenceItem] = {}
         self._retrievals = 0
         self._failures: list[str] = []
@@ -193,7 +195,11 @@ def log_tool_call(
     retrieved: Retrieved | None = None,
     bounds: Bounds | None = None,
 ) -> BeforeTool:
-    """Only declared tools are bounded; ADK framework tools still return schemas."""
+    """Bound only the declared tools, never the framework's own.
+
+    The model answers through a framework tool, so bounding it would leave a
+    specialist that is out of calls no way to report what it found.
+    """
     kept = retrieved if retrieved is not None else Retrieved()
     within = bounds or Bounds()
 
