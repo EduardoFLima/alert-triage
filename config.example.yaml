@@ -14,7 +14,13 @@
 # MANDATORY: at least one of `owner` and `services`. There is no default and
 # no "watch everything" fallback, and a run that resolves neither refuses to
 # start. Set both and they narrow together: the named services of that owner.
+# `env` narrows whichever of them is set and never stands in for them.
 scope:
+  # Optional. The one environment whose alerts are triaged; a second
+  # environment is a second deployment. Changing it on a running deployment
+  # means starting a fresh ledger. Left blank, it is refused rather than read
+  # as "every environment".
+  env: prod
   # Optional once `services` names a service. The team whose alerts are
   # triaged.
   owner: sre

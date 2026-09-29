@@ -29,6 +29,7 @@ Every key here can also be set as an environment variable by mapping its
 
 ```yaml
 scope:                    # mandatory: at least one of owner and services
+  env: prod               # the one environment watched; narrows, never satisfies
   owner: sre              # whose alerts are triaged
   services:               # and/or which services'. Naming any NARROWS the run
     checkout:
@@ -82,6 +83,27 @@ set resulted, in either direction.
 export SCOPE_SERVICES=checkout,payments
 export SCOPE_SERVICES_CHECKOUT_CRITICAL=true
 ```
+
+`scope.env` (`SCOPE_ENV`) names the one environment a run watches, and
+defaults to `prod`. It **narrows** whichever of owner and services resolved and
+**never satisfies scope on its own**, so the default cannot turn an empty scope
+into "watch everything in production". A second environment is a second
+deployment. It is spent as an `env:` term in the event query, told to the
+investigation beside the service, confined to by every address the system
+composes, and named in each report's subject and first sentence. A blank value
+is refused rather than read as "every environment".
+
+Two consequences to know before setting it:
+
+- **A service whose telemetry carries no `env` tag drops out.** Its alerts are
+  no longer fetched, and its metrics come back empty once specialists add the
+  environment to their queries. The tag is assumed to be `env`, which Datadog's
+  unified service tagging reserves.
+- **Changing it on a running deployment means a fresh ledger.** Incidents are
+  keyed by service, not by environment, so an open `checkout` incident recorded
+  under `prod` would absorb `staging` alerts and be investigated as `staging`.
+  Point the changed deployment at a ledger of its own (see
+  [the triage ledger](#the-triage-ledger) below).
 
 Keep `ingestion.lookback_seconds` comfortably wider than the interval the job
 runs on, so a delayed run does not step over alerts — re-delivered alerts are

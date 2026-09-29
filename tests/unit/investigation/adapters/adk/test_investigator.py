@@ -53,11 +53,12 @@ APM = _specialist("apm_specialist", Signal.APM)
 TRACE = _specialist("trace_specialist", Signal.TRACE)
 
 
-def _target() -> InvestigationTarget:
+def _target(env: str | None = None) -> InvestigationTarget:
     return InvestigationTarget(
         service="checkout",
         window=Window(start=NOON, end=NOON + timedelta(minutes=20)),
         alert_count=1,
+        env=env,
     )
 
 
@@ -119,19 +120,33 @@ class _ServicePages:
 
     def __init__(self) -> None:
         self.asked: list[tuple[str, Window, Section | None]] = []
+        self.environments: list[str | None] = []
 
-    def to_retrieval(self, tool: str, args: Any, service: str) -> str | None:
+    def to_retrieval(
+        self, tool: str, args: Any, service: str, env: str | None
+    ) -> str | None:
+        self.environments.append(env)
         return None
 
     def to_item(
-        self, tool: str, payload: Any, within: str | None, service: str
+        self,
+        tool: str,
+        payload: Any,
+        within: str | None,
+        service: str,
+        env: str | None,
     ) -> str | None:
         return None
 
     def to_service(
-        self, service: str, window: Window, section: Section | None
+        self,
+        service: str,
+        window: Window,
+        section: Section | None,
+        env: str | None,
     ) -> str | None:
         self.asked.append((service, window, section))
+        self.environments.append(env)
         anchor = "" if section is None else f"#{section.value}"
         return f"https://platform/service/{service}{anchor}"
 
@@ -146,6 +161,18 @@ def test_each_finding_points_at_the_service_on_the_section_it_named() -> None:
 
     assert pages.asked == [("checkout", _target().window, Section.LOGS)]
     assert "https://platform/service/checkout#logs" in diagnosis.account
+
+
+def test_every_address_is_confined_to_the_environment_the_target_states() -> None:
+    pages = _ServicePages()
+    reported = _cites(["call-1/item-1"]) | {"section": "logs"}
+
+    _investigator(links=pages, reports={"logs_specialist": [reported]}).investigate(
+        _target(env="prod")
+    )
+
+    assert pages.environments
+    assert set(pages.environments) == {"prod"}
 
 
 def test_an_investigation_with_no_platform_addresses_points_nowhere() -> None:

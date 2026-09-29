@@ -107,7 +107,8 @@ above.
 ## Settings
 
 `ALERT_TRIAGE_LIVE_SERVICE` names a service in the account under test,
-defaulting to `checkout`. A quiet service is a valid answer: these confirm the
+defaulting to `checkout`, and `ALERT_TRIAGE_LIVE_ENV` the environment it runs
+in, defaulting to `prod`. A quiet service is a valid answer: these confirm the
 retrieval happened, not that it found anything.
 
 The credentials themselves are the ordinary connection settings, documented in

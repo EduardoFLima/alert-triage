@@ -299,3 +299,48 @@ def test_every_section_has_an_anchor_on_the_service_page(section: Section) -> No
 
 def test_a_findings_service_page_needs_a_service() -> None:
     assert _links().to_service("", WINDOW, Section.LOGS) is None
+
+
+PROD = "prod"
+"""The environment an investigation's target states, where it states one."""
+
+
+def test_a_log_search_is_not_rewritten_to_the_environment() -> None:
+    """It has to open what was retrieved, and that query named no environment."""
+    assert _links().to_retrieval(
+        "search_datadog_logs", SEARCH, CHECKOUT, PROD
+    ) == _links().to_retrieval("search_datadog_logs", SEARCH)
+
+
+def test_a_composed_apm_page_is_scoped_to_the_environment() -> None:
+    address = _links().to_retrieval("get_datadog_metric", METRIC_QUERY, CHECKOUT, PROD)
+
+    assert address == (
+        "https://app.datadoghq.com/apm/entity/service%3Acheckout"
+        f"?env=prod&start={FROM_MS}&end={TO_MS}"
+    )
+
+
+def test_a_composed_trace_explorer_is_scoped_to_the_environment() -> None:
+    address = _links().to_retrieval("search_datadog_spans", SEARCH, CHECKOUT, PROD)
+
+    assert address == (
+        "https://app.datadoghq.com/apm/traces?query=service%3Acheckout+env%3Aprod"
+        f"&start={FROM_MS}&end={TO_MS}"
+    )
+
+
+def test_a_composed_event_explorer_is_scoped_to_the_environment() -> None:
+    address = _links().to_retrieval("search_datadog_events", SEARCH, CHECKOUT, PROD)
+
+    assert address is not None
+    assert "query=service%3Acheckout+env%3Aprod" in address
+
+
+def test_a_findings_service_page_is_scoped_to_the_environment() -> None:
+    address = _links().to_service(CHECKOUT, WINDOW, Section.ERRORS, PROD)
+
+    assert address == (
+        "https://app.datadoghq.com/apm/entity/service%3Acheckout"
+        f"?env=prod&start={FROM_MS}&end={TO_MS}#errors"
+    )

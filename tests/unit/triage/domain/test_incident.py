@@ -80,6 +80,13 @@ def test_an_incident_on_a_service_the_scope_never_named_is_not_critical() -> Non
     assert not _incident(_alert()).investigation_target(Scope(owner="sre")).critical
 
 
+def test_an_investigation_is_told_the_environment_the_run_watches() -> None:
+    """Every alert fetched is from the scope's environment, so it is read there."""
+    scope = Scope(owner="sre", env="staging")
+
+    assert _incident(_alert()).investigation_target(scope).env == "staging"
+
+
 def test_there_is_no_incident_without_the_alerts_that_opened_it() -> None:
     with pytest.raises(ValueError, match="at least one alert"):
         _incident()

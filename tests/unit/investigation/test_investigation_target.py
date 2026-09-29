@@ -98,3 +98,23 @@ def test_a_window_already_wide_enough_is_left_alone() -> None:
     target = InvestigationTarget(service="checkout", window=spanning, alert_count=9)
 
     assert target.window == spanning
+
+
+def test_a_target_states_the_environment_where_the_agents_read_it() -> None:
+    target = InvestigationTarget(
+        service="checkout",
+        window=Window(start=NOON, end=NOON + timedelta(minutes=7)),
+        alert_count=2,
+        env="prod",
+    )
+
+    assert target.env == "prod"
+    assert "Environment: prod" in target.describe()
+
+
+def test_a_target_given_no_environment_says_so_rather_than_saying_nothing() -> None:
+    """A caller that knows nothing of environments still builds a valid target."""
+    target = _target()
+
+    assert target.env is None
+    assert "Environment: none given" in target.describe()

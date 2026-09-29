@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from alert_triage.configuration.settings import Ingestion
+from alert_triage.configuration.settings import Ingestion, Scope
 from alert_triage.triage.adapters.datadog.alert_source import build_alert_source
 from alert_triage.triage.adapters.datadog.connection import (
     API_KEY_VARIABLE,
@@ -28,6 +28,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 OWNER = os.environ.get("SCOPE_OWNER", "sre")
+ENV = os.environ.get("SCOPE_ENV", Scope.DEFAULT_ENV)
 
 LINKS_CHECKED = 3
 """How many of a week's alerts have their address followed.
@@ -40,7 +41,7 @@ quiet minute.
 
 def _source(owner: str | None = OWNER, services: tuple[str, ...] = ()) -> AlertSource:
     return build_alert_source(
-        resolve_connection(), Ingestion(), owner=owner, services=services
+        resolve_connection(), Ingestion(), owner=owner, services=services, env=ENV
     )
 
 

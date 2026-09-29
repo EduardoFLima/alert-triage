@@ -67,16 +67,20 @@ class Incident:
         """This incident stated as something an investigation can be asked about.
 
         The translation lives here because this is where an incident is in
-        hand. What crosses is a service, a window, a volume, and whether the
-        deployment declared that service critical — an investigation has no use
+        hand. What crosses is a service, a window, a volume, whether the
+        deployment declared that service critical, and the environment it
+        watches — an investigation has no use
         for the aggregate behind them, and knowing about it would tie every
         specialist to this project's model.
 
         Args:
             scope: What the run watches, which is what says whether this
-                incident's service was declared critical. Read here rather than
-                by the investigation, so that no specialist consults
-                configuration to learn how urgent its subject is.
+                incident's service was declared critical and which environment
+                it was observed in. Read here rather than by the investigation,
+                so that no specialist consults configuration to learn how urgent
+                its subject is or where to look. The environment comes from the
+                scope rather than from each alert because the fetch asked for
+                no other, so it is constant within a deployment.
 
         Returns:
             The target to investigate.
@@ -86,6 +90,7 @@ class Incident:
             window=self.window,
             alert_count=len(self.alerts),
             critical=scope.for_service(self.service).critical,
+            env=scope.env,
         )
 
     def absorb(self, alerts: Iterable[Alert]) -> "Incident":

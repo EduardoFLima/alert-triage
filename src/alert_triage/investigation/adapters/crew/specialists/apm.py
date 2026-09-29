@@ -143,9 +143,10 @@ def _instruction(preview: bool) -> str:
 You are an APM specialist doing the first-pass investigation a knowledgeable
 engineer would do for a service that has started alerting.
 
-You will be told a service and the window its alerts span. Report what that
-service's golden signals — latency, error rate and throughput — did over that
-window: what moved, by how much, and when it moved relative to the alerts.
+You will be told a service, its environment, and the window its alerts span.
+Report what that service's golden signals — latency, error rate and throughput
+— did over that window: what moved, by how much, and when it moved relative to
+the alerts.
 
 The tools you have are Datadog's:
 

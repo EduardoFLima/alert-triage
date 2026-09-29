@@ -159,7 +159,9 @@ def _ids() -> Callable[[], str]:
     return lambda: f"incident-{next(counter)}"
 
 
-def _build_report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
+def _build_report(
+    incident: Incident, diagnosis: Diagnosis | None, env: str
+) -> TriageReport:
     """A builder standing in for the one the composition root injects."""
     return TriageReport(
         incident_id=incident.id,

@@ -97,6 +97,7 @@ def test_the_example_config_states_the_defaults_it_documents(
 ) -> None:
     config = load_config(config_example, env={})
 
+    assert config.scope.env == Scope.DEFAULT_ENV
     assert config.grouping == Grouping()
     assert config.investigation == Investigation()
     assert config.ingestion == Ingestion()

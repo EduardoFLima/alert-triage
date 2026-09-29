@@ -118,7 +118,7 @@ def _alert(source_id: str, offset: timedelta = timedelta()) -> Alert:
     )
 
 
-def _report(incident: Incident, diagnosis: Diagnosis | None) -> TriageReport:
+def _report(incident: Incident, diagnosis: Diagnosis | None, env: str) -> TriageReport:
     return TriageReport(
         service=incident.service,
         subject=diagnosis.headline if diagnosis else "nothing was found",

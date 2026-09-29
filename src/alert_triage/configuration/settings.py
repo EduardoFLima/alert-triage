@@ -51,8 +51,12 @@ class Scope:
     deployment can still be told what to set. Where both resolved they narrow
     together: the named services *of* that owner.
 
-    Both are plain identifiers in this project's vocabulary. Spending them as
-    query terms an observability platform understands is the alert source
+    The environment narrows whichever of them resolved and never stands in for
+    them: defaulted to production, it would otherwise turn an empty scope into
+    "watch everything in production".
+
+    All three are plain identifiers in this project's vocabulary. Spending them
+    as query terms an observability platform understands is the alert source
     adapter's job, so this stays free of any one platform's naming.
 
     Attributes:
@@ -60,10 +64,15 @@ class Scope:
             ``None`` where the run is bounded by its services alone.
         services: The services whose alerts are in scope, keyed by service
             name. Empty means the owner alone bounds the run.
+        env: The one environment whose alerts are in scope. A second
+            environment is a second deployment.
     """
+
+    DEFAULT_ENV: ClassVar[str] = "prod"
 
     owner: str | None = None
     services: Mapping[str, ServiceScope] = field(default_factory=dict)
+    env: str = DEFAULT_ENV
 
     def for_service(self, service: str) -> ServiceScope:
         """What this scope says about one service, ``NOT_DECLARED`` where nothing.

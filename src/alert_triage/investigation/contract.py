@@ -60,6 +60,7 @@ operator tunes per team.
 
 _CRITICAL = "critical — treat this incident with more urgency"
 _ORDINARY = "not declared critical"
+_NO_ENVIRONMENT = "none given — scope by the service alone"
 
 
 @dataclass(frozen=True)
@@ -83,12 +84,17 @@ class InvestigationTarget:
             for. Carried here rather than looked up: an investigation reads no
             configuration of its own. Defaults to false, so a caller that knows
             nothing of criticality still builds a valid target.
+        env: The environment the incident was observed in, or ``None`` where
+            the caller gave none. ``None`` means "not stated", never a default
+            environment: which one a deployment watches is the caller's
+            configuration, not this context's.
     """
 
     service: str
     window: Window
     alert_count: int
     critical: bool = False
+    env: str | None = None
 
     def __post_init__(self) -> None:
         """Widen a window too narrow for the platform to answer a question about."""
@@ -106,13 +112,15 @@ class InvestigationTarget:
         """State the target to a specialist, in terms any of them can use.
 
         The one description, handed both to the agents deciding what to consult
-        and to the one wording the report, so that criticality reaches the
-        reasoning and the wording from a single place. Stated either way rather
-        than mentioned only when true: a reader who is told nothing cannot tell
-        an ordinary service from one nobody classified.
+        and to the one wording the report, so that criticality and the
+        environment reach the reasoning and the wording from a single place.
+        Each is stated either way rather than mentioned only when known: a
+        reader who is told nothing cannot tell an ordinary service from one
+        nobody classified, nor one environment from all of them.
         """
         return (
             f"Service: {self.service}\n"
+            f"Environment: {self.env or _NO_ENVIRONMENT}\n"
             f"Service criticality: {_CRITICAL if self.critical else _ORDINARY}\n"
             f"Window start: {self.window.start.isoformat()}\n"
             f"Window end: {self.window.end.isoformat()}\n"

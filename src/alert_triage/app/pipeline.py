@@ -35,14 +35,15 @@ from alert_triage.triage.ports.ledger import TriageLedger, TriageLedgerError
 
 _log = logging.getLogger(__name__)
 
-ReportBuilder = Callable[[Incident, Diagnosis | None], TriageReport]
+ReportBuilder = Callable[[Incident, Diagnosis | None, str], TriageReport]
 """How an incident and what was learned about it become the report.
 
 ``None`` means no investigation of the incident ever completed, which is the
-only case the report of last resort is for. Deliberately a callable rather than
-a port: a port earns its keep once report generation can fail in a way a caller
-has to tell apart from the failures it already handles, and the builders this
-run is handed cannot fail at all.
+only case the report of last resort is for. The last argument is the
+environment the run watches, which a report names beside the service.
+Deliberately a callable rather than a port: a port earns its keep once report
+generation can fail in a way a caller has to tell apart from the failures it
+already handles, and the builders this run is handed cannot fail at all.
 """
 
 
@@ -250,6 +251,7 @@ def _handle(
         exhausted=incident.investigation_attempts >= config.investigation.max_attempts,
         notifier=notifier,
         build_report=build_report,
+        env=config.scope.env,
     )
 
     if delivered:
@@ -310,6 +312,7 @@ def _delivered(
     exhausted: bool,
     notifier: Notifier,
     build_report: ReportBuilder,
+    env: str,
 ) -> tuple[bool, RunFailure | None]:
     """Deliver a report worth sending, and say whether a channel took it.
 
@@ -344,7 +347,7 @@ def _delivered(
             )
         )
         return False, None
-    report = build_report(incident, diagnosis)
+    report = build_report(incident, diagnosis, env)
     try:
         notifier.deliver(report)
     except NotifierError as error:

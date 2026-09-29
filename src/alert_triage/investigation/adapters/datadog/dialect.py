@@ -27,7 +27,22 @@ own, because the specialists hold different ones — and one holds none at all
 unless the account has Preview, and is told the principle regardless.
 """
 
-METRIC_QUERY_DIALECT = """
+IN_THE_ENVIRONMENT = """
+Scope every query to the service you were told about and to the environment you
+were told about, with the `env` tag beside the service: the same service runs in
+more than one environment, and evidence drawn from another is not evidence
+about this incident. Where you were told no environment, scope by the service
+alone.
+""".strip()
+"""Where every query is confined, for every specialist asking one.
+
+Told to the model rather than enforced by rewriting its tool arguments: a
+rewrite hides what was actually asked, and a metric carrying no ``env`` tag
+would come back empty for a reason nobody could see. An empty answer is then
+explained by ``AN_EMPTY_ANSWER``, which is where that case already lives.
+"""
+
+_METRIC_QUERY_GRAMMAR = """
 A metric query is an aggregator, a metric name, and a scope in braces:
 `avg:system.cpu.user{service:checkout}`. Use `sum:...{service:checkout}.as_count()`
 for a count, and `p95:` where an average would hide the tail.
@@ -51,8 +66,10 @@ aggregation and the metric. That rejection is about the metric, not about the
 service: try the metric's other aggregations, or another metric, and
 never report the service as healthy on the strength of a query that was
 refused.
-
-Always scope the query to the service you were told about, and ask about the
-window you were given rather than a period of your own choosing.
 """.strip()
+
+METRIC_QUERY_DIALECT = f"""{_METRIC_QUERY_GRAMMAR}
+
+{IN_THE_ENVIRONMENT} Ask about the window you were given rather than a period
+of your own choosing."""
 """What a specialist writing a metric query needs to know, and nothing else."""

@@ -29,13 +29,16 @@ from alert_triage.triage.domain.report import NOT_INVESTIGATED, build_report
 
 NOON = datetime(2026, 8, 15, 12, 0, tzinfo=UTC)
 
+PROD = "prod"
+"""The environment the run that built each report watches."""
+
 
 EVERY_SIGNAL = tuple(Signal)
 
 
 def _uninvestigated(incident: Incident) -> TriageReport:
     """The report an incident gets when no investigation ever completed."""
-    return build_report(incident, None)
+    return build_report(incident, None, PROD)
 
 
 def _finding(observation: str = "OOMKilled recurs every 40s") -> Finding:
@@ -85,7 +88,7 @@ def _investigated(
     incident: Incident, diagnosis: Diagnosis | None = None
 ) -> TriageReport:
     """The report an incident gets when one did."""
-    return build_report(incident, diagnosis or _diagnosis())
+    return build_report(incident, diagnosis or _diagnosis(), PROD)
 
 
 def _incident(incident_id: str = "incident-1", service: str = "checkout") -> Incident:
@@ -249,8 +252,8 @@ def test_the_report_for_an_incident_is_chosen_by_whether_one_completed() -> None
     """Why an investigation failed is the run's business; a report only knows if."""
     incident = _incident()
 
-    assert build_report(incident, None) == _uninvestigated(incident)
-    assert build_report(incident, _diagnosis()) == _investigated(incident)
+    assert build_report(incident, None, PROD) == _uninvestigated(incident)
+    assert build_report(incident, _diagnosis(), PROD) == _investigated(incident)
 
 
 def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
@@ -263,7 +266,10 @@ def test_no_investigation_is_not_the_same_as_one_that_found_nothing() -> None:
         confidence=None,
     )
 
-    assert build_report(incident, None).body != build_report(incident, clean).body
+    assert (
+        build_report(incident, None, PROD).body
+        != build_report(incident, clean, PROD).body
+    )
 
 
 def test_the_last_resort_report_carries_no_hypothesis_and_no_confidence() -> None:
@@ -291,3 +297,37 @@ def test_triage_does_not_read_the_investigations_vocabulary_to_build_a_body() ->
     assert "EvidenceItem" not in source
     assert "Finding" not in source
     assert "Signal" not in source
+
+
+def test_a_pass_through_report_names_the_environment_after_its_prefix() -> None:
+    report = _uninvestigated(_incident())
+
+    assert report.subject.startswith("[alert-triage] [prod] checkout")
+
+
+def test_an_investigated_report_names_the_environment_after_its_prefix() -> None:
+    """The headline is the agent's; the environment is written by the system."""
+    report = _investigated(_incident())
+
+    assert report.subject == "[alert-triage] [prod] checkout is out of memory"
+
+
+def test_a_pass_through_reports_first_sentence_names_the_environment() -> None:
+    first_sentence = _uninvestigated(_incident()).body.splitlines()[0]
+
+    assert "service checkout in prod" in first_sentence
+
+
+def test_an_investigated_reports_first_sentence_names_the_environment() -> None:
+    first_sentence = _investigated(_incident()).body.splitlines()[0]
+
+    assert "service checkout in prod" in first_sentence
+
+
+def test_two_deployments_reports_on_one_service_differ_by_subject_alone() -> None:
+    incident = _incident()
+
+    assert (
+        build_report(incident, None, "prod").subject
+        != build_report(incident, None, "staging").subject
+    )

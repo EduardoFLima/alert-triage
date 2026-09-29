@@ -63,6 +63,7 @@ def _source_pointed_at_nowhere() -> DatadogAlertSource:
         events=EventsApi(ApiClient(configuration)),
         owner=OWNER,
         web_host="app.datadoghq.com",
+        env="prod",
     )
 
 

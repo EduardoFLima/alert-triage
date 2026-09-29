@@ -134,7 +134,7 @@ class AdkInvestigator:
                 stopped it before it had found anything.
         """
         bounds = Bounds(self._breakers)
-        retrieved = Retrieved(link=self._links, service=target.service)
+        retrieved = Retrieved(link=self._links, service=target.service, env=target.env)
         consulted = Consulted(offered=self._crew, retrieved=retrieved, bounds=bounds)
         concluded = self._concluded(target, consulted, retrieved)
         if retrieved.failures and not retrieved.retrievals:
@@ -227,7 +227,7 @@ class AdkInvestigator:
         if links is None:
             return None
         return lambda finding: links.to_service(
-            target.service, target.window, finding.section
+            target.service, target.window, finding.section, target.env
         )
 
     def _words(

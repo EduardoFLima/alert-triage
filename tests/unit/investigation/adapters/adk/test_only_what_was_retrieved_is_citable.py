@@ -147,20 +147,34 @@ class _Links:
 
     def __init__(self) -> None:
         self.asked_for: list[str] = []
+        self.environments: list[str | None] = []
 
-    def to_retrieval(self, tool: str, args: Any, service: str = "") -> str | None:
+    def to_retrieval(
+        self, tool: str, args: Any, service: str = "", env: str | None = None
+    ) -> str | None:
         self.asked_for.append(tool)
+        self.environments.append(env)
         return f"https://platform/search?query={args.get('query', '')}"
 
     def to_item(
-        self, tool: str, payload: Any, within: str | None, service: str = ""
+        self,
+        tool: str,
+        payload: Any,
+        within: str | None,
+        service: str = "",
+        env: str | None = None,
     ) -> str | None:
         self.asked_for.append(tool)
+        self.environments.append(env)
         item = payload.get("id") if isinstance(payload, dict) else None
         return f"https://platform/logs?event={item}" if item else within
 
     def to_service(
-        self, service: str, window: Window, section: Section | None
+        self,
+        service: str,
+        window: Window,
+        section: Section | None,
+        env: str | None = None,
     ) -> str | None:
         return None
 
@@ -175,13 +189,29 @@ def test_the_linker_is_told_which_tool_each_address_is_for() -> None:
     assert links.asked_for == ["get_metric", "get_metric"]
 
 
+def test_the_linker_is_told_the_environment_under_investigation() -> None:
+    links = _Links()
+    retrieved = Retrieved(link=links, service="checkout", env="prod")
+
+    retrieved.retain_evidence("get_metric", _identified("series-a"))
+
+    assert links.environments == ["prod", "prod"]
+
+
 def test_a_retrieval_from_a_tool_the_linker_cannot_place_carries_no_address() -> None:
     class _Unplaced(_Links):
-        def to_retrieval(self, tool: str, args: Any, service: str = "") -> str | None:
+        def to_retrieval(
+            self, tool: str, args: Any, service: str = "", env: str | None = None
+        ) -> str | None:
             return None
 
         def to_item(
-            self, tool: str, payload: Any, within: str | None, service: str = ""
+            self,
+            tool: str,
+            payload: Any,
+            within: str | None,
+            service: str = "",
+            env: str | None = None,
         ) -> str | None:
             return None
 
