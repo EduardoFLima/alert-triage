@@ -918,6 +918,15 @@ harness.
 Live runs fail intermittently, and the causes sit in how we talk to Datadog's
 MCP server rather than in the design:
 
+- **The structure.** Re-evaluate if is still worth to divide Datadog's MCP 
+  tools in different specialists. It brings complexity, specially when trying
+  to make sure the specialists are just searching things on their own scope -
+  they see there are other tools available and keep trying to use. Not to
+  mention the dialect, trying to make the model to do the right requests -
+  maybe just giving the model the whole MCP Server capabilities would work 
+  better. The idea would be to consider e.g. a single Performance Specialist,
+  having all MCP Server tools so it can do the trick. Then another Data
+  Specialists, which could have access to database, and so on.º
 - **The query dialect.** A specialist writes queries in Datadog's own syntax,
   and the server rejects some of what the model writes. Datadog publishes a
   guide to each of its query grammars, and the guides are now read once as a
